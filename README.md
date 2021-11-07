@@ -4,15 +4,42 @@
 # Moruga
 High Performance Data Compression
 
-### Simplified software architecture 
+### Why the name Moruga?
+
+The name Moruga comes from the Spanish pepper [Moruga](https://en.wikipedia.org/wiki/Trinidad_Moruga_scorpion).
+
+I chose this name because I had two goals in mind while making it.
+* The algorithm should be as fast as possible.
+* The memory usage of the algorithm should be minimal.
+
+During the creation of the implementation, it was always assumed that the memory usage (option -6) should be less than 2 GiB with an acceptable speed (about 180 seconds or so for enwik8).
+
+And another premise was that this data compressor is not written for a specific data format or file (such as enwik8 or 9).
+The benchmarks of Moruga does not rely on external preprocessor applications or dictionaries.
+
+It must be a data compressor suitable for any data type, be it text or binary.
+
+Adding it all up and compare it to the top of [LTCB](http://mattmahoney.net/dc/text.html), then this implementation and performance is definitely a hot pepper...
+
+### Acknowledgements
+
+Moruga has taken advantage of ideas in the [data compression community](https://encode.su/).
+
+Here are some of the major contributors:
+
+* Matt Mahoney
+* Alex Rhatushnyak
+
+
+
+### Simplified architecture of Moruga
 
 <img src="Design.svg" />
 
-## How to build
-### Moruga is build and tested on [MSYS2](https://www.msys2.org/) and [Ubuntu LTS 20](https://ubuntu.com/)
-Moruga does also build using [cygwin](https://www.cygwin.com/), but is not recommended due to the DLL hell of cygwin.
+## How to build Moruga?
+### Moruga was build and tested on [MSYS2](https://www.msys2.org/) and [Ubuntu LTS 20](https://ubuntu.com/)
+Moruga does also build using [cygwin](https://www.cygwin.com/), but is not recommended due to the DLL hell of cygwin. Currently Moruga does not build with VS, due to C++ compiler incompatibility (no C++20 support) and lack of 128-bit support.
 
-Currently Moruga does not build with VS, due to C++ compiler incompatibility (no C++20 support) and lack of 128-bit support.
 
 For building a release version of Moruga (using [GCC](https://gcc.gnu.org/)).
 
@@ -210,13 +237,3 @@ xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
 | silesia/webster | 41458703 | 8358852 | 20%
 | silesia/x-ray | 8474240 | 4508396 | 53%
 | silesia/xml | 5345280 | 433876 | 8%
-
-
-## Acknowledgements
-
-Moruga has taken advantage of ideas in the [data compression community](https://encode.su/).
-
-Here are some of the major contributors:
-
-* Matt Mahoney
-* Alex Rhatushnyak
