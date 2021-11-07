@@ -1,4 +1,4 @@
-<img src="src/Moruga.png" style="width:200px" unselectable="on"/>
+<img src="src/Moruga.png" style="width:200px" draggable="false" unselectable="on"/>
 
 
 # Moruga
