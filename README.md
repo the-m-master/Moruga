@@ -4,7 +4,15 @@
 # Moruga
 High Performance Data Compression
 
+### Simplified software architecture 
+
 <img src="Design.svg" />
+
+## How to build
+### Moruga is build and tested on [MSYS2](https://www.msys2.org/) and [Ubuntu LTS 20](https://ubuntu.com/)
+Moruga does also build using [cygwin](https://www.cygwin.com/), but is not recommended due to the DLL hell of cygwin.
+
+Currently Moruga does not build with VS, due to C++ compiler incompatibility (no C++20 support) and lack of 128-bit support.
 
 For building a release version of Moruga (using GCC)
 
@@ -18,14 +26,14 @@ To clean-up the build version
 make clean
 ```
 
-For building a guided release version of Moruga (using GCC).
-This guided release needes 'enwik8'
+For building a guided release version of Moruga (using [GCC](https://gcc.gnu.org/)).
+This guided release needes '[enwik8](https://cs.fit.edu/~mmahoney/compression/textdata.html)' as input file.
 
 ```bash
 make guided
 ```
 
-For building a debug version of Moruga (using GCC)
+For building a debug version of Moruga (using [GCC](https://gcc.gnu.org/)).
 
 ```bash
 make MODE=debug
@@ -37,19 +45,20 @@ To clean-up the build version
 make MODE=debug clean
 ```
 
-For building a release version of Moruga using LLVM
+For building a release version of Moruga (using [LLVM](https://llvm.org/)).
 
 ```bash
 make TOOLCHAIN=clang
 ```
 
-For building a debug version of Moruga using LLVM
+For building a debug version of Moruga (using [LLVM](https://llvm.org/)).
 
 ```bash
 make MODE=debug TOOLCHAIN=clang
 ```
 
 
+## Moruga benchmarks
 
 ```bash
 Moruga c <option> <infile> <outfile>
@@ -79,6 +88,8 @@ Moruga c <option> <infile> <outfile>
 | enwik9 | 1000000000 | 136281285 | 13% | -9 | 13383 MiB | 2123.4 s | 2123 ns/sec |
 
 
+### Benchmarks compared with BZIP2
+
 ```bash
 bzip2 --best <infile>
 ```
@@ -88,6 +99,8 @@ bzip2 --best <infile>
 | enwik8 | 100000000 | 29008758 | 29%
 | enwik9 | 1000000000 | 253977891 | 25%
 
+
+### Benchmarks compared with GZIP
 
 ```bash
 gzip --best <infile>
@@ -99,6 +112,8 @@ gzip --best <infile>
 | enwik9 | 1000000000 | 322591995 | 32%
 
 
+### Benchmarks compared with XZ
+
 ```bash
 xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
 ```
@@ -107,6 +122,9 @@ xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
 |:-----|:--------:|:----------:|:-----:|
 | enwik8 | 100000000 | 24703772 | 24%
 | enwik9 | 1000000000 | 197331816 | 19%
+
+
+## Moruga silesia benchmarks
 
 ```bash
 Moruga c <option> <infile> <outfile>
@@ -128,6 +146,8 @@ Moruga c <option> <infile> <outfile>
 | silesia/xml | 5345280 | 307182 | 5% | -6 | 1841 MiB | 9.0 s | 1681 ns/sec |
 
 
+### Benchmarks compared with BZIP2
+
 ```bash
 bzip2 --best <infile>
 ```
@@ -147,6 +167,8 @@ bzip2 --best <infile>
 | silesia/x-ray | 8474240 | 4051112 | 47%
 | silesia/xml | 5345280 | 441186 | 8%
 
+
+### Benchmarks compared with GZIP
 
 ```bash
 gzip --best <infile>
@@ -168,6 +190,8 @@ gzip --best <infile>
 | silesia/xml | 5345280 | 662284 | 12%
 
 
+### Benchmarks compared with XZ
+
 ```bash
 xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
 ```
@@ -186,3 +210,13 @@ xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
 | silesia/webster | 41458703 | 8358852 | 20%
 | silesia/x-ray | 8474240 | 4508396 | 53%
 | silesia/xml | 5345280 | 433876 | 8%
+
+
+## Acknowledgements
+
+Moruga has taken advantage of ideas in the [data compression community](https://encode.su/).
+
+Here are some of the major contributors:
+
+* Matt Mahoney
+* Alex Rhatushnyak
