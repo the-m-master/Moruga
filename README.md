@@ -115,7 +115,7 @@ Moruga c <option> <infile> <outfile>
 | enwik9 | 1000000000 | 136281285 | 13% | -9 | 13383 MiB | 2123.4 s | 2123 ns/sec |
 
 
-### Benchmarks compared with BZIP2
+### Benchmarks compared to BZIP2
 
 ```bash
 bzip2 --best <infile>
@@ -127,7 +127,7 @@ bzip2 --best <infile>
 | enwik9 | 1000000000 | 253977891 | 25%
 
 
-### Benchmarks compared with GZIP
+### Benchmarks compared to GZIP
 
 ```bash
 gzip --best <infile>
@@ -139,7 +139,7 @@ gzip --best <infile>
 | enwik9 | 1000000000 | 322591995 | 32%
 
 
-### Benchmarks compared with XZ
+### Benchmarks compared to XZ
 
 ```bash
 xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
@@ -173,7 +173,7 @@ Moruga c <option> <infile> <outfile>
 | silesia/xml | 5345280 | 307182 | 5% | -6 | 1841 MiB | 9.0 s | 1681 ns/sec |
 
 
-### Benchmarks compared with BZIP2
+### Benchmarks compared to BZIP2
 
 ```bash
 bzip2 --best <infile>
@@ -195,7 +195,7 @@ bzip2 --best <infile>
 | silesia/xml | 5345280 | 441186 | 8%
 
 
-### Benchmarks compared with GZIP
+### Benchmarks compared to GZIP
 
 ```bash
 gzip --best <infile>
@@ -217,7 +217,7 @@ gzip --best <infile>
 | silesia/xml | 5345280 | 662284 | 12%
 
 
-### Benchmarks compared with XZ
+### Benchmarks compared to XZ
 
 ```bash
 xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
