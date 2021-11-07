@@ -14,7 +14,7 @@ Moruga does also build using [cygwin](https://www.cygwin.com/), but is not recom
 
 Currently Moruga does not build with VS, due to C++ compiler incompatibility (no C++20 support) and lack of 128-bit support.
 
-For building a release version of Moruga (using GCC)
+For building a release version of Moruga (using [GCC](https://gcc.gnu.org/)).
 
 ```bash
 make
