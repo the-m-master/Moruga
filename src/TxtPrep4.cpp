@@ -493,8 +493,7 @@ private:
   }
 
   void EncodeCodeWord(size_t bytes) noexcept {
-    uint8_t tmp;
-    tmp = uint8_t(bytes >> 24);
+    uint8_t tmp{uint8_t(bytes >> 24)};
     if (0 != tmp) {
       Putc(tmp);
     }

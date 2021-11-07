@@ -23,10 +23,13 @@
 #include <cinttypes>
 
 #if defined(__SIZEOF_INT128__)
-
 typedef __int128 int128_t;
 typedef unsigned __int128 uint128_t;
+#else
+// TODO do something for VS
+#endif  // __SIZEOF_INT128__
 
+// clang-format off
 namespace integer_xxl {
   constexpr auto hexval(char c) noexcept -> uint8_t {
     return (c >= 'a') ? uint8_t(10 + c - 'a') : (c >= 'A') ? uint8_t(10 + c - 'A') : uint8_t(c - '0');
@@ -99,6 +102,6 @@ static_assert(0x80000000000000000000000000000000_xxl >> 126 == 0b10, "IntegerXXL
 static_assert(0x80000000000000000000000000000000_xxl >> 127 == 0b01, "IntegerXXL error");
 static_assert(0xF000000000000000B000000000000000_xxl > 0xB000000000000000, "IntegerXXL error");
 
-#endif  // __SIZEOF_INT128__
+// clang-format on
 
 #endif  // _INTEGER_XXL_HDR_

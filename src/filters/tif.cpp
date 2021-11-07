@@ -369,7 +369,7 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
           ((1 == cmp) || (5 == cmp)) &&          //
           (2 == rgb) &&                          //
           ((3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
-        _di.lzw_encoded = 5 == cmp;
+//        _di.lzw_encoded = 5 == cmp;
         _di.filter_end = int32_t(width * height * _di.bytes_per_pixel);
         ots -= int32_t(offset);
         _di.offset_to_start = (ots < 0) ? 0 : ots;
@@ -430,7 +430,7 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
           ((1 == cmp) || (5 == cmp)) &&          //
           (2 == rgb) &&                          //
           ((3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
-        _di.lzw_encoded = 5 == cmp;
+//        _di.lzw_encoded = 5 == cmp;
         _di.filter_end = int32_t(width * height * _di.bytes_per_pixel);
         ots -= int32_t(offset);
         _di.offset_to_start = (ots < 0) ? 0 : ots;

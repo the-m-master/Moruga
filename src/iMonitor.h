@@ -25,11 +25,6 @@ class iMonitor_t {
 public:
   virtual ~iMonitor_t() noexcept;
 
-//  iMonitor(const iMonitor&) = delete;
-//  iMonitor(iMonitor&&) = delete;
-//  auto operator=(const iMonitor&) -> iMonitor& = delete;
-//  auto operator=(iMonitor&&) -> iMonitor& = delete;
-
   [[nodiscard]] virtual int64_t inputLength() const noexcept = 0;
   [[nodiscard]] virtual int64_t outputLength() const noexcept = 0;
   [[nodiscard]] virtual int64_t workLength() const noexcept = 0;
