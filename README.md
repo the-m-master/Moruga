@@ -4,6 +4,7 @@
 # Moruga
 High Performance Data Compression
 
+<img src="Design.svg" />
 
 For building a release version of Moruga (using GCC)
 
