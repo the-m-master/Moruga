@@ -1,10 +1,58 @@
-<img src="src/Moruga.png" style="width:200px" draggable="false" unselectable="on"/>
+<img src="src/Moruga.png" style="width:200px" />
 
 
 # Moruga
 High Performance Data Compression
 
-Using: **Moruga &lt;option&gt; c &lt;infile&gt; &lt;outfile&gt;**
+
+For building a release version of Moruga (using GCC)
+
+```bash
+make
+```
+
+To clean-up the build version
+
+```bash
+make clean
+```
+
+For building a guided release version of Moruga (using GCC).
+This guided release needes 'enwik8'
+
+```bash
+make guided
+```
+
+For building a debug version of Moruga (using GCC)
+
+```bash
+make MODE=debug
+```
+
+To clean-up the build version
+
+```bash
+make MODE=debug clean
+```
+
+For building a release version of Moruga using LLVM
+
+```bash
+make TOOLCHAIN=clang
+```
+
+For building a debug version of Moruga using LLVM
+
+```bash
+make MODE=debug TOOLCHAIN=clang
+```
+
+
+
+```bash
+Moruga c <option> <infile> <outfile>
+```
 
 | File | Original | Compressed | Ratio | Option | Memory used | Time used | Speed |
 |:-----|:--------:|:----------:|:-----:|:------:|:-----------:|:---------:|:-----:|
@@ -30,7 +78,9 @@ Using: **Moruga &lt;option&gt; c &lt;infile&gt; &lt;outfile&gt;**
 | enwik9 | 1000000000 | 136281285 | 13% | -9 | 13383 MiB | 2123.4 s | 2123 ns/sec |
 
 
-Using: **bzip2 --best &lt;infile&gt;**
+```bash
+bzip2 --best <infile>
+```
 
 | File | Original | Compressed | Ratio |
 |:-----|:--------:|:----------:|:-----:|
@@ -38,7 +88,9 @@ Using: **bzip2 --best &lt;infile&gt;**
 | enwik9 | 1000000000 | 253977891 | 25%
 
 
-Using: **gzip --best &lt;infile&gt;**
+```bash
+gzip --best <infile>
+```
 
 | File | Original | Compressed | Ratio |
 |:-----|:--------:|:----------:|:-----:|
@@ -46,14 +98,18 @@ Using: **gzip --best &lt;infile&gt;**
 | enwik9 | 1000000000 | 322591995 | 32%
 
 
-Using: **xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 &lt;infile&gt;**
+```bash
+xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
+```
 
 | File | Original | Compressed | Ratio |
 |:-----|:--------:|:----------:|:-----:|
 | enwik8 | 100000000 | 24703772 | 24%
 | enwik9 | 1000000000 | 197331816 | 19%
 
-Using: **Moruga &lt;option&gt; c &lt;infile&gt; &lt;outfile&gt;**
+```bash
+Moruga c <option> <infile> <outfile>
+```
 
 | File | Original | Compressed | Ratio | Option | Memory used | Time used | Speed |
 |:-----|:--------:|:----------:|:-----:|:------:|:-----------:|:---------:|:-----:|
@@ -71,7 +127,9 @@ Using: **Moruga &lt;option&gt; c &lt;infile&gt; &lt;outfile&gt;**
 | silesia/xml | 5345280 | 307182 | 5% | -6 | 1841 MiB | 9.0 s | 1681 ns/sec |
 
 
-Using: **bzip2 --best &lt;infile&gt;**
+```bash
+bzip2 --best <infile>
+```
 
 | File | Original | Compressed | Ratio |
 |:-----|:--------:|:----------:|:-----:|
@@ -89,7 +147,9 @@ Using: **bzip2 --best &lt;infile&gt;**
 | silesia/xml | 5345280 | 441186 | 8%
 
 
-Using: **gzip --best &lt;infile&gt;**
+```bash
+gzip --best <infile>
+```
 
 | File | Original | Compressed | Ratio |
 |:-----|:--------:|:----------:|:-----:|
@@ -107,7 +167,9 @@ Using: **gzip --best &lt;infile&gt;**
 | silesia/xml | 5345280 | 662284 | 12%
 
 
-Using: **xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 &lt;infile&gt;**
+```bash
+xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
+```
 
 | File | Original | Compressed | Ratio |
 |:-----|:--------:|:----------:|:-----:|
