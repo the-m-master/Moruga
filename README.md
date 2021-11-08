@@ -25,13 +25,14 @@ Adding it all up and compare it to the top of [LTCB](http://mattmahoney.net/dc/t
 
 ### Acknowledgements
 
+Moruga uses the [hashtable](https://probablydance.com/2017/02/26/i-wrote-the-fastest-hashtable/) made by [Malte Skarupke](https://github.com/skarupke/flat_hash_map).
+
 Moruga has taken advantage of ideas in the [data compression community](https://encode.su/).
 
 Here are some of the major contributors:
 
 * Matt Mahoney
 * Alex Rhatushnyak
-
 
 
 ### Simplified architecture of Moruga
