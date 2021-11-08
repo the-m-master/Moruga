@@ -1,4 +1,6 @@
-<img src="src/Moruga.png" style="width:200px" />
+<a href="#">
+  <img src="src/Moruga.png" style="width:200px" />
+</a>
 
 
 # Moruga
@@ -34,7 +36,9 @@ Here are some of the major contributors:
 
 ### Simplified architecture of Moruga
 
-<img src="Design.svg" />
+<a href="#">
+  <img src="Design.svg" />
+</a>
 
 ## How to build Moruga?
 ### Moruga was build and tested on [MSYS2](https://www.msys2.org/) and [Ubuntu LTS 20](https://ubuntu.com/)
