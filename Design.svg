@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events"
-		xmlns:v="http://schemas.microsoft.com/visio/2003/SVGExtensions/" width="11.1366in" height="5.28586in"
-		viewBox="0 0 801.834 380.582" xml:space="preserve" color-interpolation-filters="sRGB" class="st11">
+		xmlns:v="http://schemas.microsoft.com/visio/2003/SVGExtensions/" width="11.3698in" height="5.28586in"
+		viewBox="0 0 818.624 380.582" xml:space="preserve" color-interpolation-filters="sRGB" class="st14">
 	<v:documentProperties v:langID="2057" v:viewMarkup="false">
 		<v:userDefs>
 			<v:ud v:nameU="msvNoAutoConnect" v:val="VT0(0):26"/>
@@ -11,7 +11,7 @@
 
 	<style type="text/css">
 	<![CDATA[
-		.st1 {marker-end:url(#mrkr13-6);stroke:#000000;stroke-linecap:round;stroke-linejoin:round;stroke-width:0.48}
+		.st1 {marker-end:url(#mrkr5-6);stroke:#000000;stroke-linecap:round;stroke-linejoin:round;stroke-width:0.48}
 		.st2 {fill:#000000;fill-opacity:1;stroke:#000000;stroke-opacity:1;stroke-width:0.16}
 		.st3 {fill:#ffffff;stroke:#000000;stroke-linecap:round;stroke-linejoin:round;stroke-width:0.48}
 		.st4 {fill:#000000;font-family:Calibri;font-size:0.833336em}
@@ -21,17 +21,28 @@
 		.st8 {fill:none;stroke:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:0.75}
 		.st9 {fill:#000000;font-family:Calibri;font-size:0.666664em}
 		.st10 {font-size:1em}
-		.st11 {fill:none;fill-rule:evenodd;font-size:12px;overflow:visible;stroke-linecap:square;stroke-miterlimit:3}
+		.st11 {marker-end:url(#mrkr5-6);stroke:#000000;stroke-dasharray:3.36,2.4;stroke-linecap:round;stroke-linejoin:round;stroke-width:0.48}
+		.st12 {fill:#000000;marker-end:url(#mrkr5-183);marker-start:url(#mrkr5-181);stroke:#000000;stroke-linecap:round;stroke-linejoin:round;stroke-width:0.75}
+		.st13 {fill:#000000;fill-opacity:1;stroke:#000000;stroke-opacity:1;stroke-width:0.22935779816514}
+		.st14 {fill:none;fill-rule:evenodd;font-size:12px;overflow:visible;stroke-linecap:square;stroke-miterlimit:3}
 	]]>
 	</style>
 
 	<defs id="Markers">
-		<g id="lend13">
-			<path d="M 3 1 L 0 0 L 3 -1 L 3 1 " style="stroke:none"/>
+		<g id="lend5">
+			<path d="M 2 1 L 0 0 L 1.98117 -0.993387 C 1.67173 -0.364515 1.67301 0.372641 1.98465 1.00043 " style="stroke:none"/>
 		</g>
-		<marker id="mrkr13-6" class="st2" v:arrowType="13" v:arrowSize="2" v:setback="18.75" refX="-18.75" orient="auto"
+		<marker id="mrkr5-6" class="st2" v:arrowType="5" v:arrowSize="2" v:setback="10.9375" refX="-10.9375" orient="auto"
 				markerUnits="strokeWidth" overflow="visible">
-			<use xlink:href="#lend13" transform="scale(-6.25,-6.25) "/>
+			<use xlink:href="#lend5" transform="scale(-6.25,-6.25) "/>
+		</marker>
+		<marker id="mrkr5-181" class="st13" v:arrowType="5" v:arrowSize="2" v:setback="7.63" refX="7.63" orient="auto"
+				markerUnits="strokeWidth" overflow="visible">
+			<use xlink:href="#lend5" transform="scale(4.36) "/>
+		</marker>
+		<marker id="mrkr5-183" class="st13" v:arrowType="5" v:arrowSize="2" v:setback="7.63" refX="-7.63" orient="auto"
+				markerUnits="strokeWidth" overflow="visible">
+			<use xlink:href="#lend5" transform="scale(-4.36,-4.36) "/>
 		</marker>
 	</defs>
 	<g v:mID="0" v:index="1" v:groupContext="foregroundPage">
@@ -44,7 +55,7 @@
 				v:shadowOffsetY="-8.50394" v:shadowType="1"/>
 		<v:layer v:name="Connector" v:index="0"/>
 		<v:layer v:name="Flowchart" v:index="1"/>
-		<g id="shape92-1" v:mID="92" v:groupContext="shape" transform="translate(82.0195,-333.996)">
+		<g id="shape92-1" v:mID="92" v:groupContext="shape" transform="translate(132.626,-333.996)">
 			<title>Data Flow.92</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -55,9 +66,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(1000):26"/>
 			</v:userDefs>
-			<path d="M7.09 380.58 L7.09 399.93" class="st1"/>
+			<path d="M-7.09 380.58 L-7.09 403.68" class="st1"/>
 		</g>
-		<g id="shape93-7" v:mID="93" v:groupContext="shape" transform="translate(18.24,-333.996)">
+		<g id="shape93-7" v:mID="93" v:groupContext="shape" transform="translate(54.6732,-333.996)">
 			<title>Interface.12</title>
 			<desc>Input</desc>
 			<v:userDefs>
@@ -73,7 +84,7 @@
 			<v:textRect cx="70.8661" cy="366.409" width="141.74" height="28.3465"/>
 			<rect x="0" y="352.236" width="141.732" height="28.3465" class="st3"/>
 			<text x="60.05" y="369.41" class="st4" v:langID="2057"><v:paragraph v:horizAlign="1"/><v:tabList/>Input</text>		</g>
-		<g id="shape94-10" v:mID="94" v:groupContext="shape" transform="translate(18.24,-277.303)">
+		<g id="shape94-10" v:mID="94" v:groupContext="shape" transform="translate(54.6732,-277.303)">
 			<title>Interface.94</title>
 			<desc>Case space encoding (remove capital letters)</desc>
 			<v:userDefs>
@@ -90,7 +101,7 @@
 			<rect x="0" y="352.236" width="141.732" height="28.3465" class="st3"/>
 			<text x="28.9" y="363.41" class="st4" v:langID="2057"><v:paragraph v:horizAlign="1"/><v:tabList/>Case space encoding<v:newlineChar/><tspan
 						x="32.81" dy="1.5em" class="st5" v:langID="1033">(remove capital letters)</tspan></text>		</g>
-		<g id="shape95-14" v:mID="95" v:groupContext="shape" transform="translate(18.24,-220.61)">
+		<g id="shape95-14" v:mID="95" v:groupContext="shape" transform="translate(54.6732,-220.61)">
 			<title>Interface.95</title>
 			<desc>Text preparation (reduction by dynamic text library)</desc>
 			<v:userDefs>
@@ -107,7 +118,7 @@
 			<rect x="0" y="352.236" width="141.732" height="28.3465" class="st3"/>
 			<text x="36.87" y="363.41" class="st4" v:langID="2057"><v:paragraph v:horizAlign="1"/><v:tabList/>Text preparation<v:newlineChar/><tspan
 						x="14.57" dy="1.5em" class="st5" v:langID="1033">(reduction by dynamic text library)</tspan></text>		</g>
-		<g id="shape96-18" v:mID="96" v:groupContext="shape" transform="translate(82.0195,-277.303)">
+		<g id="shape96-18" v:mID="96" v:groupContext="shape" transform="translate(118.453,-277.303)">
 			<title>Data Flow.96</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -118,9 +129,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(5000):26"/>
 			</v:userDefs>
-			<path d="M7.09 380.58 L7.09 399.93" class="st1"/>
+			<path d="M7.09 380.58 L7.09 403.68" class="st1"/>
 		</g>
-		<g id="group103-23" transform="translate(188.319,-277.303)" v:mID="103" v:groupContext="group">
+		<g id="group103-23" transform="translate(224.752,-277.303)" v:mID="103" v:groupContext="group">
 			<v:userDefs>
 				<v:ud v:nameU="visNavOrder" v:val="VT0(10000):26"/>
 			</v:userDefs>
@@ -153,7 +164,7 @@
 				</g>
 			</g>
 		</g>
-		<g id="shape116-36" v:mID="116" v:groupContext="shape" transform="translate(159.972,-348.169)">
+		<g id="shape116-36" v:mID="116" v:groupContext="shape" transform="translate(196.406,-348.169)">
 			<title>Data Flow.116</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -164,9 +175,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(11000):26"/>
 			</v:userDefs>
-			<path d="M0 380.58 L42.69 380.58 L42.69 414.1" class="st1"/>
+			<path d="M0 380.58 L42.69 380.58 L42.69 417.85" class="st1"/>
 		</g>
-		<g id="shape117-41" v:mID="117" v:groupContext="shape" transform="translate(159.972,-234.783)">
+		<g id="shape117-41" v:mID="117" v:groupContext="shape" transform="translate(196.406,-234.783)">
 			<title>Data Flow.117</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -177,9 +188,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(12000):26"/>
 			</v:userDefs>
-			<path d="M0 380.58 L42.69 380.58 L42.69 347.06" class="st1"/>
+			<path d="M0 380.58 L42.69 380.58 L42.69 343.31" class="st1"/>
 		</g>
-		<g id="shape118-46" v:mID="118" v:groupContext="shape" transform="translate(591.578,105.139) rotate(90)">
+		<g id="shape118-46" v:mID="118" v:groupContext="shape" transform="translate(628.011,105.139) rotate(90)">
 			<title>Sheet.118</title>
 			<desc>Does preparation yield a reduction of 25% or better? If not, ...</desc>
 			<v:userDefs>
@@ -191,7 +202,7 @@
 			<text x="4" y="356.37" class="st9" v:langID="2057"><v:paragraph/><v:tabList/>Does preparation yield a reduction of 25% or better?<v:newlineChar/><tspan
 						x="4" dy="1.2em" class="st10">If not, switch back to the original input stream and enable the binary filters.<v:newlineChar/></tspan><tspan
 						x="4" dy="1.2em" class="st10">If so, use the text preparation stream and disable the binary filters.</tspan></text>		</g>
-		<g id="shape121-51" v:mID="121" v:groupContext="shape" transform="translate(273.358,-333.996)">
+		<g id="shape121-51" v:mID="121" v:groupContext="shape" transform="translate(309.791,-333.996)">
 			<title>Interface.121</title>
 			<desc>Context Models 1..5 (bases on lpaq9m)</desc>
 			<v:userDefs>
@@ -204,11 +215,11 @@
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(14000):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
-			<v:textRect cx="70.8661" cy="366.409" width="141.74" height="28.3465"/>
-			<rect x="0" y="352.236" width="141.732" height="28.3465" class="st3"/>
-			<text x="29.95" y="363.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Context Models 1..5<v:newlineChar/><tspan
-						x="33.56" dy="1.2em" class="st10">(bases on lpaq9m)</tspan></text>		</g>
-		<g id="shape122-55" v:mID="122" v:groupContext="shape" transform="translate(273.358,-277.303)">
+			<v:textRect cx="56.6929" cy="366.409" width="113.39" height="28.3465"/>
+			<rect x="0" y="352.236" width="113.386" height="28.3465" class="st3"/>
+			<text x="15.78" y="363.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Context Models 1..5<v:newlineChar/><tspan
+						x="19.39" dy="1.2em" class="st10">(bases on lpaq9m)</tspan></text>		</g>
+		<g id="shape122-55" v:mID="122" v:groupContext="shape" transform="translate(309.791,-277.303)">
 			<title>Interface.122</title>
 			<desc>Lempel Ziv Model (LZP)</desc>
 			<v:userDefs>
@@ -221,11 +232,11 @@
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(15000):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
-			<v:textRect cx="70.8661" cy="366.409" width="141.74" height="28.3465"/>
-			<rect x="0" y="352.236" width="141.732" height="28.3465" class="st3"/>
-			<text x="34.84" y="363.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Lempel Ziv Model<v:newlineChar/><tspan
-						x="60.81" dy="1.2em" class="st10">(LZP)</tspan></text>		</g>
-		<g id="shape124-59" v:mID="124" v:groupContext="shape" transform="translate(273.358,-220.61)">
+			<v:textRect cx="56.6929" cy="366.409" width="113.39" height="28.3465"/>
+			<rect x="0" y="352.236" width="113.386" height="28.3465" class="st3"/>
+			<text x="20.66" y="363.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Lempel Ziv Model<v:newlineChar/><tspan
+						x="46.63" dy="1.2em" class="st10">(LZP)</tspan></text>		</g>
+		<g id="shape124-59" v:mID="124" v:groupContext="shape" transform="translate(309.791,-220.61)">
 			<title>Interface.124</title>
 			<desc>Dynamic Markov Model (DMC)</desc>
 			<v:userDefs>
@@ -238,11 +249,11 @@
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(16000):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
-			<v:textRect cx="70.8661" cy="366.409" width="141.74" height="28.3465"/>
-			<rect x="0" y="352.236" width="141.732" height="28.3465" class="st3"/>
-			<text x="22.23" y="363.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Dynamic Markov Model<v:newlineChar/><tspan
-						x="57.82" dy="1.2em" class="st10">(DMC)</tspan></text>		</g>
-		<g id="shape125-63" v:mID="125" v:groupContext="shape" transform="translate(273.358,-163.917)">
+			<v:textRect cx="56.6929" cy="366.409" width="113.39" height="28.3465"/>
+			<rect x="0" y="352.236" width="113.386" height="28.3465" class="st3"/>
+			<text x="8.06" y="363.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Dynamic Markov Model<v:newlineChar/><tspan
+						x="43.64" dy="1.2em" class="st10">(DMC)</tspan></text>		</g>
+		<g id="shape125-63" v:mID="125" v:groupContext="shape" transform="translate(309.791,-163.917)">
 			<title>Interface.125</title>
 			<desc>Sparse Match Models</desc>
 			<v:userDefs>
@@ -255,12 +266,12 @@
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(17000):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
-			<v:textRect cx="70.8661" cy="366.409" width="141.74" height="28.3465"/>
-			<rect x="0" y="352.236" width="141.732" height="28.3465" class="st3"/>
-			<text x="26.88" y="369.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Sparse Match Models</text>		</g>
-		<g id="shape126-66" v:mID="126" v:groupContext="shape" transform="translate(471.783,-163.917)">
+			<v:textRect cx="56.6929" cy="366.409" width="113.39" height="28.3465"/>
+			<rect x="0" y="352.236" width="113.386" height="28.3465" class="st3"/>
+			<text x="12.71" y="369.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Sparse Match Models</text>		</g>
+		<g id="shape126-66" v:mID="126" v:groupContext="shape" transform="translate(451.524,-163.917)">
 			<title>Interface.126</title>
-			<desc>Combining models using neural networks (NN)</desc>
+			<desc>Neural Network (NN)</desc>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(99):26"/>
 				<v:ud v:nameU="UMLObjectGUID"/>
@@ -271,11 +282,11 @@
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(18000):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
-			<v:textRect cx="70.8661" cy="281.37" width="141.74" height="198.425"/>
-			<rect x="0" y="182.157" width="141.732" height="198.425" class="st3"/>
-			<text x="21.22" y="278.37" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Combining models using<v:newlineChar/><tspan
-						x="27.12" dy="1.2em" class="st10">neural networks (NN)</tspan></text>		</g>
-		<g id="shape127-70" v:mID="127" v:groupContext="shape" transform="translate(415.09,-341.082)">
+			<v:textRect cx="25.5118" cy="281.37" width="51.03" height="198.425"/>
+			<rect x="0" y="182.157" width="51.0236" height="198.425" class="st3"/>
+			<text x="11.88" y="272.37" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Neural<v:newlineChar/><tspan
+						x="7.89" dy="1.2em" class="st10">Network<v:newlineChar/></tspan><tspan x="16.02" dy="1.2em" class="st10">(NN)</tspan></text>		</g>
+		<g id="shape127-71" v:mID="127" v:groupContext="shape" transform="translate(423.177,-341.082)">
 			<title>Data Flow.127</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -286,9 +297,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(19000):26"/>
 			</v:userDefs>
-			<path d="M0 373.5 L47.69 373.5" class="st1"/>
+			<path d="M0 373.5 L23.1 373.5" class="st1"/>
 		</g>
-		<g id="shape128-75" v:mID="128" v:groupContext="shape" transform="translate(415.09,-284.389)">
+		<g id="shape128-76" v:mID="128" v:groupContext="shape" transform="translate(423.177,-284.389)">
 			<title>Data Flow.128</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -299,9 +310,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(20000):26"/>
 			</v:userDefs>
-			<path d="M0 373.5 L47.69 373.5" class="st1"/>
+			<path d="M0 373.5 L23.1 373.5" class="st1"/>
 		</g>
-		<g id="shape129-80" v:mID="129" v:groupContext="shape" transform="translate(415.09,-227.696)">
+		<g id="shape129-81" v:mID="129" v:groupContext="shape" transform="translate(423.177,-227.696)">
 			<title>Data Flow.129</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -312,9 +323,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(21000):26"/>
 			</v:userDefs>
-			<path d="M0 373.5 L47.69 373.5" class="st1"/>
+			<path d="M0 373.5 L23.1 373.5" class="st1"/>
 		</g>
-		<g id="shape130-85" v:mID="130" v:groupContext="shape" transform="translate(415.09,-171.004)">
+		<g id="shape130-86" v:mID="130" v:groupContext="shape" transform="translate(423.177,-171.004)">
 			<title>Data Flow.130</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -325,9 +336,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(22000):26"/>
 			</v:userDefs>
-			<path d="M0 373.5 L47.69 373.5" class="st1"/>
+			<path d="M0 373.5 L23.1 373.5" class="st1"/>
 		</g>
-		<g id="shape131-90" v:mID="131" v:groupContext="shape" transform="translate(216.997,-284.389)">
+		<g id="shape131-91" v:mID="131" v:groupContext="shape" transform="translate(253.43,-284.389)">
 			<title>Data Flow.131</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -338,9 +349,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(23000):26"/>
 			</v:userDefs>
-			<path d="M0 373.5 L47.36 373.5" class="st1"/>
+			<path d="M0 373.5 L51.11 373.5" class="st1"/>
 		</g>
-		<g id="shape132-95" v:mID="132" v:groupContext="shape" transform="translate(245.012,-291.476)">
+		<g id="shape132-96" v:mID="132" v:groupContext="shape" transform="translate(281.445,-291.476)">
 			<title>Data Flow.132</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -351,9 +362,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(24000):26"/>
 			</v:userDefs>
-			<path d="M0 380.58 L0 493.97 L19.35 493.97" class="st1"/>
+			<path d="M0 380.58 L0 493.97 L23.1 493.97" class="st1"/>
 		</g>
-		<g id="shape133-100" v:mID="133" v:groupContext="shape" transform="translate(245.012,-291.476)">
+		<g id="shape133-101" v:mID="133" v:groupContext="shape" transform="translate(281.445,-291.476)">
 			<title>Data Flow.133</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -364,9 +375,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(25000):26"/>
 			</v:userDefs>
-			<path d="M0 380.58 L0 437.28 L19.35 437.28" class="st1"/>
+			<path d="M0 380.58 L0 437.28 L23.1 437.28" class="st1"/>
 		</g>
-		<g id="shape134-105" v:mID="134" v:groupContext="shape" transform="translate(245.012,-291.476)">
+		<g id="shape134-106" v:mID="134" v:groupContext="shape" transform="translate(281.445,-291.476)">
 			<title>Data Flow.134</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -377,11 +388,11 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(26000):26"/>
 			</v:userDefs>
-			<path d="M0 380.58 L0 323.89 L19.35 323.89" class="st1"/>
+			<path d="M0 380.58 L0 323.89 L23.1 323.89" class="st1"/>
 		</g>
-		<g id="shape139-110" v:mID="139" v:groupContext="shape" transform="translate(641.862,-248.956)">
+		<g id="shape139-111" v:mID="139" v:groupContext="shape" transform="translate(536.563,-192.263)">
 			<title>Interface.139</title>
-			<desc>SSE</desc>
+			<desc>Secondary Symbol Estimators (SSE)</desc>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(99):26"/>
 				<v:ud v:nameU="UMLObjectGUID"/>
@@ -392,10 +403,12 @@
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(27000):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
-			<v:textRect cx="28.3465" cy="366.409" width="56.7" height="28.3465"/>
-			<rect x="0" y="352.236" width="56.6929" height="28.3465" class="st3"/>
-			<text x="21.31" y="369.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>SSE</text>		</g>
-		<g id="shape140-113" v:mID="140" v:groupContext="shape" transform="translate(613.516,-256.043)">
+			<v:textRect cx="28.3465" cy="309.716" width="56.7" height="141.732"/>
+			<rect x="0" y="238.85" width="56.6929" height="141.732" class="st3"/>
+			<text x="7.15" y="294.72" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Secondary<v:newlineChar/><tspan
+						x="13.38" dy="1.2em" class="st10">Symbol<v:newlineChar/></tspan><tspan x="6.73" dy="1.2em" class="st10">Estimators<v:newlineChar/></tspan><tspan
+						x="18.28" dy="1.2em" class="st10">(SSE)</tspan></text>		</g>
+		<g id="shape140-117" v:mID="140" v:groupContext="shape" transform="translate(502.547,-256.043)">
 			<title>Data Flow.140</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -406,9 +419,9 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(28000):26"/>
 			</v:userDefs>
-			<path d="M0 373.5 L19.35 373.5" class="st1"/>
+			<path d="M0 373.5 L28.77 373.5" class="st1"/>
 		</g>
-		<g id="shape141-118" v:mID="141" v:groupContext="shape" transform="translate(726.901,-248.956)">
+		<g id="shape141-122" v:mID="141" v:groupContext="shape" transform="translate(706.642,-248.956)">
 			<title>Interface.141</title>
 			<desc>Output</desc>
 			<v:userDefs>
@@ -424,7 +437,7 @@
 			<v:textRect cx="28.3465" cy="366.409" width="56.7" height="28.3465"/>
 			<rect x="0" y="352.236" width="56.6929" height="28.3465" class="st3"/>
 			<text x="13.81" y="369.41" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Output</text>		</g>
-		<g id="shape142-121" v:mID="142" v:groupContext="shape" transform="translate(698.555,-256.043)">
+		<g id="shape142-125" v:mID="142" v:groupContext="shape" transform="translate(593.256,-256.043)">
 			<title>Data Flow.142</title>
 			<v:userDefs>
 				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
@@ -435,7 +448,154 @@
 				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
 				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(30000):26"/>
 			</v:userDefs>
-			<path d="M0 373.5 L19.35 373.5" class="st1"/>
+			<path d="M0 373.5 L24.33 373.5" class="st1"/>
+		</g>
+		<g id="shape143-130" v:mID="143" v:groupContext="shape" transform="translate(622.834,-192.263)">
+			<title>Interface.143</title>
+			<desc>Tiny NN</desc>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(99):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents external sources or consumers of data.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(31000):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="27.7304" cy="309.716" width="55.47" height="141.732"/>
+			<rect x="0" y="238.85" width="55.4608" height="141.732" class="st3"/>
+			<text x="11.67" y="312.72" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Tiny NN</text>		</g>
+		<g id="shape144-133" v:mID="144" v:groupContext="shape" transform="translate(593.256,-218.36)">
+			<title>Data Flow.144</title>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(32000):26"/>
+			</v:userDefs>
+			<path d="M0 373.5 L24.33 373.5" class="st1"/>
+		</g>
+		<g id="shape145-138" v:mID="145" v:groupContext="shape" transform="translate(593.256,-293.726)">
+			<title>Data Flow.145</title>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(33000):26"/>
+			</v:userDefs>
+			<path d="M0 373.5 L24.33 373.5" class="st1"/>
+		</g>
+		<g id="shape146-143" v:mID="146" v:groupContext="shape" transform="translate(593.256,-274.884)">
+			<title>Data Flow.146</title>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(34000):26"/>
+			</v:userDefs>
+			<path d="M0 373.5 L24.33 373.5" class="st1"/>
+		</g>
+		<g id="shape147-148" v:mID="147" v:groupContext="shape" transform="translate(593.256,-237.201)">
+			<title>Data Flow.147</title>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(35000):26"/>
+			</v:userDefs>
+			<path d="M0 373.5 L24.33 373.5" class="st1"/>
+		</g>
+		<g id="shape148-153" v:mID="148" v:groupContext="shape" transform="translate(593.256,-199.518)">
+			<title>Data Flow.148</title>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(36000):26"/>
+			</v:userDefs>
+			<path d="M0 373.5 L24.33 373.5" class="st1"/>
+		</g>
+		<g id="shape149-158" v:mID="149" v:groupContext="shape" transform="translate(593.256,-312.567)">
+			<title>Data Flow.149</title>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(37000):26"/>
+			</v:userDefs>
+			<path d="M0 373.5 L24.33 373.5" class="st1"/>
+		</g>
+		<g id="shape150-163" v:mID="150" v:groupContext="shape" transform="translate(678.295,-256.043)">
+			<title>Data Flow.150</title>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(38000):26"/>
+			</v:userDefs>
+			<path d="M0 373.5 L23.1 373.5" class="st1"/>
+		</g>
+		<g id="shape151-168" v:mID="151" v:groupContext="shape" transform="translate(763.335,-256.043)">
+			<title>Data Flow.151</title>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(39000):26"/>
+			</v:userDefs>
+			<path d="M0 373.5 L24.33 373.5" class="st11"/>
+		</g>
+		<g id="shape152-173" v:mID="152" v:groupContext="shape" transform="translate(26.3268,-341.082)">
+			<title>Data Flow.152</title>
+			<v:userDefs>
+				<v:ud v:nameU="UMLShapeType" v:val="VT0(97):26"/>
+				<v:ud v:nameU="UMLObjectGUID"/>
+				<v:ud v:nameU="UMLPresOptions"/>
+				<v:ud v:nameU="UMLError" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:val="VT0(14):26"/>
+				<v:ud v:nameU="visDescription" v:val="VT4(Represents a packet of data that is being sent to or from a process.)"/>
+				<v:ud v:nameU="visNavOrder" v:prompt="" v:val="VT0(40000):26"/>
+			</v:userDefs>
+			<path d="M0 373.5 L23.1 373.5" class="st11"/>
+		</g>
+		<g id="shape153-178" v:mID="153" v:groupContext="shape" transform="translate(280.878,-290.909)">
+			<title>Sheet.153</title>
+			<v:userDefs>
+				<v:ud v:nameU="visNavOrder" v:val="VT0(41000):26"/>
+			</v:userDefs>
+			<ellipse cx="0.566929" cy="380.015" rx="0.566929" ry="0.566929" class="st12"/>
+		</g>
+		<g id="shape154-184" v:mID="154" v:groupContext="shape" transform="translate(280.878,-234.216)">
+			<title>Sheet.154</title>
+			<v:userDefs>
+				<v:ud v:nameU="visNavOrder" v:val="VT0(42000):26"/>
+			</v:userDefs>
+			<ellipse cx="0.566929" cy="380.015" rx="0.566929" ry="0.566929" class="st12"/>
 		</g>
 	</g>
 </svg>
