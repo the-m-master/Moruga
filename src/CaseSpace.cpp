@@ -424,7 +424,7 @@ auto CaseSpace_t::Decode() noexcept -> int64_t {
         break;
 
       default:
-        if (is_word_char(ch)) {
+        if (is_word_char(ch)) {  // a..z || A..Z
           word.push_back(char(ch));
         } else {
           DecodeWord(word, t);
@@ -441,34 +441,36 @@ auto CaseSpace_t::Decode() noexcept -> int64_t {
 }
 
 void CaseSpace_t::DecodeWord(std::string& word, const WordType t) noexcept {
-  const char* __restrict__ str{word.c_str()};
   auto wordLength{word.length()};
+  if (wordLength > 0) {
+    const char* __restrict__ str{word.c_str()};
 
-  switch (t) {
-    case ALL_BIG:
-      while (wordLength-- > 0) {
-        int32_t ch{*str++};
-        _out.putc(to_upper(ch));
-      }
-      break;
+    switch (t) {
+      case ALL_BIG:
+        while (wordLength-- > 0) {
+          int32_t ch{*str++};
+          _out.putc(to_upper(ch));
+        }
+        break;
 
-    case FIRST_BIG_REST_SMALL:
-      if (wordLength-- > 0) {
-        int32_t ch{*str++};
-        _out.putc(to_upper(ch));
-      }
-      [[fallthrough]];
+      case FIRST_BIG_REST_SMALL:
+        if (wordLength-- > 0) {
+          int32_t ch{*str++};
+          _out.putc(to_upper(ch));
+        }
+        [[fallthrough]];
 
-    default:
-    case ALL_SMALL:
-    case CRLF_MARKER:
-    case ESCAPE_CHAR:
-      while (wordLength-- > 0) {
-        int32_t ch{*str++};
-        _out.putc(ch);
-      }
-      break;
+      default:
+      case ALL_SMALL:
+      case CRLF_MARKER:
+      case ESCAPE_CHAR:
+        while (wordLength-- > 0) {
+          int32_t ch{*str++};
+          _out.putc(ch);
+        }
+        break;
+    }
+
+    word.clear();
   }
-
-  word.clear();
 }
