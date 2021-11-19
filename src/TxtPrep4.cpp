@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cinttypes>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -34,7 +35,6 @@
 
 //#define DEBUG_WRITE_ANALYSIS_BMP
 //#define DEBUG_WRITE_DICTIONARY
-#define ENABLE_QUOTING
 
 #if !defined(_MSC_VER)       // VS2019 has trouble handling this code
 #define USE_BYTELL_HASH_MAP  // Enable the fastest hash table by Malte Skarupke
@@ -128,7 +128,6 @@ public:
 
     std::string word{};
     for (int32_t ch{0}; EOF != (ch = in.getc()); ++_inputLength) {
-#if defined(ENABLE_QUOTING)
       if (quoteLength > 0) {
         if (ch == quote[quoteState]) {
           ++quoteState;
@@ -144,7 +143,6 @@ public:
           quoteState = 0;
         }
       }
-#endif
 
       AppendChar(ch, word);
     }
@@ -164,11 +162,6 @@ public:
 #endif
     _dicLength = uint32_t(dictionary.size());
 
-    if (_dicLength < LOW) {
-      out.put32(0);  // write length of dictionary
-      return;        // Oh oh, apparently the input file is not a text file or so ...
-    }
-
     // Sort all by frequency
     std::stable_sort(dictionary.begin(), dictionary.end(), [](const auto& a, const auto& b) -> bool {  //
       return (a.frequency == b.frequency) ? (a.word.compare(b.word) < 0) : (a.frequency > b.frequency);
@@ -181,7 +174,7 @@ public:
     }};
 
     // Sort 0 .. LOW by name too improve secondary compression
-    std::stable_sort(dictionary.begin(), dictionary.begin() + LOW, nameCompare);
+    std::stable_sort(dictionary.begin(), dictionary.begin() + (std::min)(LOW, _dicLength), nameCompare);
 
     if (_dicLength >= LOW) {
       // Sort LOW .. MID by name too improve secondary compression
@@ -212,8 +205,7 @@ public:
 #if defined(DEBUG_WRITE_DICTIONARY)
     File_t txt("dictionary.txt", "wb+");
     for (auto dic : dictionary) {
-      fprintf(txt, "%10u\t%s\n", dic.frequency, dic.word.c_str());
-      // fprintf(txt, "%s\n", dic.word.c_str());
+      fprintf(txt, "%u,%" PRIu64 ",%s\n", dic.frequency, dic.word.length(), dic.word.c_str());
     }
 #endif
   }
@@ -363,10 +355,8 @@ public:
 
       if ((ch >= _mode) || (ESCAPE_CHAR == ch)) {
         Putc(ESCAPE_CHAR);
-#if defined(ENABLE_QUOTING)
       } else if (QUOTING_CHAR == ch) {
         Putc(ESCAPE_CHAR);
-#endif
       }
       Putc(ch);
     }
@@ -393,7 +383,6 @@ public:
     std::string word{};
     int32_t ch;
     while (EOF != (ch = _in.getc())) {
-#if defined(ENABLE_QUOTING)
       if (_quoteLength > 0) {
         if (ch == _quote[quoteState]) {
           ++quoteState;
@@ -415,16 +404,13 @@ public:
           quoteState = 0;
         }
       }
-#endif
 
       EncodeChar(ch, word);
     }
 
-#if defined(ENABLE_QUOTING)
     for (size_t n{0}; n < quoteState; ++n) {
       EncodeChar(_quote[n], word);
     }
-#endif
 
     const auto length{word.length()};
     if (length > 0) {
@@ -452,13 +438,11 @@ public:
       if (ESCAPE_CHAR == ch) {
         ch = _in.getc();
         Putc(ch);
-#if defined(ENABLE_QUOTING)
       } else if (QUOTING_CHAR == ch) {
         for (size_t n{_quoteLength}; n--;) {  // Reverse write
           Putc(_quote[n]);
         }
         continue;
-#endif
       } else if (ch >= _mode) {
         uint32_t bytes{uint8_t(ch)};
         if (0 != (0x40 & ch)) {

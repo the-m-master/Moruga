@@ -332,7 +332,7 @@ void CaseSpace_t::Encode() noexcept {
       continue;
     }
 
-    if (is_word_char(ch)) {
+    if (is_word_char(ch)) {  // a..z || A..Z
       word.push_back(char(ch));
     } else {
       EncodeWord(word);
