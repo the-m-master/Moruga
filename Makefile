@@ -132,6 +132,7 @@ ifeq ($(TOOLCHAIN),llvm)
              -Wno-gnu-anonymous-struct \
              -Wno-multichar \
              -Wno-nested-anon-types \
+             -Wno-reserved-identifier \
              -Wno-reserved-id-macro \
              -Wno-unknown-attributes \
              -Wno-used-but-marked-unused
@@ -182,7 +183,10 @@ endif
 # pre-processor defines
 #===============================================================================
 
-DEFINES := _GNU_SOURCE WIN32_LEAN_AND_MEAN _CRT_DISABLE_PERFCRIT_LOCKS _CRT_SECURE_NO_WARNINGS
+DEFINES := _GNU_SOURCE \
+           _CRT_DISABLE_PERFCRIT_LOCKS \
+           _CRT_SECURE_NO_WARNINGS \
+           WIN32_LEAN_AND_MEAN
 
 ifeq ($(MODE),debug)
   DEFINES += _DEBUG

@@ -18,7 +18,6 @@
  */
 #include "pdf.h"
 #include <cassert>
-#include <cinttypes>
 #include <climits>
 #include <cstdint>
 #include <cstdio>

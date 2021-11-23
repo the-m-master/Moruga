@@ -156,7 +156,7 @@ xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
 | enwik9 | 1000000000 | 197331816 | 19%
 
 
-## Moruga silesia benchmarks
+## Moruga [silesia](http://mattmahoney.net/dc/silesia.html) benchmarks
 
 ```bash
 Moruga c <option> <infile> <outfile>

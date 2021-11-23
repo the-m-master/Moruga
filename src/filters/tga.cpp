@@ -17,7 +17,6 @@
  * If not, see <https://www.gnu.org/licenses/>
  */
 #include "tga.h"
-#include <cassert>
 #include <cstdint>
 #include "Buffer.h"
 #include "File.h"
@@ -81,7 +80,7 @@ TGA_filter::TGA_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di)
       _di{di} {}
 
 TGA_filter::~TGA_filter() noexcept {
-  if (nullptr != &_coder) {  // encoding
+  if (nullptr != &_coder) {  // encoding TODO: turn this test into a real one
     for (uint32_t n{0}; n < _length; ++n) {
       _coder.Compress(_rgba[n]);
     }

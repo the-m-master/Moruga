@@ -17,9 +17,6 @@
  * If not, see <https://www.gnu.org/licenses/>
  */
 #include "pbm.h"
-#include <cassert>
-#include <cinttypes>
-#include <climits>
 #include <cstdint>
 #include "Buffer.h"
 #include "File.h"
@@ -122,7 +119,7 @@ PBM_filter::PBM_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di)
       _di{di} {}
 
 PBM_filter::~PBM_filter() noexcept {
-  if (nullptr != &_coder) {  // encoding
+  if (nullptr != &_coder) {  // encoding TODO: turn this test into a real one
     for (uint32_t n{0}; n < _length; ++n) {
       _coder.Compress(_rgba[n]);
     }

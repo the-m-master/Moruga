@@ -17,11 +17,13 @@
  * If not, see <https://www.gnu.org/licenses/>
  */
 #include "tif.h"
-#include <cassert>
 #include <cstdint>
+#include <cstring>
 #include "File.h"
 #include "filter.h"
 #include "iEncoder.h"
+
+#if 0  // TODO: rewrite TIF handling
 
 class LZWDictionary final {
 public:
@@ -56,7 +58,7 @@ public:
   auto findEntry(int32_t prefix, int32_t suffix) noexcept -> int32_t {
 #if 1
     // Golden ratio of 2^32 (not a prime)
-    static constexpr auto PHI32{INT32_C(0x9E3779B9)};  // 2654435769
+    static constexpr auto PHI32{int32_t(0x9E3779B9u)};  // 2654435769
 
     int32_t i{(PHI32 * prefix * suffix) >> (32 - 13)};
 #else
@@ -124,7 +126,8 @@ static void encode(File_t& in, File_t& out, uint64_t /*size*/, int32_t /*info*/,
       return;  // 0;
     }
     for (int32_t j{0}; j < 8; j++) {
-      code += code + ((buffer >> (7 - j)) & 1), bitsUsed++;
+      code += code + ((buffer >> (7 - j)) & 1);
+      bitsUsed++;
       if (bitsUsed >= bitsPerCode) {
         if (code == LZWDictionary::eof_code) {
           done = true;
@@ -160,7 +163,7 @@ static void encode(File_t& in, File_t& out, uint64_t /*size*/, int32_t /*info*/,
   }
 }
 
-static auto decodeLzw(File_t& in, File_t& out, uint64_t size, int32_t& headerSize) -> bool {
+static auto decodeLzw(File_t& in, File_t& out, uint64_t /*size*/, int32_t& headerSize) -> bool {
   LZWDictionary dic;
   int32_t parent{-1};
   int32_t code{0};
@@ -287,6 +290,8 @@ static auto encodeLzw(File_t& in, File_t& out, const bool compare, uint64_t& dif
   return pos;
 }
 
+#endif
+
 auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
   // ------------------------------------------------------------------------
   // TIFF header
@@ -369,7 +374,7 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
           ((1 == cmp) || (5 == cmp)) &&          //
           (2 == rgb) &&                          //
           ((3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
-//        _di.lzw_encoded = 5 == cmp;
+        //        _di.lzw_encoded = 5 == cmp;
         _di.filter_end = int32_t(width * height * _di.bytes_per_pixel);
         ots -= int32_t(offset);
         _di.offset_to_start = (ots < 0) ? 0 : ots;
@@ -430,7 +435,7 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
           ((1 == cmp) || (5 == cmp)) &&          //
           (2 == rgb) &&                          //
           ((3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
-//        _di.lzw_encoded = 5 == cmp;
+        //        _di.lzw_encoded = 5 == cmp;
         _di.filter_end = int32_t(width * height * _di.bytes_per_pixel);
         ots -= int32_t(offset);
         _di.offset_to_start = (ots < 0) ? 0 : ots;

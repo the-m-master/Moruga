@@ -19,7 +19,6 @@
 #ifndef _DCM_HDR_
 #define _DCM_HDR_
 
-#include <array>
 #include <cstdint>
 #include "filter.h"
 class File_t;

@@ -17,7 +17,6 @@
  * If not, see <https://www.gnu.org/licenses/>
  */
 #include "sgi.h"
-#include <cassert>
 #include <climits>
 #include <cstdint>
 #include <cstdlib>

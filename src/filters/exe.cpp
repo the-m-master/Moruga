@@ -19,7 +19,6 @@
 #include "exe.h"
 #include <cassert>
 #include <cstdint>
-#include <utility>
 #include "Buffer.h"
 #include "File.h"
 #include "filter.h"

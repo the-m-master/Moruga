@@ -17,11 +17,8 @@
  * If not, see <https://www.gnu.org/licenses/>
  */
 #include "dcm.h"
-#include <cassert>
 #include <cstdint>
-#include "File.h"
 #include "filter.h"
-#include "iEncoder.h"
 
 auto Header_t::ScanDCM(int32_t /*ch*/) noexcept -> Filter {
   // ------------------------------------------------------------------------

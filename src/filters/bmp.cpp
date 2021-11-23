@@ -121,7 +121,7 @@ BMP_filter::BMP_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di)
 
 BMP_filter::~BMP_filter() noexcept {
   assert(_di.padding_bytes == _length);
-  if (nullptr != &_coder) {  // encoding
+  if (nullptr != &_coder) {  // encoding TODO: turn this test into a real one
     for (uint32_t n{0}; n < _length; ++n) {
       _coder.Compress(_rgba[n]);
     }

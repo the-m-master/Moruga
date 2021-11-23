@@ -18,7 +18,6 @@
  */
 #include "png.h"
 #include <cassert>
-#include <cinttypes>
 #include <climits>
 #include <cstdint>
 #include "Buffer.h"
