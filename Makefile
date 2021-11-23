@@ -298,10 +298,16 @@ $(BUILD_DIR)/%.o: %.cpp
 # create the output directories
 #===============================================================================
 mkdirs:
+	$(ECHO) '   _____                                   '
+	$(ECHO) '  /     \   ___________ __ __  _________   '
+	$(ECHO) ' /  \ /  \ /  _ \_  __ \  |  \/ ___\__  \  '
+	$(ECHO) '/    Y    (  <_> )  | \/  |  / /_/  > __ \_'
+	$(ECHO) '\____|__  /\____/|__|  |____/\___  (____  /'
+	$(ECHO) '        \/                  /_____/     \/ '
 	$(MKDIR) $(dir $(OBJECTS))
 ifeq ($(MODE),profile)
 	$(MKDIR) $(PROFILE_DIR)
-endif 
+endif
 
 #===============================================================================
 # Handle guided build
@@ -320,4 +326,4 @@ clean:
 	$(RM) $(BUILD_DIR)/*
 ifeq ($(MODE),profile)
 	$(RM) $(PROFILE_DIR)/*
-endif 
+endif
