@@ -32,6 +32,7 @@ enum class Filter {
   ELF,
   EXE,
   GIF,
+  PBM,
   PDF,
   PKZ,
   PNG,
@@ -98,6 +99,7 @@ public:
   auto ScanELF(int32_t ch) noexcept -> Filter;
   auto ScanEXE(int32_t ch) noexcept -> Filter;
   auto ScanGIF(int32_t ch) noexcept -> Filter;
+  auto ScanPBM(int32_t ch) noexcept -> Filter;
   auto ScanPDF(int32_t ch) noexcept -> Filter;
   auto ScanPKZ(int32_t ch) noexcept -> Filter;
   auto ScanPNG(int32_t ch) noexcept -> Filter;

@@ -119,7 +119,18 @@ BMP_filter::BMP_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di)
       _coder{coder},
       _di{di} {}
 
-BMP_filter::~BMP_filter() noexcept = default;
+BMP_filter::~BMP_filter() noexcept {
+  assert(_di.padding_bytes == _length);
+  if (nullptr != &_coder) {  // encoding
+    for (uint32_t n{0}; n < _length; ++n) {
+      _coder.Compress(_rgba[n]);
+    }
+  } else {  // decoding
+    for (uint32_t n{0}; n < _length; ++n) {
+      _stream.putc(_rgba[n]);
+    }
+  }
+}
 
 auto BMP_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   _rgba[_length++] = int8_t(ch);
@@ -167,12 +178,6 @@ auto BMP_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
     }
   }
 
-  if (0 == _di.filter_end) {
-    assert(uint32_t(_di.padding_bytes) == _length);
-    for (uint32_t n{0}; n < _length; ++n) {
-      _coder.Compress(_rgba[n]);
-    }
-  }
   return true;
 }
 
@@ -222,11 +227,5 @@ auto BMP_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // dec
     }
   }
 
-  if (0 == _di.filter_end) {
-    assert(_di.padding_bytes == _length);
-    for (uint32_t n{0}; n < _length; ++n) {
-      _stream.putc(_rgba[n]);
-    }
-  }
   return true;
 }

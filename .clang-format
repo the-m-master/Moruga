@@ -1,0 +1,13 @@
+BasedOnStyle:  Google
+AccessModifierOffset: -2
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+ColumnLimit:     200
+DerivePointerAlignment: false
+PointerAlignment: Left
+UseTab:          Never
+IncludeBlocks: Merge
+IndentGotoLabels: false

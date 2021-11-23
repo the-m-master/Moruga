@@ -117,6 +117,7 @@ static volatile uint32_t g_nDCM{0};
 static volatile uint32_t g_nELF{0};
 static volatile uint32_t g_nEXE{0};
 static volatile uint32_t g_nGIF{0};
+static volatile uint32_t g_nPBM{0};
 static volatile uint32_t g_nPDF{0};
 static volatile uint32_t g_nPKZ{0};
 static volatile uint32_t g_nPNG{0};
@@ -227,6 +228,7 @@ static void ProgressBar(const volatile TraceProgress_t* tracer) noexcept {
       FiltersToString(filters, g_nELF, "ELF");
       FiltersToString(filters, g_nEXE, "EXE");
       FiltersToString(filters, g_nGIF, "GIF");
+      FiltersToString(filters, g_nPBM, "PBM");
       FiltersToString(filters, g_nPDF, "PDF");
       FiltersToString(filters, g_nPKZ, "PKZ");
       FiltersToString(filters, g_nPNG, "PNG");
@@ -294,6 +296,7 @@ Progress_t::Progress_t(const std::string& workType, bool encode, const iMonitor_
   g_nELF = 0;
   g_nEXE = 0;
   g_nGIF = 0;
+  g_nPBM = 0;
   g_nPDF = 0;
   g_nPKZ = 0;
   g_nPNG = 0;
@@ -324,6 +327,7 @@ void Progress_t::FoundType(const Filter& type) noexcept {
     case Filter::ELF: g_nFilter = g_nFilter + 1; g_nELF = g_nELF + 1; break;
     case Filter::EXE: g_nFilter = g_nFilter + 1; g_nEXE = g_nEXE + 1; break;
     case Filter::GIF: g_nFilter = g_nFilter + 1; g_nGIF = g_nGIF + 1; break;
+    case Filter::PBM: g_nFilter = g_nFilter + 1; g_nPBM = g_nPBM + 1; break;
     case Filter::PDF: g_nFilter = g_nFilter + 1; g_nPDF = g_nPDF + 1; break;
     case Filter::PKZ: g_nFilter = g_nFilter + 1; g_nPKZ = g_nPKZ + 1; break;
     case Filter::PNG: g_nFilter = g_nFilter + 1; g_nPNG = g_nPNG + 1; break;

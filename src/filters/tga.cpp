@@ -80,7 +80,17 @@ TGA_filter::TGA_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di)
       _coder{coder},
       _di{di} {}
 
-TGA_filter::~TGA_filter() noexcept = default;
+TGA_filter::~TGA_filter() noexcept {
+  if (nullptr != &_coder) {  // encoding
+    for (uint32_t n{0}; n < _length; ++n) {
+      _coder.Compress(_rgba[n]);
+    }
+  } else {  // decoding
+    for (uint32_t n{0}; n < _length; ++n) {
+      _stream.putc(_rgba[n]);
+    }
+  }
+}
 
 auto TGA_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   _rgba[_length++] = int8_t(ch);
