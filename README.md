@@ -80,13 +80,13 @@ make MODE=debug clean
 For building a release version of Moruga (using [LLVM](https://llvm.org/)).
 
 ```bash
-make TOOLCHAIN=clang
+make TOOLCHAIN=llvm
 ```
 
 For building a debug version of Moruga (using [LLVM](https://llvm.org/)).
 
 ```bash
-make MODE=debug TOOLCHAIN=clang
+make MODE=debug TOOLCHAIN=llvm
 ```
 
 
