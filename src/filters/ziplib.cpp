@@ -213,7 +213,7 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t len) noexcept -> bool {
         rec_strm[uint32_t(j)].avail_in = block - main_strm.avail_out;
         rec_strm[uint32_t(j)].next_out = &zrec[recpos[uint32_t(j)]];
         rec_strm[uint32_t(j)].avail_out = (block * 2) - recpos[uint32_t(j)];
-        int32_t ret{deflate(&rec_strm[uint32_t(j)], main_strm.total_in == len ? Z_FINISH : Z_NO_FLUSH)};
+        int32_t ret{deflate(&rec_strm[uint32_t(j)], (int64_t(main_strm.total_in) == len) ? Z_FINISH : Z_NO_FLUSH)};
         if ((Z_BUF_ERROR != ret) && (Z_STREAM_END != ret) && (Z_OK != ret)) {
           diffCount[uint32_t(j)] = limit;
           continue;
@@ -221,7 +221,7 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t len) noexcept -> bool {
 
         // Compare
         const uint32_t end{(2 * block) - rec_strm[uint32_t(j)].avail_out};
-        const uint32_t tail{(std::max)((Z_STREAM_END == main_ret) ? uint32_t(len - rec_strm[uint32_t(j)].total_out) : 0u, 0u)};
+        const uint32_t tail{(std::max)((Z_STREAM_END == main_ret) ? uint32_t(len - int64_t(rec_strm[uint32_t(j)].total_out)) : 0u, 0u)};
         for (uint32_t k{recpos[uint32_t(j)]}; k < (end + tail); k++) {
           if (((k < end) && ((i + k - block) < len) && (zrec[k] != zin[k])) || (k >= end)) {
             if (++diffCount[uint32_t(j)] < limit) {

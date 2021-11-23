@@ -79,8 +79,8 @@ static void consoleRowCol(uint32_t& rows, uint32_t& columns) noexcept {
   const char* const columns_str{getenv("COLUMNS")};
   const char* const rows_str{getenv("LINES")};
   if (columns_str && rows_str) {
-    columns = strtoul(columns_str, nullptr, 10);
-    rows = strtoul(rows_str, nullptr, 10);
+    columns = uint32_t(strtoul(columns_str, nullptr, 10));  // __CYGWIN__ want to see a cast
+    rows = uint32_t(strtoul(rows_str, nullptr, 10));        // __CYGWIN__ want to see a cast
   } else {
     void* const handle{GetStdHandle(STD_OUTPUT_HANDLE)};
     if (nullptr == handle) {

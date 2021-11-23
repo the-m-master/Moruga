@@ -304,6 +304,7 @@ mkdirs:
 	$(ECHO) '/    Y    (  <_> )  | \/  |  / /_/  > __ \_'
 	$(ECHO) '\____|__  /\____/|__|  |____/\___  (____  /'
 	$(ECHO) '        \/                  /_____/     \/ '
+	$(ECHO)
 	$(MKDIR) $(dir $(OBJECTS))
 ifeq ($(MODE),profile)
 	$(MKDIR) $(PROFILE_DIR)
