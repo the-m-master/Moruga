@@ -133,9 +133,9 @@ static void FiltersToString(std::string& filters, uint32_t count, const std::str
     }
     filters += text;
     if (count > 1) {
-      char tmp[16];
-      snprintf(tmp, sizeof(tmp), ":%u", count);
-      filters += tmp;
+      std::array<char, 16> tmp;
+      snprintf(&tmp[0], tmp.size(), ":%u", count);
+      filters.append(&tmp[0]);
     }
   }
 }
@@ -238,13 +238,13 @@ static void ProgressBar(const volatile TraceProgress_t* tracer) noexcept {
       FiltersToString(filters, g_nWAV, "WAV");
       fprintf(stdout, "\r\n%*s[filter: %.*s]\r", tracer->digits + tracer->digits + length + 39, " ", barLength, filters.c_str());
 
-      static constexpr char cursor_up_one_line[]{"\033[1A"};
+      static constexpr std::array<char, 5> cursor_up_one_line{{"\033[1A"}};
 #if defined(__linux__)
-      fprintf(stdout, cursor_up_one_line);
+      fputs(&cursor_up_one_line[0], stdout);
 #else
       const char* const term{getenv("TERM")};
       if (term) {
-        fprintf(stdout, cursor_up_one_line);
+        fputs(&cursor_up_one_line[0], stdout);
       } else {
         void* const handle{GetStdHandle(STD_OUTPUT_HANDLE)};
         if (handle) {
@@ -260,7 +260,7 @@ static void ProgressBar(const volatile TraceProgress_t* tracer) noexcept {
       }
 #endif
     } else {
-      fprintf(stdout, "\r");
+      fputc('\r', stdout);
     }
     fflush(stdout);
   }

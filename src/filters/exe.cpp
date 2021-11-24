@@ -38,11 +38,13 @@ struct IMAGE_FILE_HEADER_t {
   uint16_t SizeOfOptionalHeader;
   uint16_t Characteristics;
 };
+static_assert(20 == sizeof(IMAGE_FILE_HEADER_t), "Alignment issue in IMAGE_FILE_HEADER_t");
 
 struct IMAGE_DATA_DIRECTORY_t {
   uint32_t VirtualAddress;
   uint32_t Size;
 };
+static_assert(8 == sizeof(IMAGE_DATA_DIRECTORY_t), "Alignment issue in IMAGE_DATA_DIRECTORY_t");
 
 struct IMAGE_OPTIONAL_HEADER32_t {
   uint16_t Magic;
@@ -75,14 +77,16 @@ struct IMAGE_OPTIONAL_HEADER32_t {
   uint32_t SizeOfHeapCommit;
   uint32_t LoaderFlags;
   uint32_t NumberOfRvaAndSizes;
-  IMAGE_DATA_DIRECTORY_t DataDirectory[IMAGE_NUMBEROF_DIRECTORY_ENTRIES];
+  std::array<IMAGE_DATA_DIRECTORY_t, IMAGE_NUMBEROF_DIRECTORY_ENTRIES> DataDirectory;
 };
+static_assert(224 == sizeof(IMAGE_OPTIONAL_HEADER32_t), "Alignment issue in IMAGE_OPTIONAL_HEADER32_t");
 
 struct IMAGE_NT_HEADERS32_t {
   uint32_t Signature;
   IMAGE_FILE_HEADER_t FileHeader;
   IMAGE_OPTIONAL_HEADER32_t OptionalHeader;
 };
+static_assert(248 == sizeof(IMAGE_NT_HEADERS32_t), "Alignment issue in IMAGE_NT_HEADERS32_t");
 
 struct IMAGE_OPTIONAL_HEADER64_t {
   uint16_t Magic;
@@ -114,17 +118,19 @@ struct IMAGE_OPTIONAL_HEADER64_t {
   uint64_t SizeOfHeapCommit;
   uint32_t LoaderFlags;
   uint32_t NumberOfRvaAndSizes;
-  IMAGE_DATA_DIRECTORY_t DataDirectory[IMAGE_NUMBEROF_DIRECTORY_ENTRIES];
+  std::array<IMAGE_DATA_DIRECTORY_t, IMAGE_NUMBEROF_DIRECTORY_ENTRIES> DataDirectory;
 };
+static_assert(240 == sizeof(IMAGE_OPTIONAL_HEADER64_t), "Alignment issue in IMAGE_OPTIONAL_HEADER64_t");
 
 struct IMAGE_NT_HEADERS64_t {
   uint32_t Signature;
   IMAGE_FILE_HEADER_t FileHeader;
   IMAGE_OPTIONAL_HEADER64_t OptionalHeader;
 };
+static_assert(264 == sizeof(IMAGE_NT_HEADERS64_t), "Alignment issue in IMAGE_NT_HEADERS64_t");
 
 struct IMAGE_SECTION_HEADER_t {
-  uint8_t Name[IMAGE_SIZEOF_SHORT_NAME];
+  std::array<uint8_t, IMAGE_SIZEOF_SHORT_NAME> Name;
   union {
     uint32_t PhysicalAddress;
     uint32_t VirtualSize;
@@ -138,16 +144,9 @@ struct IMAGE_SECTION_HEADER_t {
   uint16_t NumberOfLinenumbers;
   uint32_t Characteristics;
 };
+static_assert(40 == sizeof(IMAGE_SECTION_HEADER_t), "Alignment issue in IMAGE_SECTION_HEADER_t");
 
 // clang-format off
-static_assert( 20 == sizeof(IMAGE_FILE_HEADER_t),       "Alignment issue in IMAGE_FILE_HEADER_t");
-static_assert(  8 == sizeof(IMAGE_DATA_DIRECTORY_t),    "Alignment issue in IMAGE_DATA_DIRECTORY_t");
-static_assert(224 == sizeof(IMAGE_OPTIONAL_HEADER32_t), "Alignment issue in IMAGE_OPTIONAL_HEADER32_t");
-static_assert(248 == sizeof(IMAGE_NT_HEADERS32_t),      "Alignment issue in IMAGE_NT_HEADERS32_t");
-static_assert(240 == sizeof(IMAGE_OPTIONAL_HEADER64_t), "Alignment issue in IMAGE_OPTIONAL_HEADER64_t");
-static_assert(264 == sizeof(IMAGE_NT_HEADERS64_t),      "Alignment issue in IMAGE_NT_HEADERS64_t");
-static_assert( 40 == sizeof(IMAGE_SECTION_HEADER_t),    "Alignment issue in IMAGE_SECTION_HEADER_t");
-
 #if defined(_WIN32) || defined(_WIN64)
 static_assert(sizeof(IMAGE_FILE_HEADER_t)       == sizeof(IMAGE_FILE_HEADER),       "Alignment issue in IMAGE_FILE_HEADER_t"      );
 static_assert(sizeof(IMAGE_DATA_DIRECTORY_t)    == sizeof(IMAGE_DATA_DIRECTORY),    "Alignment issue in IMAGE_DATA_DIRECTORY_t"   );

@@ -947,11 +947,11 @@ public:
     const auto chk{uint8_t(i >> 24)};  // 8 bits
     const auto idx{uint64_t(i & NB) * B};
 
-    auto p{&_hashtable[idx]};
+    auto* p{&_hashtable[idx]};
     if (chk == *(p - 1)) {  // idx+0 ?
       return p;
     }
-    auto const q{&_hashtable[idx ^ B]};
+    auto* const q{&_hashtable[idx ^ B]};
     if (chk == *(q - 1)) {  // idx^4 ?
       return q;
     }
@@ -971,11 +971,11 @@ public:
     const auto chk{uint8_t(o | (i >> 27))};  // 3 + 5 bits
     const auto idx{uint64_t(i & NB) * B};
 
-    auto p{&_hashtable[idx]};
+    auto* p{&_hashtable[idx]};
     if (chk == *(p - 1)) {  // idx+0 ?
       return p;
     }
-    auto const q{&_hashtable[idx ^ B]};
+    auto* const q{&_hashtable[idx ^ B]};
     if (chk == *(q - 1)) {  // idx^4 ?
       return q;
     }
@@ -995,19 +995,19 @@ public:
     const auto chk{uint8_t(o | (i >> 27))};  // 3 + 5 bits
     const auto idx{uint64_t(i & NB) * B};
 
-    auto p{&_hashtable[idx]};
+    auto* p{&_hashtable[idx]};
     if (chk == *(p - 1)) {  // idx+0 ?
       return p;
     }
-    auto const q{&_hashtable[idx ^ (B + B + B)]};
+    auto* const q{&_hashtable[idx ^ (B + B + B)]};
     if (chk == *(q - 1)) {  // idx^12 ?
       return q;
     }
-    auto const r{&_hashtable[idx ^ (B + B)]};
+    auto* const r{&_hashtable[idx ^ (B + B)]};
     if (chk == *(r - 1)) {  // idx^8 ?
       return r;
     }
-    auto const s{&_hashtable[idx ^ B]};
+    auto* const s{&_hashtable[idx ^ B]};
     if (chk == *(s - 1)) {  // idx^4 ?
       return s;
     }
@@ -1029,19 +1029,19 @@ public:
     const auto chk{uint8_t(o | (i >> 27))};  // 3 + 5 bits
     const auto idx{uint64_t(i & NB) * B};
 
-    auto p{&_hashtable[idx]};
+    auto* p{&_hashtable[idx]};
     if (chk == *(p - 1)) {  // idx+0 ?
       return p;
     }
-    auto const q{&_hashtable[idx ^ (B + B)]};
+    auto* const q{&_hashtable[idx ^ (B + B)]};
     if (chk == *(q - 1)) {  // idx^8 ?
       return q;
     }
-    auto const r{&_hashtable[idx ^ (B + B + B)]};
+    auto* const r{&_hashtable[idx ^ (B + B + B)]};
     if (chk == *(r - 1)) {  // idx^12 ?
       return r;
     }
-    auto const s{&_hashtable[idx ^ B]};
+    auto* const s{&_hashtable[idx ^ B]};
     if (chk == *(s - 1)) {  // idx^4 ?
       return s;
     }
@@ -2754,7 +2754,7 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
   }
 
   if (!((argc >= 4) && (argc <= 6)) || (nullptr == inFileName) || (nullptr == outFileName)) {
-    static constexpr std::array<uint32_t, 11> use{{74, 102, 158, 270, 494, 943, 1841, 3636, 7228, 13383, 24669}};  // TODO verify this
+    static constexpr std::array<uint32_t, 11> use{{74, 102, 157, 270, 494, 943, 1841, 3636, 7227, 13383, 24669}};  // TODO verify this
     fprintf(stderr,
             "\nUsage: Moruga <command> <infile> <outfile>\n"
             "\n<Commands>\n"

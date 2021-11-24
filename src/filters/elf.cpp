@@ -229,7 +229,7 @@ enum {
 
 struct Elf_id_t {
   union {
-    uint8_t ident[16];  // ELF "magic number"
+    std::array<uint8_t, 16> ident;  // ELF "magic number"
     struct {
       uint8_t _mag0;   // 7F
       uint8_t _mag1;   //'E'
@@ -239,7 +239,7 @@ struct Elf_id_t {
       uint8_t _data;
       uint8_t _version;
       uint8_t _pad;
-      uint8_t _nident[8];
+      std::array<uint8_t, 8> _nident;
     };
   };
   uint16_t type;

@@ -83,7 +83,7 @@ void WAV_filter::seekData(const int32_t c) noexcept {
   if (_getLength) {
     --_getLength;
     if (0 == _getLength) {
-      auto const tmp = reinterpret_cast<uint8_t*>(&_data);
+      auto* const tmp = reinterpret_cast<uint8_t*>(&_data);
       const int32_t length{(tmp[0] << 24) | (tmp[1] << 16) | (tmp[2] << 8) | (tmp[3])};
       if (_di.filter_end > length) {
         _di.filter_end = length;

@@ -291,8 +291,13 @@ endif
 #===============================================================================
 $(BUILD_DIR)/%.o: %.cpp
 	$(CXX) -c $< $(CCFLAGS) $(CXXFLAGS) $(_INCLUDE_DIRS) $(_DEFINES) -o $@
-#	$(TIDY) -checks='*,-llvmlibc-*,-llvm-include-order,-cppcoreguidelines-*,-hicpp-*,-fuchsia-*,-readability-*,-google-*,-clang-diagnostic-multichar,-bugprone-reserved-identifier,-cert-dcl37-c,-cert-dcl51-cpp' --quiet $< -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES)
-#	$(TIDY) -checks='modernize-*' --quiet $< -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES)
+#	$(TIDY) -quiet $< -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -Weverything
+
+#===============================================================================
+# code analysis all cpp files
+#===============================================================================
+tidy:
+	$(TIDY) -quiet $(CPPSOURCES) -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -Weverything
 
 #===============================================================================
 # create the output directories
