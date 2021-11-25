@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING3.
+ * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
  */
 #include "Progress.h"
@@ -40,17 +40,16 @@
 #include <psapi.h>
 #endif
 
-// Keep LLVM happy
 iMonitor_t::~iMonitor_t() noexcept = default;
 
 // int32_t(ceil(log(double(layoutLength | 1)) / log(10.0)))
 static auto digits(int64_t number) noexcept -> int32_t {
-  number |= 1;
-  int32_t digits{0};
+  number = (number < 2) ? 2 : number;
+  int32_t ndigits{0};
   for (int64_t value{1}; value < number; value *= 10) {
-    ++digits;
+    ++ndigits;
   }
-  return digits;
+  return ndigits;
 }
 
 static auto exec(const char* cmd) noexcept -> const char* {
@@ -60,10 +59,7 @@ static auto exec(const char* cmd) noexcept -> const char* {
 #else
   std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
   if (pipe) {
-    const char* ptr{fgets(&result[0], result.size(), pipe.get())};
-    if (nullptr == ptr) {
-      return &result[0];  // Failure
-    }
+    fgets(&result[0], result.size(), pipe.get());  // Ignore failures
   }
 #endif
   return &result[0];  // Success
@@ -79,16 +75,16 @@ static void consoleRowCol(uint32_t& rows, uint32_t& columns) noexcept {
   const char* const columns_str{getenv("COLUMNS")};
   const char* const rows_str{getenv("LINES")};
   if (columns_str && rows_str) {
-    columns = uint32_t(strtoul(columns_str, nullptr, 10));  // __CYGWIN__ want to see a cast
-    rows = uint32_t(strtoul(rows_str, nullptr, 10));        // __CYGWIN__ want to see a cast
+    columns = uint32_t(strtoul(columns_str, nullptr, 10));
+    rows = uint32_t(strtoul(rows_str, nullptr, 10));
   } else {
     void* const handle{GetStdHandle(STD_OUTPUT_HANDLE)};
     if (nullptr == handle) {
-      return;
+      return;  // Failure
     }
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (0 == GetConsoleScreenBufferInfo(handle, &csbi)) {
-      return;
+      return;  // Failure
     }
     columns = uint32_t(csbi.srWindow.Right - csbi.srWindow.Left + 1);
     rows = uint32_t(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
@@ -100,7 +96,11 @@ static auto memoryUseKiB() noexcept -> uint32_t {
 #if defined(__linux__)
   struct rusage rUsage;
   getrusage(RUSAGE_SELF, &rUsage);
+#if defined(__APPLE__) && defined(__MACH__)
+  return uint32_t(rUsage.ru_maxrss / UINT64_C(1024));  // in KiB;
+#else
   return uint32_t(rUsage.ru_maxrss);  // in KiB
+#endif
 #elif defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(_MSC_VER)
   PROCESS_MEMORY_COUNTERS rUsage;
   GetProcessMemoryInfo(GetCurrentProcess(), &rUsage, sizeof(rUsage));
@@ -238,7 +238,7 @@ static void ProgressBar(const volatile TraceProgress_t* tracer) noexcept {
       FiltersToString(filters, g_nWAV, "WAV");
       fprintf(stdout, "\r\n%*s[filter: %.*s]\r", tracer->digits + tracer->digits + length + 39, " ", barLength, filters.c_str());
 
-      static constexpr std::array<char, 5> cursor_up_one_line{{"\033[1A"}};
+      static constexpr std::array<char, 5> cursor_up_one_line{{"\e[1A"}};
 #if defined(__linux__)
       fputs(&cursor_up_one_line[0], stdout);
 #else
@@ -311,7 +311,7 @@ Progress_t::~Progress_t() noexcept {
   _tracer.isRunning = false;
   _monitorWorker.join();
   ProgressBar(&_tracer);  // Flush!
-  fprintf(stdout, "\n");
+  fputc('\n', stdout);
   fflush(stdout);
 }
 
