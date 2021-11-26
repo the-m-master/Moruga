@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class ELF_filter final : public iFilter_t {
 public:
-  explicit ELF_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di);
+  explicit ELF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di);
   virtual ~ELF_filter() noexcept override;
 
   ELF_filter() = delete;
@@ -47,7 +47,7 @@ private:
   void detect(const int32_t ch) noexcept;
 
   File_t& _stream;
-  iEncoder_t& _coder;
+  iEncoder_t* const _coder;
   DataInfo_t& _di;
 
   bool _transform{false};

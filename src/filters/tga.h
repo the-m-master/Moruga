@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class TGA_filter final : public iFilter_t {
 public:
-  explicit TGA_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di);
+  explicit TGA_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di);
   virtual ~TGA_filter() noexcept override;
 
   TGA_filter() = delete;
@@ -41,7 +41,7 @@ public:
 
 private:
   File_t& _stream;
-  iEncoder_t& _coder;
+  iEncoder_t* const _coder;
   const DataInfo_t& _di;
   uint32_t _length{0};
   std::array<int8_t, 4> _rgba{};

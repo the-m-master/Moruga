@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class PNG_filter final : public iFilter_t {
 public:
-  explicit PNG_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di, const Buffer_t& __restrict buf);
+  explicit PNG_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf);
   virtual ~PNG_filter() noexcept override;
 
   PNG_filter() = delete;
@@ -49,7 +49,7 @@ private:
 
   const Buffer_t& __restrict _buf;
   File_t& _stream;
-  iEncoder_t& _coder;
+  iEncoder_t* const _coder;
   DataInfo_t& _di;
   int32_t _block_length{0};
   uint32_t _length{0};

@@ -74,15 +74,15 @@ auto Header_t::ScanTGA(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-TGA_filter::TGA_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di)
+TGA_filter::TGA_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}
 
 TGA_filter::~TGA_filter() noexcept {
-  if (nullptr != &_coder) {  // encoding TODO: turn this test into a real one
+  if (nullptr != _coder) {  // encoding
     for (uint32_t n{0}; n < _length; ++n) {
-      _coder.Compress(_rgba[n]);
+      _coder->Compress(_rgba[n]);
     }
   } else {  // decoding
     for (uint32_t n{0}; n < _length; ++n) {
@@ -99,7 +99,7 @@ auto TGA_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
 
     if (1 == _di.bytes_per_pixel) {
       const auto pixel{_rgba[0]};
-      _coder.Compress(pixel - _prev_rgba[0]);
+      _coder->Compress(pixel - _prev_rgba[0]);
       _prev_rgba[0] = pixel;
     } else {
       const auto b{_rgba[0]};
@@ -108,14 +108,14 @@ auto TGA_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
       const auto x{g};
       const auto y{int8_t(g - r)};
       const auto z{int8_t(g - b)};
-      _coder.Compress(x - _prev_rgba[0]);
-      _coder.Compress(y - _prev_rgba[1]);
-      _coder.Compress(z - _prev_rgba[2]);
+      _coder->Compress(x - _prev_rgba[0]);
+      _coder->Compress(y - _prev_rgba[1]);
+      _coder->Compress(z - _prev_rgba[2]);
       _prev_rgba[0] = x;
       _prev_rgba[1] = y;
       _prev_rgba[2] = z;
       if (4 == _di.bytes_per_pixel) {
-        _coder.Compress(_rgba[3] - _prev_rgba[3]);  // Delta encode alpha channel
+        _coder->Compress(_rgba[3] - _prev_rgba[3]);  // Delta encode alpha channel
         _prev_rgba[3] = _rgba[3];
       }
     }

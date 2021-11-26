@@ -76,19 +76,19 @@ Filter_t::~Filter_t() noexcept {
 auto Filter_t::Create(const Filter& type) noexcept -> iFilter_t* {
   switch (type) {
     // clang-format off
-    case Filter::BMP: return new BMP_filter(_stream, *_encoder, _di);
-    case Filter::DCM: return new DCM_filter(_stream, *_encoder, _di);
-    case Filter::ELF: return new ELF_filter(_stream, *_encoder, _di);
-    case Filter::EXE: return new EXE_filter(_stream, *_encoder, _di);
-    case Filter::GIF: return new GIF_filter(_stream, *_encoder, _di, _buf, _original_length);
-    case Filter::PBM: return new PBM_filter(_stream, *_encoder, _di);
-    case Filter::PDF: return new PDF_filter(_stream, *_encoder, _di, _buf);
-    case Filter::PKZ: return new PKZ_filter(_stream, *_encoder, _di, _buf);
-    case Filter::PNG: return new PNG_filter(_stream, *_encoder, _di, _buf);
-    case Filter::SGI: return new SGI_filter(_stream, *_encoder, _di);
-    case Filter::TGA: return new TGA_filter(_stream, *_encoder, _di);
-    case Filter::TIF: return new TIF_filter(_stream, *_encoder, _di);
-    case Filter::WAV: return new WAV_filter(_stream, *_encoder, _di);
+    case Filter::BMP: return new BMP_filter(_stream, _encoder, _di);
+    case Filter::DCM: return new DCM_filter(_stream, _encoder, _di);
+    case Filter::ELF: return new ELF_filter(_stream, _encoder, _di);
+    case Filter::EXE: return new EXE_filter(_stream, _encoder, _di);
+    case Filter::GIF: return new GIF_filter(_stream, _encoder, _di, _buf, _original_length);
+    case Filter::PBM: return new PBM_filter(_stream, _encoder, _di);
+    case Filter::PDF: return new PDF_filter(_stream, _encoder, _di, _buf);
+    case Filter::PKZ: return new PKZ_filter(_stream, _encoder, _di, _buf);
+    case Filter::PNG: return new PNG_filter(_stream, _encoder, _di, _buf);
+    case Filter::SGI: return new SGI_filter(_stream, _encoder, _di);
+    case Filter::TGA: return new TGA_filter(_stream, _encoder, _di);
+    case Filter::TIF: return new TIF_filter(_stream, _encoder, _di);
+    case Filter::WAV: return new WAV_filter(_stream, _encoder, _di);
       // clang-format on
 
     case Filter::NOFILTER:

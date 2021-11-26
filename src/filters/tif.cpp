@@ -451,7 +451,7 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-TIF_filter::TIF_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di)
+TIF_filter::TIF_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}
@@ -470,11 +470,11 @@ auto TIF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
       const auto b{_rgba[0]};
       const auto g{_rgba[1]};
       const auto r{_rgba[2]};
-      _coder.Compress(g);
-      _coder.Compress(g - r);
-      _coder.Compress(g - b);
+      _coder->Compress(g);
+      _coder->Compress(g - r);
+      _coder->Compress(g - b);
       if (4 == _di.bytes_per_pixel) {
-        _coder.Compress(_rgba[3] - _old_a);  // Delta encode alpha channel
+        _coder->Compress(_rgba[3] - _old_a);  // Delta encode alpha channel
         _old_a = _rgba[3];
       }
     }

@@ -46,7 +46,7 @@ auto Header_t::ScanDCM(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-DCM_filter::DCM_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di)
+DCM_filter::DCM_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}

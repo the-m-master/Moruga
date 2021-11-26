@@ -248,7 +248,7 @@ auto Header_t::ScanEXE(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-EXE_filter::EXE_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di)
+EXE_filter::EXE_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)
     : _stream{stream},  //
       _coder{coder},
       _location{di.location} {}
@@ -292,11 +292,11 @@ auto EXE_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
         _addr[4] = uint8_t(0 - (1 & (addr >> 24)));
       }
 
-      _coder.Compress(_addr[0]);
-      _coder.Compress(_addr[1]);
-      _coder.Compress(_addr[2]);
-      _coder.Compress(_addr[3]);
-      _coder.Compress(_addr[4]);
+      _coder->Compress(_addr[0]);
+      _coder->Compress(_addr[1]);
+      _coder->Compress(_addr[2]);
+      _coder->Compress(_addr[3]);
+      _coder->Compress(_addr[4]);
     }
     status = true;
   }

@@ -71,7 +71,7 @@ auto Header_t::ScanWAV(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-WAV_filter::WAV_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di)
+WAV_filter::WAV_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di)
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}
@@ -103,10 +103,10 @@ void WAV_filter::seekData(const int32_t c) noexcept {
 auto WAV_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if (_di.seekdata) {
     seekData(ch);
-    _coder.Compress(ch);
+    _coder->Compress(ch);
   } else {
     const auto org{int8_t(ch)};
-    _coder.Compress(org - _delta[_cycle]);
+    _coder->Compress(org - _delta[_cycle]);
     _delta[_cycle] = org;
     _cycle++;
     if (_cycle >= _di.cycles) {

@@ -113,15 +113,15 @@ auto Header_t::ScanPBM(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-PBM_filter::PBM_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di)
+PBM_filter::PBM_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di)
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}
 
 PBM_filter::~PBM_filter() noexcept {
-  if (nullptr != &_coder) {  // encoding TODO: turn this test into a real one
+  if (nullptr != _coder) {  // encoding
     for (uint32_t n{0}; n < _length; ++n) {
-      _coder.Compress(_rgba[n]);
+      _coder->Compress(_rgba[n]);
     }
   } else {  // decoding
     for (uint32_t n{0}; n < _length; ++n) {
@@ -138,7 +138,7 @@ auto PBM_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
 
     if (1 == _di.bytes_per_pixel) {
       const auto pixel{_rgba[0]};
-      _coder.Compress(pixel - _prev_rgba[0]);
+      _coder->Compress(pixel - _prev_rgba[0]);
       _prev_rgba[0] = pixel;
     } else {
       const auto b{_rgba[0]};
@@ -147,9 +147,9 @@ auto PBM_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
       const auto x{g};
       const auto y{int8_t(g - r)};
       const auto z{int8_t(g - b)};
-      _coder.Compress(x - _prev_rgba[0]);
-      _coder.Compress(y - _prev_rgba[1]);
-      _coder.Compress(z - _prev_rgba[2]);
+      _coder->Compress(x - _prev_rgba[0]);
+      _coder->Compress(y - _prev_rgba[1]);
+      _coder->Compress(z - _prev_rgba[2]);
       _prev_rgba[0] = x;
       _prev_rgba[1] = y;
       _prev_rgba[2] = z;

@@ -338,7 +338,7 @@ auto Header_t::ScanELF(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-ELF_filter::ELF_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di)
+ELF_filter::ELF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di)
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}
@@ -390,11 +390,11 @@ auto ELF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
       }
     }
     if (_di.filter_end > 0) {
-      _coder.CompressN(32, _di.filter_end);
+      _coder->CompressN(32, _di.filter_end);
 
       _location = offset + 1;
     } else {
-      _coder.CompressN(32, _DEADBEEF);
+      _coder->CompressN(32, _DEADBEEF);
 
       _di.filter_end = 0;
     }
@@ -435,11 +435,11 @@ auto ELF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
         }
       }
 
-      _coder.Compress(_addr[0]);
-      _coder.Compress(_addr[1]);
-      _coder.Compress(_addr[2]);
-      _coder.Compress(_addr[3]);
-      _coder.Compress(_addr[4]);
+      _coder->Compress(_addr[0]);
+      _coder->Compress(_addr[1]);
+      _coder->Compress(_addr[2]);
+      _coder->Compress(_addr[3]);
+      _coder->Compress(_addr[4]);
     }
     status = true;
   }

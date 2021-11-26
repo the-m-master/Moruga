@@ -412,7 +412,7 @@ auto Header_t::ScanGIF(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-GIF_filter::GIF_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di, const Buffer_t& __restrict buf, const int64_t original_length)
+GIF_filter::GIF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf, const int64_t original_length)
     : _buf{buf},  //
       _original_length{original_length},
       _stream{stream},
@@ -543,28 +543,28 @@ auto GIF_filter::Handle(int32_t /*ch*/) noexcept -> bool {  // encoding
         fflush(stdout);
 #endif
         if (frame > 0) {
-          _coder.Compress(IMAGE_DESCRIPTOR);
+          _coder->Compress(IMAGE_DESCRIPTOR);
         }
         _stream.Seek(frame_origin);
         auto len = int32_t(gif_data_position - frame_origin);
-        _coder.Compress(len >> 24);  // Save GIF header length
-        _coder.Compress(len >> 16);
-        _coder.Compress(len >> 8);
-        _coder.Compress(len);
+        _coder->Compress(len >> 24);  // Save GIF header length
+        _coder->Compress(len >> 16);
+        _coder->Compress(len >> 8);
+        _coder->Compress(len);
         while (len--) {
           const auto ch = _stream.getc();
-          _coder.Compress(ch);
+          _coder->Compress(ch);
         }
 
         gif_raw.Rewind();
         len = int32_t(decoded_length);
-        _coder.Compress(len >> 24);  // Save GIF raw data length
-        _coder.Compress(len >> 16);
-        _coder.Compress(len >> 8);
-        _coder.Compress(len);
+        _coder->Compress(len >> 24);  // Save GIF raw data length
+        _coder->Compress(len >> 16);
+        _coder->Compress(len >> 8);
+        _coder->Compress(len);
         while (len--) {
           const auto ch = gif_raw.getc();
-          _coder.Compress(ch);
+          _coder->Compress(ch);
         }
       } else {  // Failure!
 #if 0
@@ -574,19 +574,19 @@ auto GIF_filter::Handle(int32_t /*ch*/) noexcept -> bool {  // encoding
 
         assert(frame_origin < gif_data_position);
         if (frame > 0) {
-          _coder.Compress(IMAGE_DESCRIPTOR);
+          _coder->Compress(IMAGE_DESCRIPTOR);
         }
         _stream.Seek(frame_origin);
         auto len{int32_t(decoded_position - frame_origin)};
         len = ~len;
-        _coder.Compress(len >> 24);
-        _coder.Compress(len >> 16);
-        _coder.Compress(len >> 8);
-        _coder.Compress(len);
+        _coder->Compress(len >> 24);
+        _coder->Compress(len >> 16);
+        _coder->Compress(len >> 8);
+        _coder->Compress(len);
         len = ~len;
         int32_t ch{0};
         while (len-- && (EOF != (ch = _stream.getc()))) {
-          _coder.Compress(ch);
+          _coder->Compress(ch);
         }
         if (EOF == ch) {
           eof = true;
@@ -605,7 +605,7 @@ auto GIF_filter::Handle(int32_t /*ch*/) noexcept -> bool {  // encoding
   _stream.Seek(frame_origin);
 
   if (!eof && (-1 == ret) && (0 == frame)) {  // Failure?
-    _coder.CompressN(32, _DEADBEEF);
+    _coder->CompressN(32, _DEADBEEF);
     _stream.Seek(root_origin);
   }
   return true;

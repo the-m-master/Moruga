@@ -85,7 +85,7 @@ auto Header_t::ScanPNG(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-PNG_filter::PNG_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di, const Buffer_t& __restrict buf)
+PNG_filter::PNG_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf)
     : _buf{buf},  //
       _stream{stream},
       _coder{coder},
@@ -114,7 +114,7 @@ auto PNG_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
     _di.filter_end = 0;
   }
 
-  _coder.Compress(ch);
+  _coder->Compress(ch);
   return true;
 }
 

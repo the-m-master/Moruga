@@ -24,6 +24,6 @@ class iEncoder_t;
 
 auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noexcept -> bool;
 
-void decodeEncodeCompare(File_t& stream, iEncoder_t& coder, const int64_t safe_pos, const int64_t block_length) noexcept;
+void decodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t safe_pos, const int64_t block_length) noexcept;
 
 #endif /* ZIPLIB_HDR */

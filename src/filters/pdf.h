@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class PDF_filter final : public iFilter_t {
 public:
-  explicit PDF_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di, const Buffer_t& __restrict buf);
+  explicit PDF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf);
   virtual ~PDF_filter() noexcept override;
 
   PDF_filter() = delete;
@@ -49,7 +49,7 @@ private:
 
   const Buffer_t& __restrict _buf;
   File_t& _stream;
-  iEncoder_t& _coder;
+  iEncoder_t* const _coder;
   DataInfo_t& _di;
   int32_t _block_length{0};
   uint32_t _length{0};

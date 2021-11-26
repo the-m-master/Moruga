@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class WAV_filter final : public iFilter_t {
 public:
-  explicit WAV_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di);
+  explicit WAV_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di);
   virtual ~WAV_filter() noexcept override;
 
   WAV_filter() = delete;
@@ -43,7 +43,7 @@ private:
   void seekData(const int32_t c) noexcept;
 
   File_t& _stream;
-  iEncoder_t& _coder;
+  iEncoder_t* const _coder;
   DataInfo_t& _di;
 
   uint32_t _data{0};

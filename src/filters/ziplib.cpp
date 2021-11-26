@@ -380,7 +380,7 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
   return (recpos == len) && !diffFound;
 }
 
-void decodeEncodeCompare(File_t& stream, iEncoder_t& coder, const int64_t safe_pos, const int64_t block_length) noexcept {
+void decodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t safe_pos, const int64_t block_length) noexcept {
   if (block_length > 0) {
     stream.Seek(safe_pos);
     File_t pkzip_tmp;
@@ -392,10 +392,10 @@ void decodeEncodeCompare(File_t& stream, iEncoder_t& coder, const int64_t safe_p
         fprintf(stdout, "\nzlib %" PRId64 " --> %" PRId64 "  \n", block_length, pkzip_tmp.Size());
         fflush(stdout);
 #endif
-        coder.CompressN(32, pkzip_tmp.Size());
+        coder->CompressN(32, pkzip_tmp.Size());
         pkzip_tmp.Rewind();
         for (int32_t c; EOF != (c = pkzip_tmp.getc());) {
-          coder.Compress(c);
+          coder->Compress(c);
         }
         return;  // Success
       }
@@ -407,6 +407,6 @@ void decodeEncodeCompare(File_t& stream, iEncoder_t& coder, const int64_t safe_p
 #endif
   }
 
-  coder.CompressN(32, iFilter_t::_DEADBEEF);  // Failure...
+  coder->CompressN(32, iFilter_t::_DEADBEEF);  // Failure...
   stream.Seek(safe_pos);
 }

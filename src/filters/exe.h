@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class EXE_filter final : public iFilter_t {
 public:
-  explicit EXE_filter(File_t& stream, iEncoder_t& coder, const DataInfo_t& di);
+  explicit EXE_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di);
   virtual ~EXE_filter() noexcept override;
 
   EXE_filter() = delete;
@@ -43,7 +43,7 @@ private:
   void detect(const int32_t ch) noexcept;
 
   File_t& _stream;
-  iEncoder_t& _coder;
+  iEncoder_t* const _coder;
 
   bool _transform{false};
   int32_t : 24;  // Padding

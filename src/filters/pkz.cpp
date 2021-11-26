@@ -111,7 +111,7 @@ auto Header_t::ScanPKZ(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-PKZ_filter::PKZ_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di, const Buffer_t& __restrict buf)
+PKZ_filter::PKZ_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf)
     : _buf{buf},  //
       _stream{stream},
       _coder{coder},
@@ -120,7 +120,7 @@ PKZ_filter::PKZ_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di, const 
 auto PKZ_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if ((_di.pkzippos > 0) && (_buf.Pos() == _di.pkzippos)) {
     int64_t safe_pos{_stream.Position()};
-    _coder.Compress(ch);  // Encode last character
+    _coder->Compress(ch);  // Encode last character
     decodeEncodeCompare(_stream, _coder, safe_pos, _di.pkziplen);
     _di.pkzippos = 0;
     _di.pkziplen = 0;

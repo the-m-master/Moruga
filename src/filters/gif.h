@@ -77,7 +77,7 @@ private:
 
 class GIF_filter final : public iFilter_t {
 public:
-  explicit GIF_filter(File_t& stream, iEncoder_t& coder, DataInfo_t& di, const Buffer_t& __restrict buf, const int64_t original_length);
+  explicit GIF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf, const int64_t original_length);
   virtual ~GIF_filter() noexcept override;
 
   GIF_filter() = delete;
@@ -107,7 +107,7 @@ private:
   const Buffer_t& __restrict _buf;
   const int64_t _original_length;
   File_t& _stream;
-  iEncoder_t& _coder;
+  iEncoder_t* const _coder;
   DataInfo_t& _di;
 
   File_t* _gif_raw{nullptr};
