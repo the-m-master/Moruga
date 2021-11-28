@@ -54,62 +54,58 @@ static auto digits(int64_t number) noexcept -> int32_t {
 
 #if defined(__linux__)
 
-static void consoleRowCol(uint32_t& rows, uint32_t& columns) noexcept {
+static auto consoleCol() noexcept -> int32_t {
   struct winsize csbi;
   ioctl(STDIN_FILENO, TIOCGWINSZ, &csbi);
-  columns = csbi.ws_col;
-  rows = csbi.ws_row;
-}
-
-static auto consoleCol() noexcept -> uint32_t {
-  uint32_t rows;
-  uint32_t columns;
-  consoleRowCol(rows, columns);
+  const int32_t columns{csbi.ws_col};
   return columns;
 }
+
 static auto memoryUseKiB() noexcept -> uint32_t {
   struct rusage rUsage;
   getrusage(RUSAGE_SELF, &rUsage);
-#if defined(__APPLE__) && defined(__MACH__)
-  return uint32_t(rUsage.ru_maxrss / UINT64_C(1024));  // in KiB;
-#else
-  return uint32_t(rUsage.ru_maxrss);  // in KiB
-#endif
+  return uint32_t(rUsage.ru_maxrss);  // Maximum resident set size utilised in KiB
 }
 
 #else
 
-static auto consoleRowCol(uint32_t& rows, uint32_t& columns) noexcept -> bool {
+static auto getConsoleScreenBufferInfo(void** handler = nullptr) noexcept -> const CONSOLE_SCREEN_BUFFER_INFO* {
+  void* const handle{GetStdHandle(STD_OUTPUT_HANDLE)};
+  if (nullptr != handle) {
+    static CONSOLE_SCREEN_BUFFER_INFO csbi = {{0, 0}, {0, 0}, 0, {0, 0, 0, 0}, {0, 0}};
+    if (0 != GetConsoleScreenBufferInfo(handle, &csbi)) {
+      if (nullptr != handler) {
+        *handler = handle;
+      }
+      return &csbi;
+    }
+  }
+  return nullptr;  // Failure
+}
+
+static auto consoleRowCol(int32_t& columns) noexcept -> bool {
   const char* const columns_str{getenv("COLUMNS")};
-  const char* const rows_str{getenv("LINES")};
-  if (columns_str && rows_str) {
-    columns = uint32_t(strtoul(columns_str, nullptr, 10));
-    rows = uint32_t(strtoul(rows_str, nullptr, 10));
+  if (columns_str) {
+    columns = std::clamp(std::abs(std::stoi(columns_str, nullptr, 10)), 80, 512);
   } else {
-    void* const handle{GetStdHandle(STD_OUTPUT_HANDLE)};
-    if (nullptr == handle) {
+    const auto* const csbi{getConsoleScreenBufferInfo()};
+    if (nullptr == csbi) {
       return false;  // Failure
     }
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-    if (0 == GetConsoleScreenBufferInfo(handle, &csbi)) {
-      return false;  // Failure
-    }
-    columns = uint32_t(csbi.srWindow.Right - csbi.srWindow.Left + 1);
-    rows = uint32_t(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
+    columns = csbi->srWindow.Right - csbi->srWindow.Left + 1;
   }
   return true;
 }
 
-static auto consoleCol() noexcept -> uint32_t {
-  uint32_t rows;
-  uint32_t columns{80};
-  if (!consoleRowCol(rows, columns)) {
+static auto consoleCol() noexcept -> int32_t {
+  int32_t columns{80};
+  if (!consoleRowCol(columns)) {
     static std::array<char, 4> result{{'8', '0', 0, 0}};
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("tput cols", "r"), pclose);
     if (nullptr != pipe) {
       const char* ptr{fgets(&result[0], result.size(), pipe.get())};
       if (nullptr != ptr) {
-        columns = strtoul(&result[0], nullptr, 10);
+        columns = std::clamp(std::abs(std::stoi(&result[0], nullptr, 10)), 80, 512);
       }
     }
   }
@@ -119,7 +115,7 @@ static auto consoleCol() noexcept -> uint32_t {
 static auto memoryUseKiB() noexcept -> uint32_t {
   PROCESS_MEMORY_COUNTERS rUsage;
   GetProcessMemoryInfo(GetCurrentProcess(), &rUsage, sizeof(rUsage));
-  return uint32_t(rUsage.PeakPagefileUsage / UINT64_C(1024));  // in KiB
+  return uint32_t(rUsage.PeakPagefileUsage / SIZE_T(1024));  // in KiB
 }
 
 #endif
@@ -143,9 +139,9 @@ static volatile uint32_t g_nTIF{0};
 static volatile uint32_t g_nWAV{0};
 
 static void FiltersToString(std::string& filters, uint32_t count, const std::string& text) noexcept {
-  if (count) {
+  if (count > 0) {
     if (filters.length() > 0) {
-      filters += ", ";
+      filters.append(", ");
     }
     filters += text;
     if (count > 1) {
@@ -169,9 +165,6 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
     const auto outBytes{tracer->monitor.outputLength()};
     const auto workLength{tracer->monitor.workLength()};
 
-    uint32_t rows{0};
-    uint32_t columns{tracer->columns};  // In case of failure
-    consoleRowCol(rows, columns);
     const int64_t workPosition{tracer->encode ? inBytes : outBytes};
 
     auto speed{uint32_t((workPosition * POW10_6) / (deltaTime * INT64_C(1024)))};
@@ -201,31 +194,28 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
     const auto mm{int32_t(ms / (INT64_C(60) * POW10_6))};
     const auto ss{int32_t((ms - (mm * INT64_C(60) * POW10_6)) / POW10_6)};
 
+    const auto columns{consoleCol()};
     int32_t length{28 + 3 + tracer->digits + tracer->digits + 4 + 4 + 6 + 3};
-    length = (std::max)(0, int32_t(columns) - length);
+    length = (std::max)(0, columns - length);
 
-    const auto barLength{std::clamp(uint32_t(length), UINT32_C(2), UINT32_C(256))};
-    const auto buzy{uint32_t((workPosition * barLength) / workLength)};
+    const auto barLength{std::clamp(length, 2, 256)};
+    const auto buzy{(workPosition * barLength) / workLength};
 
     std::string progress;
-    for (uint32_t n{0}; n < barLength; ++n) {
+    for (auto n{0}; n < barLength; ++n) {
       progress += (n < buzy) ? '#' : '.';
     }
-    if (buzy < barLength) {
+    if ((buzy >= 0) && (buzy < barLength)) {
       static constexpr std::array<char, 4> animation{{'\\', '|', '/', '-'}};
       static uint8_t art{0};
-      progress[buzy] = animation[art++];
+      progress[size_t(buzy)] = animation[art++];
       if (art >= sizeof(animation)) {
         art = 0;
       }
     }
 
     length = (std::max)(0, length - int32_t(progress.length()));
-
-    std::string filler;
-    for (auto n{0}; n < length; ++n) {
-      filler += ' ';
-    }
+    const std::string filler(size_t(length), ' ');
 
     fprintf(stdout, "%s in/out %*" PRId64 "/%*" PRId64 "%s %4u %ciB %4u %ciB/s %02d:%02d [%s] %3" PRId64 "%%",
             tracer->workType,           //
@@ -262,16 +252,14 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
       if (nullptr != term) {
         fputs(&cursor_up_one_line[0], stdout);
       } else {
-        void* const handle{GetStdHandle(STD_OUTPUT_HANDLE)};
-        if (nullptr != handle) {
-          CONSOLE_SCREEN_BUFFER_INFO csbi;
-          if (0 != GetConsoleScreenBufferInfo(handle, &csbi)) {
-            COORD coord{.X = csbi.dwCursorPosition.X, .Y = SHORT(csbi.dwCursorPosition.Y - 1)};
-            if (coord.Y < csbi.srWindow.Top) {
-              coord.Y = csbi.srWindow.Top;
-            }
-            SetConsoleCursorPosition(handle, coord);
+        void* handle{nullptr};
+        const auto* const csbi{getConsoleScreenBufferInfo(&handle)};
+        if (nullptr != csbi) {
+          COORD coord{.X = csbi->dwCursorPosition.X, .Y = SHORT(csbi->dwCursorPosition.Y - 1)};
+          if (coord.Y < csbi->srWindow.Top) {
+            coord.Y = csbi->srWindow.Top;
           }
+          SetConsoleCursorPosition(handle, coord);
         }
       }
 #endif
@@ -282,14 +270,12 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
   }
 }
 
-static void MonitorWorker(const volatile TraceProgress_t* tracer) noexcept {
+static void MonitorWorker(const volatile TraceProgress_t* const tracer) noexcept {
   assert(tracer);
-#if defined(__linux__)
   pthread_setname_np(pthread_self(), __FUNCTION__);
-#endif
 
   for (auto count{1}; tracer->isRunning; ++count) {
-    if (count >= 5) {  // Do every 5*50ms = 250ms do every something
+    if (count >= 5) {  // Do every 5*50ms = 250ms something...
       count = 1;
       ProgressBar(tracer);
     }
@@ -302,7 +288,6 @@ Progress_t::Progress_t(const std::string& workType, bool encode, const iMonitor_
               .workType{workType[0], workType[1], workType[2], '\0'},
               .encode = encode,
               .digits = digits(monitor.layoutLength()),
-              .columns = consoleCol(),
               .monitor = monitor,
               .start = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count()},  //
       _monitorWorker{MonitorWorker, &_tracer} {

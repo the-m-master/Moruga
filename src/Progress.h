@@ -33,7 +33,6 @@ struct TraceProgress_t {
   const char workType[4];
   const bool encode;
   const int32_t digits;
-  const uint32_t columns;
   const iMonitor_t& monitor;
   const int64_t start;
 };
@@ -57,6 +56,7 @@ private:
 
   TraceProgress_t _tracer;
   int32_t : 16;  // Padding
+  int32_t : 32;  // Padding
   std::thread _monitorWorker;
 };
 
