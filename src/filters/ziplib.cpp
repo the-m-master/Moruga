@@ -66,10 +66,9 @@ static auto zlib_inflateInit(z_streamp strm, const int32_t zh) noexcept -> int32
   return inflateInit(strm);
 }
 
-static constexpr uint32_t block{1 << 16};
-static constexpr uint32_t limit{128};
-
-#define ZLIB_NUM_COMBINATIONS 81
+static constexpr uint32_t BLOCK_SIZE{1u << 16};
+static constexpr uint32_t LIMIT{128};
+static constexpr uint32_t ZLIB_NUM_COMBINATIONS{81};
 
 class zLibMTF final {
 public:
@@ -125,14 +124,16 @@ private:
 
 zLibMTF::~zLibMTF() noexcept = default;
 
-static auto decode_zlib(File_t& in, File_t& out, int64_t len) noexcept -> bool {
-  std::array<uint8_t, block * 2> zin;
-  std::array<uint8_t, block> zout;
-  std::array<uint8_t, block * 2> zrec;
-  std::array<uint8_t, ZLIB_NUM_COMBINATIONS * limit> diffByte{};
-  std::array<int32_t, ZLIB_NUM_COMBINATIONS * limit> diffPos{};
+static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool {
+  std::array<uint8_t, BLOCK_SIZE * 2> zin;
+  std::array<uint8_t, BLOCK_SIZE> zout;
+  std::array<uint8_t, BLOCK_SIZE * 2> zrec;
+  std::array<uint8_t, ZLIB_NUM_COMBINATIONS * LIMIT> diffByte{};
+  std::array<int32_t, ZLIB_NUM_COMBINATIONS * LIMIT> diffPos{};
 
+  //---------------------------------------------------------------------------
   // Step 1 - parse offset type form zlib stream header
+  //---------------------------------------------------------------------------
   const int64_t safe_pos{in.Position()};
   const int32_t h1{in.getc()};
   const int32_t h2{in.getc()};
@@ -146,14 +147,15 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t len) noexcept -> bool {
   int32_t nTrials{0};
   bool found{false};
 
+  //---------------------------------------------------------------------------
   // Step 2 - check recompressiblitiy, determine parameters and save differences
+  //---------------------------------------------------------------------------
   std::array<z_stream, ZLIB_NUM_COMBINATIONS> rec_strm;
   std::array<uint32_t, ZLIB_NUM_COMBINATIONS> diffCount;
   std::array<uint32_t, ZLIB_NUM_COMBINATIONS> recpos;
-  int32_t main_ret{Z_STREAM_END};
-  z_stream main_strm;
-  memset(&main_strm, 0, sizeof(main_strm));
-  if (Z_OK != zlib_inflateInit(&main_strm, zh)) {
+  z_stream main_stream;
+  memset(&main_stream, 0, sizeof(main_stream));
+  if (Z_OK != zlib_inflateInit(&main_stream, zh)) {
     return false;
   }
 
@@ -161,29 +163,30 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t len) noexcept -> bool {
     uint32_t clevel{(i / 9) + 1};
     // Early skip if invalid parameter
     if ((clevel < minclevel) || (clevel > maxclevel)) {
-      diffCount[i] = limit;
+      diffCount[i] = LIMIT;
       continue;
     }
     const uint32_t memlevel{(i % 9) + 1};
     memset(&rec_strm[i], 0, sizeof(rec_strm[i]));
     int32_t ret = deflateInit2(&rec_strm[i], int32_t(clevel), Z_DEFLATED, window - MAX_WBITS, int32_t(memlevel), Z_DEFAULT_STRATEGY);
-    diffCount[i] = (Z_OK == ret) ? 0 : limit;
-    recpos[i] = block * 2;
-    diffPos[i * limit] = -1;
-    diffByte[i * limit] = 0;
+    diffCount[i] = (Z_OK == ret) ? 0 : LIMIT;
+    recpos[i] = BLOCK_SIZE * 2;
+    diffPos[i * LIMIT] = -1;
+    diffByte[i * LIMIT] = 0;
   }
 
+  int32_t main_ret{Z_STREAM_END};
   zLibMTF mtf{};
-  for (int64_t i{0}; i < len; i += block) {
-    const uint32_t blsize{(std::min)(uint32_t(len - i), block)};
+  for (int64_t i{0}; i < len; i += BLOCK_SIZE) {
+    const uint32_t blsize{(std::min)(uint32_t(len - i), BLOCK_SIZE)};
     nTrials = 0;
     for (uint32_t j{0}; j < ZLIB_NUM_COMBINATIONS; j++) {
-      if (diffCount[j] == limit) {
+      if (diffCount[j] == LIMIT) {
         continue;
       }
       nTrials++;
-      if (recpos[j] >= block) {
-        recpos[j] -= block;
+      if (recpos[j] >= BLOCK_SIZE) {
+        recpos[j] -= BLOCK_SIZE;
       }
     }
     // early break if nothing left to test
@@ -191,62 +194,68 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t len) noexcept -> bool {
       break;
     }
 
-    memmove(&zrec[0], &zrec[block], block);
-    memmove(&zin[0], &zin[block], block);
-    in.Read(&zin[block], blsize);  // Read block from input file
+    memmove(&zrec[0], &zrec[BLOCK_SIZE], BLOCK_SIZE);
+    memmove(&zin[0], &zin[BLOCK_SIZE], BLOCK_SIZE);
+    in.Read(&zin[BLOCK_SIZE], blsize);  // Read block from input file
 
     // Decompress/inflate block
-    main_strm.next_in = &zin[block];
-    main_strm.avail_in = blsize;
+    main_stream.next_in = &zin[BLOCK_SIZE];
+    main_stream.avail_in = blsize;
     do {
-      main_strm.next_out = &zout[0];
-      main_strm.avail_out = block;
-      main_ret = inflate(&main_strm, Z_FINISH);
+      main_stream.next_out = &zout[0];
+      main_stream.avail_out = BLOCK_SIZE;
+      main_ret = inflate(&main_stream, Z_FINISH);
+      if (Z_STREAM_END == main_ret) {
+        len = int64_t(main_stream.total_in);  // True for PKZip, but not for GZ length of file is not known
+      }
+
       nTrials = 0;
       // Recompress/deflate block with all possible parameters
       for (int32_t j{mtf.GetFirst()}; j >= 0; j = mtf.GetNext()) {
-        if (limit == diffCount[uint32_t(j)]) {
+        if (LIMIT == diffCount[uint32_t(j)]) {
           continue;
         }
         nTrials++;
         rec_strm[uint32_t(j)].next_in = &zout[0];
-        rec_strm[uint32_t(j)].avail_in = block - main_strm.avail_out;
+        rec_strm[uint32_t(j)].avail_in = BLOCK_SIZE - main_stream.avail_out;
         rec_strm[uint32_t(j)].next_out = &zrec[recpos[uint32_t(j)]];
-        rec_strm[uint32_t(j)].avail_out = (block * 2) - recpos[uint32_t(j)];
-        int32_t ret{deflate(&rec_strm[uint32_t(j)], (int64_t(main_strm.total_in) == len) ? Z_FINISH : Z_NO_FLUSH)};
+        rec_strm[uint32_t(j)].avail_out = (BLOCK_SIZE * 2) - recpos[uint32_t(j)];
+        const int32_t flush{(len >= int64_t(main_stream.total_in)) ? Z_FINISH : Z_NO_FLUSH};
+        const int32_t ret{deflate(&rec_strm[uint32_t(j)], flush)};
         if ((Z_BUF_ERROR != ret) && (Z_STREAM_END != ret) && (Z_OK != ret)) {
-          diffCount[uint32_t(j)] = limit;
+          diffCount[uint32_t(j)] = LIMIT;
           continue;
         }
 
         // Compare
-        const uint32_t end{(2 * block) - rec_strm[uint32_t(j)].avail_out};
+        const uint32_t end{(2 * BLOCK_SIZE) - rec_strm[uint32_t(j)].avail_out};
         const uint32_t tail{(std::max)((Z_STREAM_END == main_ret) ? uint32_t(len - int64_t(rec_strm[uint32_t(j)].total_out)) : 0u, 0u)};
         for (uint32_t k{recpos[uint32_t(j)]}; k < (end + tail); k++) {
-          if (((k < end) && ((i + k - block) < len) && (zrec[k] != zin[k])) || (k >= end)) {
-            if (++diffCount[uint32_t(j)] < limit) {
-              const uint32_t p{uint32_t(j) * limit + diffCount[uint32_t(j)]};
-              diffPos[p] = int32_t(i + k - block);
+          if (((k < end) && ((i + k - BLOCK_SIZE) < len) && (zrec[k] != zin[k])) || (k >= end)) {
+            if (++diffCount[uint32_t(j)] < LIMIT) {
+              const uint32_t p{uint32_t(j) * LIMIT + diffCount[uint32_t(j)]};
+              diffPos[p] = int32_t(i + k - BLOCK_SIZE);
               assert(k < zin.size());
               diffByte[p] = zin[k];
             }
           }
         }
+
         // Early break on perfect match
         if ((Z_STREAM_END == main_ret) && (0 == diffCount[uint32_t(j)])) {
           index = j;
           found = true;
           break;
         }
-        recpos[uint32_t(j)] = 2 * block - rec_strm[uint32_t(j)].avail_out;
+        recpos[uint32_t(j)] = 2 * BLOCK_SIZE - rec_strm[uint32_t(j)].avail_out;
       }
-    } while ((0 == main_strm.avail_out) && (Z_BUF_ERROR == main_ret) && (nTrials > 0));
+    } while ((0 == main_stream.avail_out) && (Z_BUF_ERROR == main_ret) && (nTrials > 0));
 
     if (((Z_BUF_ERROR != main_ret) && (Z_STREAM_END != main_ret)) || (0 == nTrials)) {
       break;
     }
   }
-  uint32_t minCount{found ? 0 : limit};
+  uint32_t minCount{found ? 0 : LIMIT};
   for (int32_t i{ZLIB_NUM_COMBINATIONS - 1}; i >= 0; i--) {
     const uint32_t clevel{(uint32_t(i) / 9) + 1};
     if ((clevel >= minclevel) && (clevel <= maxclevel)) {
@@ -257,61 +266,64 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t len) noexcept -> bool {
       minCount = diffCount[uint32_t(i)];
     }
   }
-  inflateEnd(&main_strm);
-  if (limit == minCount) {
+  inflateEnd(&main_stream);
+  if (LIMIT == minCount) {
     return false;
   }
+  assert(-1 != index);
   mtf.Insert(index);
 
+  //---------------------------------------------------------------------------
   // Step 3 - write parameters, differences and precompressed (inflated) data
+  //---------------------------------------------------------------------------
   out.putc(int32_t(diffCount[uint32_t(index)]));
   out.putc(window);
   out.putc(index);
   for (uint32_t i{0}; i <= diffCount[uint32_t(index)]; i++) {
-    const auto v{(i == diffCount[uint32_t(index)]) ? uint32_t(len - diffPos[uint32_t(index) * limit + i]) :  //
-                     uint32_t(diffPos[uint32_t(index) * limit + i + 1] - diffPos[uint32_t(index) * limit + i] - 1)};
+    const auto v{(i == diffCount[uint32_t(index)]) ? uint32_t(len - diffPos[uint32_t(index) * LIMIT + i]) :  //
+                     uint32_t(diffPos[uint32_t(index) * LIMIT + i + 1] - diffPos[uint32_t(index) * LIMIT + i] - 1)};
     out.put32(v);
   }
   for (uint32_t i{0}; i < diffCount[uint32_t(index)]; i++) {
-    out.putc(diffByte[uint32_t(index) * limit + i + 1]);
+    out.putc(diffByte[uint32_t(index) * LIMIT + i + 1]);
   }
 
   in.Seek(safe_pos);
-  memset(&main_strm, 0, sizeof(main_strm));
-  if (zlib_inflateInit(&main_strm, zh) != Z_OK) {
+  memset(&main_stream, 0, sizeof(main_stream));
+  if (zlib_inflateInit(&main_stream, zh) != Z_OK) {
     return false;
   }
-  for (uint32_t i{0}; i < len; i += block) {
-    uint32_t blsize = ((std::min))(uint32_t(len - i), block);
+  for (uint32_t i{0}; i < len; i += BLOCK_SIZE) {
+    const uint32_t blsize{(std::min)(uint32_t(len - i), BLOCK_SIZE)};
     in.Read(&zin[0], blsize);
-    main_strm.next_in = &zin[0];
-    main_strm.avail_in = blsize;
+    main_stream.next_in = &zin[0];
+    main_stream.avail_in = blsize;
     do {
-      main_strm.next_out = &zout[0];
-      main_strm.avail_out = block;
-      main_ret = inflate(&main_strm, Z_FINISH);
-      out.Write(&zout[0], block - main_strm.avail_out);
-    } while ((0 == main_strm.avail_out) && (Z_BUF_ERROR == main_ret));
+      main_stream.next_out = &zout[0];
+      main_stream.avail_out = BLOCK_SIZE;
+      main_ret = inflate(&main_stream, Z_FINISH);
+      out.Write(&zout[0], BLOCK_SIZE - main_stream.avail_out);
+    } while ((0 == main_stream.avail_out) && (Z_BUF_ERROR == main_ret));
     if ((Z_BUF_ERROR != main_ret) && (Z_STREAM_END != main_ret)) {
       break;
     }
   }
-  inflateEnd(&main_strm);
+  inflateEnd(&main_stream);
   return Z_STREAM_END == main_ret;
 }
 
 auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noexcept -> bool {
   uint64_t diffFound{0};
-  std::array<uint8_t, block> zin;
-  std::array<uint8_t, block> zout;
-  const uint32_t diffCount = (std::min)(uint32_t(in.getc()), limit - 1);
+  std::array<uint8_t, BLOCK_SIZE> zin;
+  std::array<uint8_t, BLOCK_SIZE> zout;
+  const uint32_t diffCount = (std::min)(uint32_t(in.getc()), LIMIT - 1);
   uint32_t window{uint32_t(in.getc() - MAX_WBITS)};
   const int32_t index{in.getc()};
   const int32_t memlevel{(index % 9) + 1};
   const int32_t clevel{(index / 9) + 1};
   uint32_t len{0};
 
-  std::array<int32_t, limit> diffPos;
+  std::array<int32_t, LIMIT> diffPos;
   diffPos[0] = -1;
   for (uint32_t i{0}; i <= diffCount; i++) {
     int32_t v{int32_t(in.get32())};
@@ -321,7 +333,7 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
       diffPos[i + 1] = v + diffPos[i] + 1;
     }
   }
-  std::array<uint8_t, limit> diffByte;
+  std::array<uint8_t, LIMIT> diffByte;
   diffByte[0] = 0;
   for (uint32_t i{0}; i < diffCount; i++) {
     diffByte[i + 1] = uint8_t(in.getc());
@@ -336,19 +348,19 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
   }
   uint32_t diffIndex{1};
   uint32_t recpos{0};
-  for (uint32_t i{0}; i < size; i += block) {
-    const uint32_t blsize{(std::min)(uint32_t(size - i), block)};
+  for (uint32_t i{0}; i < size; i += BLOCK_SIZE) {
+    const uint32_t blsize{(std::min)(uint32_t(size - i), BLOCK_SIZE)};
     in.Read(&zin[0], blsize);
     rec_strm.next_in = &zin[0];
     rec_strm.avail_in = blsize;
     do {
       rec_strm.next_out = &zout[0];
-      rec_strm.avail_out = block;
+      rec_strm.avail_out = BLOCK_SIZE;
       ret = deflate(&rec_strm, i + blsize == size ? Z_FINISH : Z_NO_FLUSH);
       if ((Z_BUF_ERROR != ret) && (Z_STREAM_END != ret) && (Z_OK != ret)) {
         break;
       }
-      const uint32_t have{(std::min)(block - rec_strm.avail_out, len - recpos)};
+      const uint32_t have{(std::min)(BLOCK_SIZE - rec_strm.avail_out, len - recpos)};
       while ((diffIndex <= diffCount) && (uint32_t(diffPos[diffIndex]) >= recpos) && (uint32_t(diffPos[diffIndex]) < (recpos + have))) {
         zout[uint32_t(diffPos[diffIndex]) - recpos] = diffByte[diffIndex];
         diffIndex++;
@@ -380,11 +392,12 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
   return (recpos == len) && !diffFound;
 }
 
-void decodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t safe_pos, const int64_t block_length) noexcept {
+auto decodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t safe_pos, const int64_t block_length) noexcept -> int64_t {
   if (block_length > 0) {
     stream.Seek(safe_pos);
-    File_t pkzip_tmp;
-    if (decode_zlib(stream, pkzip_tmp, block_length)) {  // Try to decode
+    File_t pkzip_tmp;  // ("_pkzip_tmp_.bin", "wb+");
+    int64_t length{block_length};
+    if (decode_zlib(stream, pkzip_tmp, length)) {  // Try to decode
       pkzip_tmp.Rewind();
       stream.Seek(safe_pos);
       if (encode_zlib(pkzip_tmp, pkzip_tmp.Size(), stream, true)) {  // Encode and compare
@@ -392,21 +405,26 @@ void decodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t 
         fprintf(stdout, "\nzlib %" PRId64 " --> %" PRId64 "  \n", block_length, pkzip_tmp.Size());
         fflush(stdout);
 #endif
-        coder->CompressN(32, pkzip_tmp.Size());
-        pkzip_tmp.Rewind();
-        for (int32_t c; EOF != (c = pkzip_tmp.getc());) {
-          coder->Compress(c);
+        if (nullptr != coder) {
+          coder->CompressN(32, pkzip_tmp.Size());
+          pkzip_tmp.Rewind();
+          for (int32_t c; EOF != (c = pkzip_tmp.getc());) {
+            coder->Compress(c);
+          }
         }
-        return;  // Success
+        return length;  // Success
       }
     }
 
 #if 0
-    fprintf(stderr, "\n>>> zlib %" PRIX64 " / %" PRId64 "   \n", safe_pos, block_length);
+    fprintf(stderr, "\n>>> zlib %" PRIX64 " / %" PRId64 " / %" PRId64 "\n", safe_pos, length, block_length);
     fflush(stderr);
 #endif
   }
 
-  coder->CompressN(32, iFilter_t::_DEADBEEF);  // Failure...
+  if (nullptr != coder) {
+    coder->CompressN(32, iFilter_t::_DEADBEEF);  // Failure...
+  }
   stream.Seek(safe_pos);
+  return 0;
 }

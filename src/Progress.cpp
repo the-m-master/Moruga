@@ -24,7 +24,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
-#include <memory>
+#include <cstring>
 #include "filters/filter.h"
 #include "iMonitor.h"
 
@@ -44,7 +44,7 @@ iMonitor_t::~iMonitor_t() noexcept = default;
 
 // int32_t(ceil(log(double(layoutLength | 1)) / log(10.0)))
 static auto digits(int64_t number) noexcept -> int32_t {
-  number = (number < 2) ? 2 : number;
+  number |= 1;
   int32_t ndigits{0};
   for (int64_t value{1}; value < number; value *= 10) {
     ++ndigits;
@@ -56,6 +56,7 @@ static auto digits(int64_t number) noexcept -> int32_t {
 
 static auto consoleCol() noexcept -> int32_t {
   struct winsize csbi;
+  memset(&csbi, 0, sizeof(csbi));
   ioctl(STDIN_FILENO, TIOCGWINSZ, &csbi);
   const int32_t columns{csbi.ws_col};
   return columns;
@@ -63,6 +64,7 @@ static auto consoleCol() noexcept -> int32_t {
 
 static auto memoryUseKiB() noexcept -> uint32_t {
   struct rusage rUsage;
+  memset(&rUsage, 0, sizeof(rUsage));
   getrusage(RUSAGE_SELF, &rUsage);
   return uint32_t(rUsage.ru_maxrss);  // Maximum resident set size utilised in KiB
 }
@@ -120,23 +122,24 @@ static auto memoryUseKiB() noexcept -> uint32_t {
 
 #endif
 
-static uint32_t g_peakMemoryUse{0};  // in KiB
+static uint32_t peakMemoryUse_{0};  // in KiB
 
-static volatile uint32_t g_nFilter{0};
+static volatile uint32_t nFilter_{0};
 
-static volatile uint32_t g_nBMP{0};
-static volatile uint32_t g_nDCM{0};
-static volatile uint32_t g_nELF{0};
-static volatile uint32_t g_nEXE{0};
-static volatile uint32_t g_nGIF{0};
-static volatile uint32_t g_nPBM{0};
-static volatile uint32_t g_nPDF{0};
-static volatile uint32_t g_nPKZ{0};
-static volatile uint32_t g_nPNG{0};
-static volatile uint32_t g_nSGI{0};
-static volatile uint32_t g_nTGA{0};
-static volatile uint32_t g_nTIF{0};
-static volatile uint32_t g_nWAV{0};
+static volatile uint32_t nBMP_{0};
+static volatile uint32_t nELF_{0};
+static volatile uint32_t nEXE_{0};
+static volatile uint32_t nGIF_{0};
+static volatile uint32_t nGZP_{0};
+static volatile uint32_t nLZX_{0};
+static volatile uint32_t nPBM_{0};
+static volatile uint32_t nPDF_{0};
+static volatile uint32_t nPKZ_{0};
+static volatile uint32_t nPNG_{0};
+static volatile uint32_t nSGI_{0};
+static volatile uint32_t nTGA_{0};
+static volatile uint32_t nTIF_{0};
+static volatile uint32_t nWAV_{0};
 
 static void FiltersToString(std::string& filters, uint32_t count, const std::string& text) noexcept {
   if (count > 0) {
@@ -179,7 +182,7 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
     }
 
     auto memUse{memoryUseKiB()};
-    g_peakMemoryUse = (std::max)(g_peakMemoryUse, memUse);
+    peakMemoryUse_ = (std::max)(peakMemoryUse_, memUse);
     char memC{'K'};                         // KiB
     if (memUse > 9999) {                    //
       memC = 'M';                           // MiB
@@ -201,7 +204,7 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
     const auto barLength{std::clamp(length, 2, 256)};
     const auto buzy{(workPosition * barLength) / workLength};
 
-    std::string progress;
+    std::string progress{};
     for (auto n{0}; n < barLength; ++n) {
       progress += (n < buzy) ? '#' : '.';
     }
@@ -227,21 +230,22 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
             mm, ss,                     //
             progress.c_str(),           //
             ((workPosition * POW10_2) / workLength));
-    if (g_nFilter) {
+    if (nFilter_) {
       std::string filters;
-      FiltersToString(filters, g_nBMP, "BMP");
-      FiltersToString(filters, g_nDCM, "DCM");
-      FiltersToString(filters, g_nELF, "ELF");
-      FiltersToString(filters, g_nEXE, "EXE");
-      FiltersToString(filters, g_nGIF, "GIF");
-      FiltersToString(filters, g_nPBM, "PBM");
-      FiltersToString(filters, g_nPDF, "PDF");
-      FiltersToString(filters, g_nPKZ, "PKZ");
-      FiltersToString(filters, g_nPNG, "PNG");
-      FiltersToString(filters, g_nSGI, "SGI");
-      FiltersToString(filters, g_nTGA, "TGA");
-      FiltersToString(filters, g_nTIF, "TIF");
-      FiltersToString(filters, g_nWAV, "WAV");
+      FiltersToString(filters, nBMP_, "BMP");
+      FiltersToString(filters, nELF_, "ELF");
+      FiltersToString(filters, nEXE_, "EXE");
+      FiltersToString(filters, nGIF_, "GIF");
+      FiltersToString(filters, nGZP_, "GZ");  //  GNU zip
+      FiltersToString(filters, nLZX_, "LZX");
+      FiltersToString(filters, nPBM_, "PBM");
+      FiltersToString(filters, nPDF_, "PDF");
+      FiltersToString(filters, nPKZ_, "PKZ");  // PKZip
+      FiltersToString(filters, nPNG_, "PNG");
+      FiltersToString(filters, nSGI_, "SGI");
+      FiltersToString(filters, nTGA_, "TGA");
+      FiltersToString(filters, nTIF_, "TIF");
+      FiltersToString(filters, nWAV_, "WAV");
       fprintf(stdout, "\r\n%*s[filter: %.*s]\r", tracer->digits + tracer->digits + length + 39, " ", barLength, filters.c_str());
 
       static constexpr std::array<char, 5> cursor_up_one_line{{"\033[1A"}};
@@ -291,20 +295,21 @@ Progress_t::Progress_t(const std::string& workType, bool encode, const iMonitor_
               .monitor = monitor,
               .start = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count()},  //
       _monitorWorker{MonitorWorker, &_tracer} {
-  g_nFilter = 0;
-  g_nBMP = 0;
-  g_nDCM = 0;
-  g_nELF = 0;
-  g_nEXE = 0;
-  g_nGIF = 0;
-  g_nPBM = 0;
-  g_nPDF = 0;
-  g_nPKZ = 0;
-  g_nPNG = 0;
-  g_nSGI = 0;
-  g_nTGA = 0;
-  g_nTIF = 0;
-  g_nWAV = 0;
+  nFilter_ = 0;
+  nBMP_ = 0;
+  nELF_ = 0;
+  nEXE_ = 0;
+  nGIF_ = 0;
+  nGZP_ = 0;
+  nLZX_ = 0;
+  nPBM_ = 0;
+  nPDF_ = 0;
+  nPKZ_ = 0;
+  nPNG_ = 0;
+  nSGI_ = 0;
+  nTGA_ = 0;
+  nTIF_ = 0;
+  nWAV_ = 0;
   ProgressBar(&_tracer);
 }
 
@@ -317,25 +322,26 @@ Progress_t::~Progress_t() noexcept {
 }
 
 auto Progress_t::PeakMemoryUse() noexcept -> uint32_t {
-  return g_peakMemoryUse;
+  return peakMemoryUse_;
 }
 
 void Progress_t::FoundType(const Filter& type) noexcept {
   // clang-format off
   switch (type) {
-    case Filter::BMP: g_nFilter = g_nFilter + 1; g_nBMP = g_nBMP + 1; break;
-    case Filter::DCM: g_nFilter = g_nFilter + 1; g_nDCM = g_nDCM + 1; break;
-    case Filter::ELF: g_nFilter = g_nFilter + 1; g_nELF = g_nELF + 1; break;
-    case Filter::EXE: g_nFilter = g_nFilter + 1; g_nEXE = g_nEXE + 1; break;
-    case Filter::GIF: g_nFilter = g_nFilter + 1; g_nGIF = g_nGIF + 1; break;
-    case Filter::PBM: g_nFilter = g_nFilter + 1; g_nPBM = g_nPBM + 1; break;
-    case Filter::PDF: g_nFilter = g_nFilter + 1; g_nPDF = g_nPDF + 1; break;
-    case Filter::PKZ: g_nFilter = g_nFilter + 1; g_nPKZ = g_nPKZ + 1; break;
-    case Filter::PNG: g_nFilter = g_nFilter + 1; g_nPNG = g_nPNG + 1; break;
-    case Filter::SGI: g_nFilter = g_nFilter + 1; g_nSGI = g_nSGI + 1; break;
-    case Filter::TGA: g_nFilter = g_nFilter + 1; g_nTGA = g_nTGA + 1; break;
-    case Filter::TIF: g_nFilter = g_nFilter + 1; g_nTIF = g_nTIF + 1; break;
-    case Filter::WAV: g_nFilter = g_nFilter + 1; g_nWAV = g_nWAV + 1; break;
+    case Filter::BMP: nFilter_ = nFilter_ + 1; nBMP_ = nBMP_ + 1; break;
+    case Filter::ELF: nFilter_ = nFilter_ + 1; nELF_ = nELF_ + 1; break;
+    case Filter::EXE: nFilter_ = nFilter_ + 1; nEXE_ = nEXE_ + 1; break;
+    case Filter::GIF: nFilter_ = nFilter_ + 1; nGIF_ = nGIF_ + 1; break;
+    case Filter::GZP: nFilter_ = nFilter_ + 1; nGZP_ = nGZP_ + 1; break;
+    case Filter::LZX: nFilter_ = nFilter_ + 1; nLZX_ = nLZX_ + 1; break;
+    case Filter::PBM: nFilter_ = nFilter_ + 1; nPBM_ = nPBM_ + 1; break;
+    case Filter::PDF: nFilter_ = nFilter_ + 1; nPDF_ = nPDF_ + 1; break;
+    case Filter::PKZ: nFilter_ = nFilter_ + 1; nPKZ_ = nPKZ_ + 1; break;
+    case Filter::PNG: nFilter_ = nFilter_ + 1; nPNG_ = nPNG_ + 1; break;
+    case Filter::SGI: nFilter_ = nFilter_ + 1; nSGI_ = nSGI_ + 1; break;
+    case Filter::TGA: nFilter_ = nFilter_ + 1; nTGA_ = nTGA_ + 1; break;
+    case Filter::TIF: nFilter_ = nFilter_ + 1; nTIF_ = nTIF_ + 1; break;
+    case Filter::WAV: nFilter_ = nFilter_ + 1; nWAV_ = nWAV_ + 1; break;
 
     case Filter::NOFILTER:
     default:

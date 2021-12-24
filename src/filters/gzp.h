@@ -16,37 +16,40 @@
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
  */
-#ifndef _PBM_HDR_
-#define _PBM_HDR_
+#ifndef _GZP_HDR_
+#define _GZP_HDR_
 
-#include <array>
 #include <cstdint>
 #include "filter.h"
 class File_t;
 class iEncoder_t;
 
-class PBM_filter final : public iFilter_t {
+class GZP_filter final : public iFilter_t {
 public:
-  explicit PBM_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di);
-  virtual ~PBM_filter() noexcept override;
+  explicit GZP_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const int64_t original_length);
+  virtual ~GZP_filter() noexcept override;
 
-  PBM_filter() = delete;
-  PBM_filter(const PBM_filter&) = delete;
-  PBM_filter(PBM_filter&&) = delete;
-  PBM_filter& operator=(const PBM_filter&) = delete;
-  PBM_filter& operator=(PBM_filter&&) = delete;
+  GZP_filter() = delete;
+  GZP_filter(const GZP_filter&) = delete;
+  GZP_filter(GZP_filter&&) = delete;
+  GZP_filter& operator=(const GZP_filter&) = delete;
+  GZP_filter& operator=(GZP_filter&&) = delete;
 
   virtual auto Handle(int32_t ch) noexcept -> bool final;                // encoding
   virtual auto Handle(int32_t ch, int64_t& pos) noexcept -> bool final;  // decoding
 
 private:
+  auto Handle_GZ_flags(int32_t ch) noexcept -> bool;
+
+  const int64_t _original_length;
   File_t& _stream;
   iEncoder_t* const _coder;
-  const DataInfo_t& _di;
+  DataInfo_t& _di;
+  int32_t _block_length{0};
+  uint32_t _extra_field_length{0};
   uint32_t _length{0};
-  std::array<int8_t, 4> _rgba{};
-  std::array<int8_t, 4> _prev_rgba{};
-  int32_t : 32;  // Padding
+  uint32_t _state{0};
+  File_t* _data{nullptr};
 };
 
-#endif /* _PBM_HDR_ */
+#endif /* _GZP_HDR_ */

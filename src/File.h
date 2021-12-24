@@ -24,16 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
-
-#if defined(_MSC_VER)
-#define ALWAYS_INLINE __forceinline
-#define __restrict__ __restrict
-#define strcasecmp stricmp
-#elif defined(__GNUC__)
-#define ALWAYS_INLINE inline __attribute__((always_inline))
-#else
-#define ALWAYS_INLINE inline
-#endif
+#include "Utilities.h"
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 #include <windows.h>
@@ -190,26 +181,24 @@ public:
     putc(int32_t(x));
   }
 
-  [[nodiscard]] auto get64() const noexcept -> int64_t {
-    return (int64_t(getc()) << 56) |  //
-           (int64_t(getc()) << 48) |  //
-           (int64_t(getc()) << 40) |  //
-           (int64_t(getc()) << 32) |  //
-           (int64_t(getc()) << 24) |  //
-           (int64_t(getc()) << 16) |  //
-           (int64_t(getc()) << 8) |   //
-           int64_t(getc());
+  [[nodiscard]] auto getVLI() const noexcept -> int64_t {
+    int64_t i{0};
+    int32_t k{0};
+    int32_t b;
+    do {
+      b = getc();
+      i |= int64_t(0x7F & b) << k;
+      k += 7;
+    } while ((b >> 7) > 0);
+    return i;
   }
 
-  void put64(int64_t x) const noexcept {
-    putc(int32_t(x >> 56));
-    putc(int32_t(x >> 48));
-    putc(int32_t(x >> 40));
-    putc(int32_t(x >> 32));
-    putc(int32_t(x >> 24));
-    putc(int32_t(x >> 16));
-    putc(int32_t(x >> 8));
-    putc(int32_t(x));
+  void putVLI(int64_t i) const noexcept {
+    while (i > 0x7F) {
+      putc(int32_t(0x80 | (0x7F & i)));
+      i >>= 7;
+    }
+    putc(int32_t(i));
   }
 
   auto Read(void* data, size_t size) const noexcept -> size_t {

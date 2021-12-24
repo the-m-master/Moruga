@@ -16,24 +16,24 @@
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
  */
-#ifndef _DCM_HDR_
-#define _DCM_HDR_
+#ifndef _LZX_HDR_
+#define _LZX_HDR_
 
 #include <cstdint>
 #include "filter.h"
 class File_t;
 class iEncoder_t;
 
-class DCM_filter final : public iFilter_t {
+class LZX_filter final : public iFilter_t {
 public:
-  explicit DCM_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di);
-  virtual ~DCM_filter() noexcept override;
+  explicit LZX_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di);
+  virtual ~LZX_filter() noexcept override;
 
-  DCM_filter() = delete;
-  DCM_filter(const DCM_filter&) = delete;
-  DCM_filter(DCM_filter&&) = delete;
-  DCM_filter& operator=(const DCM_filter&) = delete;
-  DCM_filter& operator=(DCM_filter&&) = delete;
+  LZX_filter() = delete;
+  LZX_filter(const LZX_filter&) = delete;
+  LZX_filter(LZX_filter&&) = delete;
+  LZX_filter& operator=(const LZX_filter&) = delete;
+  LZX_filter& operator=(LZX_filter&&) = delete;
 
   virtual auto Handle(int32_t ch) noexcept -> bool final;                // encoding
   virtual auto Handle(int32_t ch, int64_t& pos) noexcept -> bool final;  // decoding
@@ -41,7 +41,7 @@ public:
 private:
   File_t& _stream;
   iEncoder_t* const _coder;
-  const DataInfo_t& _di;
+  DataInfo_t& _di;
 };
 
-#endif /* _DCM_HDR_ */
+#endif /* _LZX_HDR_ */

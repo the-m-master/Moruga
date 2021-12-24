@@ -297,8 +297,8 @@ struct Elf64_section_t {
   uint32_t type;       // Type of section
   uint64_t flags;      // Miscellaneous section attributes
   uint64_t addr;       // Section virtual addr at execution
-  uint64_t offset;     // Section file offset
-  uint64_t size;       // Size of section in bytes
+  int64_t offset;      // Section file offset
+  int64_t size;        // Size of section in bytes
   uint32_t link;       // Index of another section
   uint32_t info;       // Additional section information
   uint64_t addralign;  // Section alignment
@@ -307,6 +307,9 @@ struct Elf64_section_t {
 static_assert(64 == sizeof(Elf64_section_t), "Alignment issue in Elf64_section_t");
 
 static constexpr uint32_t offset{64};
+
+static const Elf32_entry_t* entry_32{nullptr};
+static const Elf64_entry_t* entry_64{nullptr};
 
 auto Header_t::ScanELF(int32_t /*ch*/) noexcept -> Filter {
   if (0x7F454C46 == m4(offset - 0)) {  // \x7FELF
@@ -320,9 +323,13 @@ auto Header_t::ScanELF(int32_t /*ch*/) noexcept -> Filter {
         if (ELFCLASS64 == clss) {
           const Elf64_entry_t* entry = reinterpret_cast<Elf64_entry_t*>(&_buf[i]);
           _di.location = int32_t(entry->shoff + (entry->shstrndx * sizeof(Elf64_section_t)));
+          entry_32 = nullptr;
+          entry_64 = entry;
         } else {
           const Elf32_entry_t* entry = reinterpret_cast<Elf32_entry_t*>(&_buf[i]);
           _di.location = int32_t(entry->shoff + (entry->shstrndx * sizeof(Elf32_section_t)));
+          entry_32 = entry;
+          entry_64 = nullptr;
         }
 
         if (_di.location > 0) {
@@ -377,6 +384,27 @@ auto ELF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
         const auto length{int32_t(section.offset + section.size)};
         _di.filter_end = length;
       } else {
+#if 0
+        int64_t section_offset{origin + section.offset - offset - 1};
+        char* section_names = static_cast<char*>(calloc(1, size_t(section.size)));
+        _stream.Seek(section_offset);
+        _stream.Read(section_names, size_t(section.size));
+
+        for (uint32_t idx{0}; idx < entry_64->shnum; idx++) {
+          section_offset = origin + int64_t(entry_64->shoff) - offset - 1 + int64_t(idx * sizeof(section));
+          _stream.Seek(section_offset);
+          _stream.Read(&section, sizeof(section));
+          if (section.size > 0) {
+            const char* name = section_names + section.name;
+            fprintf(stderr, "%s %" PRIu32 "%" PRIu64 "\n", name, section.type, section.size);
+
+            section_offset = origin + section.offset - offset - 1;
+            if (decodeEncodeCompare(_stream, nullptr, section_offset, section.size) > 0) {
+              fprintf(stderr, "%" PRIu64 "\n", section.size);
+            }
+          }
+        }
+#endif
         _di.filter_end = 0;
       }
     } else {

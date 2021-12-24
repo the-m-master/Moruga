@@ -25,6 +25,7 @@
 #include <vector>
 #include "File.h"
 #include "Progress.h"
+#include "Utilities.h"
 
 //#define DEBUG_WRITE_DICTIONARY
 #if !defined(_MSC_VER)       // VS2019 has trouble handling this code
@@ -248,28 +249,8 @@ private:
 LempelZivWelch_t::~LempelZivWelch_t() noexcept = default;
 
 template <typename T>
-ALWAYS_INLINE constexpr auto is_upper(const T c) noexcept -> bool {
-  return (c >= 'A') && (c <= 'Z');
-}
-
-template <typename T>
-ALWAYS_INLINE constexpr auto is_lower(const T c) noexcept -> bool {
-  return (c >= 'a') && (c <= 'z');
-}
-
-template <typename T>
-ALWAYS_INLINE constexpr auto is_word_char(const T c) noexcept -> bool {
-  return is_upper(c) || is_lower(c);
-}
-
-template <typename T>
-ALWAYS_INLINE constexpr auto to_upper(const T c) noexcept -> T {
-  return is_lower(c) ? c - 'a' + 'A' : c;
-}
-
-template <typename T>
-ALWAYS_INLINE constexpr auto to_lower(const T c) noexcept -> T {
-  return is_upper(c) ? c - 'A' + 'a' : c;
+ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
+  return is_upper(ch) || is_lower(ch);
 }
 
 CaseSpace_t::CaseSpace_t(File_t& in, File_t& out) : _in{in}, _out{out}, _lzw{new LempelZivWelch_t()} {
@@ -309,7 +290,7 @@ void CaseSpace_t::Encode(int32_t ch) noexcept {
 
 void CaseSpace_t::Encode() noexcept {
   _originalLength = _in.Size();
-  _out.put64(_originalLength);
+  _out.putVLI(_originalLength);
 
   Progress_t progress("CSE", true, *this);
 
@@ -392,7 +373,7 @@ void CaseSpace_t::EncodeWord(std::string& word) noexcept {
 }
 
 auto CaseSpace_t::Decode() noexcept -> int64_t {
-  _originalLength = _in.get64();
+  _originalLength = _in.getVLI();
   assert(_originalLength > 0);
 
   Progress_t progress("CSD", false, *this);

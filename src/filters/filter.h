@@ -28,10 +28,11 @@ class iEncoder_t;
 enum class Filter {
   NOFILTER = 0,
   BMP,
-  DCM,
   ELF,
   EXE,
   GIF,
+  GZP,
+  LZX,
   PBM,
   PDF,
   PKZ,
@@ -76,10 +77,16 @@ struct DataInfo_t {
   bool lzw_encoded{false};
   bool seekdata{false};
   uint8_t clss{0};
-  int32_t : 8;  // Padding
+  uint8_t flags{0};  // GZ flags
 
   int32_t location{0};
 
+  uint32_t resetIntervalBits;
+  uint8_t windowSizeBits;
+
+  int32_t : 24;  // Padding
+  int32_t : 32;  // Padding
+  int32_t : 32;  // Padding
   int32_t : 32;  // Padding
 };
 
@@ -95,10 +102,11 @@ public:
   Header_t& operator=(Header_t&&) = delete;
 
   auto ScanBMP(int32_t ch) noexcept -> Filter;
-  auto ScanDCM(int32_t ch) noexcept -> Filter;
   auto ScanELF(int32_t ch) noexcept -> Filter;
   auto ScanEXE(int32_t ch) noexcept -> Filter;
   auto ScanGIF(int32_t ch) noexcept -> Filter;
+  auto ScanGZP(int32_t ch) noexcept -> Filter;
+  auto ScanLZX(int32_t ch) noexcept -> Filter;
   auto ScanPBM(int32_t ch) noexcept -> Filter;
   auto ScanPDF(int32_t ch) noexcept -> Filter;
   auto ScanPKZ(int32_t ch) noexcept -> Filter;
@@ -123,6 +131,9 @@ private:
 
   // 32-bits big endian (Motorola) number at buf(i-3)..buf(i)
   [[nodiscard]] constexpr auto m4(const uint32_t i) const noexcept -> uint32_t { return uint32_t(_buf(i - 3) | (_buf(i - 2) << 8) | (_buf(i - 1) << 16) | (_buf(i) << 24)); }
+
+  // 64-bits little endian (Intel) number at buf(i-7)..buf(i)
+  [[nodiscard]] constexpr auto i8(const uint32_t i) const noexcept -> uint64_t { return uint64_t(i4(i)) | (uint64_t(i4(i - 4)) << 32); }
 
   // clang-format on
 

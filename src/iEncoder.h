@@ -27,7 +27,7 @@ public:
    * Encode 8 bits
    * @param c The 8 bits character to compress
    */
-  virtual void Compress(int32_t c) noexcept = 0;
+  virtual void Compress(const int32_t c) noexcept = 0;
 
   /**
    * Decoder 8 bits
@@ -40,7 +40,7 @@ public:
    * @param N The numbers of bits to encode
    * @param c The N bits character to compress
    */
-  virtual void CompressN(const int32_t N, int64_t c) noexcept = 0;
+  virtual void CompressN(const int32_t N, const int64_t c) noexcept = 0;
 
   /**
    * Decoder N bits
@@ -48,6 +48,18 @@ public:
    * @return The N bits decode character
    */
   [[nodiscard]] virtual auto DecompressN(const int32_t N) noexcept -> int64_t = 0;
+
+  /**
+   * Encode variable length integer
+   * @param c The character to compress
+   */
+  virtual void CompressVLI(int64_t c) noexcept = 0;
+
+  /**
+   * Decide variable length integer
+   * @return The decoded integer
+   */
+  [[nodiscard]] virtual auto DecompressVLI() noexcept -> int64_t = 0;
 
   /**
    * Flush bit stream at the end of encoding

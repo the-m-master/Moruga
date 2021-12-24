@@ -23,6 +23,7 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -31,6 +32,7 @@
 #include "CaseSpace.h"
 #include "File.h"
 #include "Progress.h"
+#include "Utilities.h"
 #include "iMonitor.h"
 
 //#define DEBUG_WRITE_ANALYSIS_BMP
@@ -67,6 +69,7 @@ static constexpr size_t MAX_WORD_SIZE{256};                        // Default 25
 static constexpr size_t MIN_WORD_SIZE{2};                          // Default 2, range 1 .. MAX_WORD_SIZE
 static constexpr size_t MIN_WORD_FREQ{4};                          // Default 4, range 1 .. 256
 static constexpr size_t MIN_SHORTER_WORD_SIZE{MIN_WORD_SIZE + 5};  // Default 5, range always larger then MIN_WORD_SIZE
+static constexpr size_t MIN_NUMBER_SIZE{7};                        // Default 7, range 1 .. 256
 
 static_assert(MIN_WORD_SIZE < MIN_SHORTER_WORD_SIZE, "MIN_SHORTER_WORD_SIZE must be bigger then MIN_WORD_SIZE");
 static_assert(MIN_WORD_FREQ >= 1, "MIN_WORD_FREQ must be equal or larger then one");
@@ -87,14 +90,12 @@ static_assert(LOW < MID, "Bit range error, LOW must be less then MID");
 static_assert(MID < HIGH, "Bit range error, MID must be less then HIGH");
 static_assert(HIGH < LIMIT, "Bit range error, HIGH must be less then LIMIT");
 
-static bool to_numbers{false};
+static bool to_numbers_{false};
 
 template <typename T>
-ALWAYS_INLINE constexpr auto is_word_char(const T c) noexcept -> bool {
-  if (to_numbers) {
-    return ((c >= '0') && (c <= '9')) || ('.' == c) || (' ' == c);
-  }
-  return ('>' == c) || ((c >= 'a') && (c <= 'z')) || (c > 127);
+ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
+  return ('>' == ch) || is_lower(ch) || (ch > 127) ||  //
+         (to_numbers_ && ((' ' == ch) || ('.' == ch) || is_number(ch)));
 }
 
 class Dictionary final : public iMonitor_t {
@@ -173,19 +174,19 @@ public:
       return a.word.compare(b.word) < 0;
     }};
 
-    // Sort 0 .. LOW by name too improve secondary compression
+    // Sort 0 .. LOW by name too improve compression
     std::stable_sort(dictionary.begin(), dictionary.begin() + (std::min)(LOW, _dicLength), nameCompare);
 
     if (_dicLength >= LOW) {
-      // Sort LOW .. MID by name too improve secondary compression
+      // Sort LOW .. MID by name too improve compression
       std::stable_sort(dictionary.begin() + LOW, dictionary.begin() + (std::min)(MID, _dicLength), nameCompare);
     }
     if (_dicLength >= MID) {
-      // Sort MID .. HIGH by name too improve secondary compression
+      // Sort MID .. HIGH by name too improve compression
       std::stable_sort(dictionary.begin() + MID, dictionary.begin() + (std::min)(HIGH, _dicLength), nameCompare);
     }
     if (_dicLength >= HIGH) {
-      // Sort HIGH .. _index by name too improve secondary compression
+      // Sort HIGH .. _index by name too improve compression
       std::stable_sort(dictionary.begin() + HIGH, dictionary.begin() + _dicLength, nameCompare);
     }
 
@@ -195,7 +196,7 @@ public:
     }
     assert(_dicLength == _word_map.size());
 
-    out.put32(_dicLength);  // write length of dictionary
+    out.putVLI(_dicLength);  // write length of dictionary
 
     for (uint32_t n{0}; n < _dicLength; ++n) {
       fwrite(dictionary[n].word.c_str(), sizeof(char), dictionary[n].word.length(), out);
@@ -211,7 +212,7 @@ public:
   }
 
   void Read(const File_t& stream) noexcept {
-    _dicLength = stream.get32();
+    _dicLength = uint32_t(stream.getVLI());
     assert(_dicLength <= LIMIT);
 
     _byte_map.reserve(_dicLength);
@@ -311,10 +312,11 @@ public:
   explicit TxtPrep(File_t& in, File_t& out, const int64_t* charFreq, const std::string& quote)
       : _in{in},  //
         _out{out},
-        _quoteLength{quote.length()} {
+        _quoteLength{uint32_t(quote.length())} {
     assert(_quoteLength < 256);            // Must fit in a byte of 8 bit
     assert(_quoteLength < _quote.size());  // Should fit
     memcpy(&_quote[0], quote.c_str(), _quoteLength);
+    to_numbers_ = false;
     if (nullptr != charFreq) {
       int64_t chrAZ{0};
       int64_t chr09{0};
@@ -328,13 +330,12 @@ public:
         chrAZ += charFreq[n];
       }
       if (chr09 > (chrAZ * 8)) {
-        to_numbers = true;
+        to_numbers_ = true;
         _quoteLength = 0;
         _quote.fill(0);
       }
     }
   }
-  explicit TxtPrep(File_t& in, File_t& out) : TxtPrep(in, out, nullptr, "") {}
   ~TxtPrep() noexcept override;
 
   TxtPrep() = delete;
@@ -347,15 +348,9 @@ public:
     if (is_word_char(ch) && (word.length() < MAX_WORD_SIZE)) {
       word.push_back(char(ch));
     } else {
-      const auto length{word.length()};
-      if (length > 0) {
-        Encode(word, length);
-        word.clear();
-      }
+      Encode(word);
 
-      if ((ch >= _mode) || (ESCAPE_CHAR == ch)) {
-        Putc(ESCAPE_CHAR);
-      } else if (QUOTING_CHAR == ch) {
+      if ((0x80 & ch) || (ESCAPE_CHAR == ch) || (QUOTING_CHAR == ch)) {
         Putc(ESCAPE_CHAR);
       }
       Putc(ch);
@@ -364,21 +359,23 @@ public:
 
   auto Encode() noexcept -> int64_t {
     _originalLength = _in.Size();
-    _out.put64(_originalLength);
+    _out.putVLI(_originalLength);
     Putc(uint8_t(_quoteLength));
-    for (size_t n{0}; n < _quoteLength; ++n) {
+    for (uint32_t n{0}; n < _quoteLength; ++n) {
       Putc(_quote[n]);
     }
 
     _dictionary.Create(_in, _out, &_quote[0], _quoteLength);
 
-    const auto data_pos = _out.Position();
+    const auto data_pos{_out.Position()};
 
     Progress_t progress("TXT", true, *this);
 
     _in.Rewind();
 
-    size_t quoteState{0};
+    uint32_t quoteState{0};
+
+    std::string value{};
 
     std::string word{};
     int32_t ch;
@@ -387,45 +384,62 @@ public:
         if (ch == _quote[quoteState]) {
           ++quoteState;
           if (quoteState == _quoteLength) {
-            const auto length{word.length()};
-            if (length > 0) {
-              Encode(word, length);
-              word.clear();
-            }
+            Encode(word);
+            ValidateAndEncodeValue(value);
+
             Putc(QUOTING_CHAR);
             quoteState = 0;
           }
           continue;
         }
         if (quoteState > 0) {
-          for (size_t n{0}; n < quoteState; ++n) {
+          Encode(word);
+          ValidateAndEncodeValue(value);
+          for (uint32_t n{0}; n < quoteState; ++n) {
             EncodeChar(_quote[n], word);
           }
           quoteState = 0;
         }
       }
 
-      EncodeChar(ch, word);
+      if (to_numbers_) {
+        EncodeChar(ch, word);
+      } else {
+        const auto valueLength{value.length()};
+        if (is_number(ch) && ((valueLength > 0) || ((0 == valueLength) && ('0' != ch)))) {  // Avoid leading zero's
+          value.push_back(char(ch));
+          if (valueLength >= 18) {  // The maximum value is 18446744073709551615...
+            Encode(word);
+            ValidateAndEncodeValue(value);
+          }
+        } else {
+          if (valueLength > 0) {
+            Encode(word);
+            ValidateAndEncodeValue(value);
+          }
+          EncodeChar(ch, word);
+        }
+      }
     }
 
-    for (size_t n{0}; n < quoteState; ++n) {
+    for (uint32_t n{0}; n < quoteState; ++n) {
       EncodeChar(_quote[n], word);
     }
 
-    const auto length{word.length()};
-    if (length > 0) {
-      Encode(word, length);
-      word.clear();
+    for (const char* __restrict str{value.c_str()}; *str;) {
+      Putc(*str++);
     }
+
+    Encode(word);
 
     return data_pos + uint32_t(sizeof(int64_t));  // Add original length used in CaseSpace
   }
 
   auto Decode() noexcept -> int64_t {
-    _originalLength = _in.get64();
+    _originalLength = _in.getVLI();
     assert(_originalLength > 0);
-    _quoteLength = size_t(_in.getc());
-    for (size_t n{_quoteLength}; n--;) {  // Reverse read
+    _quoteLength = uint32_t(_in.getc());
+    for (uint32_t n{_quoteLength}; n--;) {  // Reverse read
       _quote[n] = int8_t(_in.getc());
     }
 
@@ -435,15 +449,40 @@ public:
 
     while (_outputLength < _originalLength) {
       int32_t ch{_in.getc()};
+      assert(EOF != ch);
       if (ESCAPE_CHAR == ch) {
         ch = _in.getc();
-        Putc(ch);
+        if (!to_numbers_ && (0xF0 == (0xF0 & ch)) && ((0x0F & ch) >= 4)) {
+          const auto safe_position{_in.Position()};
+          int32_t costs{0x0F & ch};
+          uint64_t value{0};
+          int32_t k{0};
+          int32_t b;
+          do {
+            b = _in.getc();
+            value |= uint64_t(0x3F & b) << k;
+            k += 6;
+            --costs;
+          } while (0x80 & b);
+          if (0 == costs) {
+            std::array<char, 30> tmp;
+            snprintf(&tmp[0], tmp.size(), "%" PRIu64, value);
+            for (const char* __restrict__ str{&tmp[0]}; *str;) {
+              Putc(*str++);
+            }
+          } else {
+            _in.Seek(safe_position);
+            Putc(ch);
+          }
+        } else {
+          Putc(ch);
+        }
       } else if (QUOTING_CHAR == ch) {
-        for (size_t n{_quoteLength}; n--;) {  // Reverse write
+        for (uint32_t n{_quoteLength}; n--;) {  // Reverse write
           Putc(_quote[n]);
         }
         continue;
-      } else if (ch >= _mode) {
+      } else if (0x80 & ch) {
         uint32_t bytes{uint8_t(ch)};
         if (0 != (0x40 & ch)) {
           ch = _in.getc();
@@ -459,6 +498,7 @@ public:
         }
 
         const std::string& word{_dictionary.bytes2word(bytes)};
+        assert(word.length() > 0);
         for (const char* __restrict__ str{word.c_str()}; *str;) {
           Putc(*str++);
         }
@@ -476,7 +516,45 @@ private:
     _out.putc(ch);
   }
 
-  void EncodeCodeWord(size_t bytes) noexcept {
+  auto CostsValue(uint64_t value) noexcept -> int32_t {
+    int32_t i{1};
+    while (value > 0x3F) {
+      value >>= 6;
+      ++i;
+    }
+    return i;
+  }
+
+  auto EncodeValue(std::string& text) noexcept -> bool {
+    uint64_t value{std::strtoull(text.c_str(), nullptr, 10)};
+    std::array<char, 32> tmp;
+    snprintf(&tmp[0], tmp.size(), "%" PRIu64, value);
+    if (!text.compare(&tmp[0])) {  // Avoid leading zeros
+      Putc(ESCAPE_CHAR);
+      const int32_t costs{CostsValue(value)};
+      Putc(0xF0 | costs);
+      while (value > 0x3F) {
+        Putc(int32_t(0x80 | (0x3F & value)));
+        value >>= 6;
+      }
+      Putc(int32_t(value));
+      return true;  // Success
+    }
+    return false;  // Failure...
+  }
+
+  void ValidateAndEncodeValue(std::string& value) noexcept {
+    const auto valueLength{value.length()};
+    if ((valueLength <= MIN_NUMBER_SIZE) || !EncodeValue(value)) {
+      const char* __restrict src{value.c_str()};
+      while (*src) {
+        Putc(*src++);
+      }
+    }
+    value.clear();
+  }
+
+  void EncodeCodeWord(const uint32_t bytes) noexcept {
     uint8_t tmp{uint8_t(bytes >> 24)};
     if (0 != tmp) {
       Putc(tmp);
@@ -492,18 +570,18 @@ private:
     Putc(int32_t(bytes));
   }
 
-  static constexpr uint8_t _mode{0x80};  // -128
-
-  void Literal(const char* __restrict__ literal, size_t length) noexcept {
-    while (length-- > 0) {
-      if (uint8_t(*literal) >= _mode) {
-        Putc(ESCAPE_CHAR);
+  void Literal(const char* __restrict__ literal, uint32_t length) noexcept {
+    if (length > 0) {
+      while (length-- > 0) {
+        if (0x80 & *literal) {
+          Putc(ESCAPE_CHAR);
+        }
+        Putc(*literal++);
       }
-      Putc(*literal++);
     }
   }
 
-  void Encode(const std::string& cword, size_t length) noexcept {
+  void Encode(const std::string& cword, const uint32_t length) noexcept {
     const char* __restrict__ word{cword.c_str()};
 
     if (length >= MIN_WORD_SIZE) {
@@ -513,11 +591,11 @@ private:
         return;
       }
 
-      size_t offset_end{0};
-      size_t frequency_end{0};
+      uint32_t offset_end{0};
+      uint32_t frequency_end{0};
 
       // Try to find shorter word, strip end of word
-      for (size_t offset{length - 1}; offset >= MIN_SHORTER_WORD_SIZE; --offset) {
+      for (uint32_t offset{length - 1}; offset >= MIN_SHORTER_WORD_SIZE; --offset) {
         const std::string shorter(word, offset);
         if (_dictionary.word2frequency(shorter, frequency)) {
           offset_end = offset;
@@ -526,11 +604,11 @@ private:
         }
       }
 
-      size_t offset_begin{0};
-      size_t frequency_begin{0};
+      uint32_t offset_begin{0};
+      uint32_t frequency_begin{0};
 
       // Try to find shorter word, strip begin of word
-      for (size_t offset{1}; (length - offset) >= MIN_SHORTER_WORD_SIZE; ++offset) {
+      for (uint32_t offset{1}; (length - offset) >= MIN_SHORTER_WORD_SIZE; ++offset) {
         const std::string shorter(word + offset, length - offset);
         if (_dictionary.word2frequency(shorter, frequency)) {
           offset_begin = offset;
@@ -566,6 +644,12 @@ private:
     Literal(word, length);
   }
 
+  void Encode(std::string& cword) noexcept {
+    auto length{uint32_t(cword.length())};
+    Encode(cword, length);
+    cword.clear();
+  }
+
   [[nodiscard]] auto inputLength() const noexcept -> int64_t final {
     return _in.Position();
   }
@@ -584,7 +668,8 @@ private:
   File_t& _out;
   int64_t _originalLength{0};
   int64_t _outputLength{0};
-  size_t _quoteLength;
+  uint32_t _quoteLength;
+  int32_t : 32;  // Padding
   std::array<int8_t, 256> _quote{};
 };
 TxtPrep::~TxtPrep() noexcept = default;
@@ -613,7 +698,7 @@ auto decode_txt(File_t& in, File_t& out) noexcept -> int64_t {
   int64_t length{0};
   File_t tmp;  //("_tmp_.cse", "wb+");
   if (tmp.isOpen()) {
-    TxtPrep txtprep(in, tmp);
+    TxtPrep txtprep(in, tmp, nullptr, "");
     txtprep.Decode();
 
     tmp.Rewind();

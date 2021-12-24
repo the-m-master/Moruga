@@ -265,20 +265,16 @@ ifeq ($(MAKECMDGOALS),$(BUILD_DIR)/$(BIN_FILE))
 endif
 
 #===============================================================================
-# build targets
+# Build the application
 #===============================================================================
-.PHONY : all guided clean
-
-#===============================================================================
-# build the application
-#===============================================================================
+.PHONY: all
 all:
 	$(MAKE) mkdirs
 	$(RM) $(BUILD_DIR)/$(BIN_FILE)
 	$(MAKE) $(BUILD_DIR)/$(BIN_FILE)
 
 #===============================================================================
-# link the object files
+# Link the object files
 #===============================================================================
 $(BUILD_DIR)/$(BIN_FILE): $(OBJECTS)
 	$(CXX) $(LDFLAGS) $(CCFLAGS) $(_LIB_DIRS) $(OBJECTS) $(_LIBS) -o $(BUILD_DIR)/$(BIN_FILE)
@@ -287,20 +283,21 @@ ifeq ($(MODE),debug)
 endif
 
 #===============================================================================
-# build all cpp files
+# Build all cpp files
 #===============================================================================
 $(BUILD_DIR)/%.o: %.cpp
 	$(CXX) -c $< $(CCFLAGS) $(CXXFLAGS) $(_INCLUDE_DIRS) $(_DEFINES) -o $@
 #	$(TIDY) -quiet $< -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -Weverything
 
 #===============================================================================
-# code analysis all cpp files
+# Code analysis all cpp files
 #===============================================================================
+.PHONY: tidy
 tidy:
 	$(TIDY) -quiet $(CPPSOURCES) -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -Weverything
 
 #===============================================================================
-# create the output directories
+# Create the output directories
 #===============================================================================
 mkdirs:
 	$(ECHO) '   _____                                   '
@@ -318,6 +315,7 @@ endif
 #===============================================================================
 # Handle guided build
 #===============================================================================
+.PHONY: guided
 guided:
 	$(MAKE) MODE=profile clean
 	$(MAKE) MODE=profile all
@@ -326,8 +324,9 @@ guided:
 	$(MAKE) MODE=guided all
 
 #===============================================================================
-# remove the build artifacts
+# Remove the build artifacts
 #===============================================================================
+.PHONY: clean
 clean:
 	$(RM) $(BUILD_DIR)/*
 ifeq ($(MODE),profile)

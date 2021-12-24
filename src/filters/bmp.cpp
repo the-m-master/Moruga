@@ -34,7 +34,7 @@ auto Header_t::ScanBMP(int32_t /*ch*/) noexcept -> Filter {
   //      6 |   2  | Reserved, must be zero
   //      8 |   2  | Reserved, must be zero
   //     10 |   4  | Offset to start of image data in bytes
-  //     14 |   4  | Size of BITMAPINFOHEADER structure (must be 40)
+  //     14 |   4  | Size of BITMAPINFOHEADER structure (should be 40, 108 or 124)
   //     18 |   4  | Image width in pixels
   //     22 |   4  | Image height in pixels
   //     26 |   2  | Number of planes in the image, must be 1

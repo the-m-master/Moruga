@@ -18,7 +18,6 @@
  */
 #include "tif.h"
 #include <cstdint>
-#include <cstring>
 #include "File.h"
 #include "filter.h"
 #include "iEncoder.h"

@@ -117,6 +117,8 @@ PKZ_filter::PKZ_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, 
       _coder{coder},
       _di{di} {}
 
+PKZ_filter::~PKZ_filter() noexcept = default;
+
 auto PKZ_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if ((_di.pkzippos > 0) && (_buf.Pos() == _di.pkzippos)) {
     int64_t safe_pos{_stream.Position()};
@@ -129,8 +131,6 @@ auto PKZ_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   }
   return false;
 }
-
-PKZ_filter::~PKZ_filter() noexcept = default;
 
 auto PKZ_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decoding
   if (_data && (_block_length > 0)) {

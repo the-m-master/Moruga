@@ -23,15 +23,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
- *
- *  Usage: Moruga <command> <infile> <outfile>
- *
- *  <Commands>
- *    c       Compress
- *    d       Decompress
- *
- * Simplified build command using g++:
- * g++ -std=c++20 -s -m64 -Ofast -flto -mno-ms-bitfields -fomit-frame-pointer -march=native -mtune=native -Wall Moruga.cpp TxtPrep4.cpp CaseSpace.cpp Progress.cpp -o Moruga
  */
 #include <algorithm>
 #include <array>
@@ -54,6 +45,7 @@
 #include "IntegerXXL.h"
 #include "Progress.h"
 #include "TxtPrep4.h"
+#include "Utilities.h"
 #include "filters/filter.h"
 #include "iEncoder.h"
 #include "iMonitor.h"
@@ -72,24 +64,24 @@
 #define DEFAULT_OPTION 4
 #endif
 
-static int32_t level{DEFAULT_OPTION};  // Compression level 0 to 9
+static int32_t level_{DEFAULT_OPTION};  // Compression level 0 to 12
 
 static auto MEM() noexcept -> uint64_t {
-  return UINT64_C(1) << (22 + level);  // 27,28,29 and 30 only on x64 platforms
+  return UINT64_C(1) << (22 + level_);  // 27,28,29 and 30 only on x64 platforms
 }
 
 // Global variables
-static bool verbose{false};  // Set during application parameter parsing (not change during activity)
-static uint32_t gC0{1};      // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
-static uint32_t gC1{0};      // Last two higher 4-bit nibbles
-static uint32_t gC2{0};      // Last two higher 4-bit nibbles
-static uint32_t gC4{0};      // Last 4 whole bytes (buf(4)..buf(1)), packed
-static uint32_t gC8{0};      // Another 4 bytes (buf(8)..buf(5))
-static uint32_t gBcount{7};  // Bit processed (7..0) gBcount=7-bpos
-static uint32_t gFails{0};
-static uint32_t gTt{0};
-static uint32_t gW5{0};
-static uint32_t gX5{0};
+static bool verbose_{false};  // Set during application parameter parsing (not change during activity)
+static uint32_t c0_{1};       // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
+static uint32_t c1_{0};       // Last two higher 4-bit nibbles
+static uint32_t c2_{0};       // Last two higher 4-bit nibbles
+static uint32_t c4_{0};       // Last 4 whole bytes (buf(4)..buf(1)), packed
+static uint32_t c8_{0};       // Another 4 bytes (buf(8)..buf(5))
+static uint32_t bcount_{7};   // Bit processed (7..0) bcount_=7-bpos
+static uint32_t fails_{0};
+static uint32_t tt_{0};
+static uint32_t w5_{0};
+static uint32_t x5_{0};
 
 // #define GENERATE_SQUASH_STRETCH
 
@@ -198,7 +190,7 @@ public:
   constexpr auto operator()(const int32_t d) const noexcept -> uint16_t {  // Conversion from -2048..2047 (clamped) into 0..4095
     // clang-format off
     if (d < ~0x7FF) { return 0x000; }
-    if (d > 0x7FF) { return 0xFFF; }
+    if (d >  0x7FF) { return 0xFFF; }
     // clang-format on
     return _squash[uint32_t(d + HTOP)];
   }
@@ -329,10 +321,10 @@ template <typename T>
 
 static int32_t DP_SHIFT{14};
 
-static std::array<std::array<int32_t, 256>, 12> smt;
-static std::array<uint32_t, 5> hh{{0, 0, 0, 0, 0}};
+static std::array<std::array<int32_t, 256>, 12> smt_;
+static std::array<uint32_t, 5> hh_{{0, 0, 0, 0, 0}};
 
-static constexpr std::array<std::array<uint8_t, 256>, 6> StateTableY0                     //
+static constexpr std::array<std::array<uint8_t, 256>, 6> state_table_y0_                  //
     {{{{1,   3,   4,   7,   8,   9,   11,  15,  16,  17,  18,  20,  21,  22,  26,  31,    //   0- 15 . . . . . . . . . . . . . . . .
         32,  32,  32,  32,  34,  34,  34,  34,  34,  34,  36,  36,  36,  36,  38,  41,    //  16- 31 . . . . . . . . . . . . . . . .
         42,  42,  44,  44,  46,  46,  48,  48,  50,  53,  54,  54,  56,  56,  58,  58,    //  32- 47   ! " # $ % & ' ( ) * + , - . /
@@ -435,7 +427,7 @@ static constexpr std::array<std::array<uint8_t, 256>, 6> StateTableY0           
         10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,      // 224-239 . . . . . . . . . . . . . . . .
         10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10}}}};  // 240-255 . . . . . . . . . . . . . . . .
 
-static constexpr std::array<std::array<uint8_t, 256>, 6> StateTableY1                      //
+static constexpr std::array<std::array<uint8_t, 256>, 6> state_table_y1_                   //
     {{{{2,   5,   6,   10,  12,  13,  14,  19,  23,  24,  25,  27,  28,  29,  30,  33,     //   0- 15 . . . . . . . . . . . . . . . .
         35,  35,  35,  35,  37,  37,  37,  37,  37,  37,  39,  39,  39,  39,  40,  43,     //  16- 31 . . . . . . . . . . . . . . . .
         45,  45,  47,  47,  49,  49,  51,  51,  52,  43,  57,  57,  59,  59,  61,  61,     //  32- 47   ! " # $ % & ' ( ) * + , - . /
@@ -538,7 +530,7 @@ static constexpr std::array<std::array<uint8_t, 256>, 6> StateTableY1           
         11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,      // 224-239 . . . . . . . . . . . . . . . .
         11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11}}}};  // 240-255 . . . . . . . . . . . . . . . .
 
-static constexpr std::array<uint8_t, 256> WRT_mxr                        //
+static constexpr std::array<uint8_t, 256> wrt_mxr_                       //
     {{0,  0,  0,  0,  0,  0,  10, 20, 0,  4,  28, 0,  0,  0,  0,  0,     //   0- 15 . . . . . . . . . . . . . . . .
       0,  0,  0,  0,  0,  0,  0,  0,  10, 0,  0,  0,  0,  0,  0,  0,     //  16- 31 . . . . . . . . . . . . . . . .
       4,  20, 26, 20, 22, 28, 26, 22, 30, 6,  28, 30, 6,  30, 24, 30,    //  32- 47   ! " # $ % & ' ( ) * + , - . /
@@ -556,7 +548,7 @@ static constexpr std::array<uint8_t, 256> WRT_mxr                        //
       14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,    // 224-239 . . . . . . . . . . . . . . . .
       16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16}};  // 240-255 . . . . . . . . . . . . . . . .
 
-static constexpr std::array<uint8_t, 256> limits_15a              //
+static constexpr std::array<uint8_t, 256> limits_15a_             //
     {{0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 24, 24, 16, 16, 16, 16,   //   0- 15 . . . . . . . . . . . . . . . .
       0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 0,  0,  0,  0,  0,  0,    //  16- 31 . . . . . . . . . . . . . . . .
       0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 0,  0,  0,  0,  0,  0,    //  32- 47   ! " # $ % & ' ( ) * + , - . /
@@ -574,7 +566,7 @@ static constexpr std::array<uint8_t, 256> limits_15a              //
       0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 0,  0,  0,  0,  0,  0,    // 224-239 . . . . . . . . . . . . . . . .
       0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 0,  0,  0,  0,  0,  0}};  // 240-255 . . . . . . . . . . . . . . . .
 
-static constexpr std::array<uint8_t, 256> limits_15b              //
+static constexpr std::array<uint8_t, 256> limits_15b_             //
     {{0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 18, 18, 12, 12, 12, 12,   //   0- 15 . . . . . . . . . . . . . . . .
       0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 0,  0,  0,  0,  0,  0,    //  16- 31 . . . . . . . . . . . . . . . .
       0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 0,  0,  0,  0,  0,  0,    //  32- 47   ! " # $ % & ' ( ) * + , - . /
@@ -594,6 +586,10 @@ static constexpr std::array<uint8_t, 256> limits_15b              //
 
 #if 0
 
+/**
+ * @class APM_t
+ * Adaptive Probability Maps
+ */
 class APM_t final {
 public:
   explicit APM_t(uint32_t n, uint32_t)
@@ -663,6 +659,10 @@ APM_t::~APM_t() noexcept {
 
 #else
 
+/**
+ * @class APM_t
+ * Adaptive Probability Maps
+ */
 class APM_t final {
 public:
   explicit APM_t(uint32_t n, uint32_t start)
@@ -671,7 +671,7 @@ public:
         _table{static_cast<uint32_t*>(std::calloc(N, sizeof(uint32_t)))},
         _t{_table} {
     assert(ISPOWEROF2(n));
-    if (verbose) {
+    if (verbose_) {
       fprintf(stdout, "%" PRId64 " KiB for APM_t\n", (N * sizeof(uint32_t)) / INT64_C(1024));
     }
 
@@ -718,7 +718,7 @@ private:
     const uint64_t vx{_t[0]};
     const uint64_t vy{_t[1]};
     _t += wt >> 11;
-    const auto px{uint16_t(((vx << 12) + ((vy - vx) * wt)) >> 32)};
+    const auto px{uint16_t(((vx << 12) - ((vx - vy) * wt)) >> 32)};
     assert(px < 0x1000);
     return px;
   }
@@ -737,13 +737,17 @@ APM_t::~APM_t() noexcept {
 
 #endif
 
+/**
+ * @class APM
+ * Adaptive Probability Maps
+ */
 class APM final {
 public:
   explicit APM(uint32_t n)
       : N{n - 1},  //
         _table{static_cast<uint16_t*>(std::calloc(n * 33, sizeof(uint16_t)))},
         _t{_table} {
-    if (verbose) {
+    if (verbose_) {
       fprintf(stdout, "%" PRId64 " KiB for APM\n", (n * 33 * sizeof(uint16_t)) / INT64_C(1024));
     }
     for (uint32_t j{0}; j < 33; ++j) {
@@ -792,6 +796,7 @@ APM::~APM() noexcept {
   _table = nullptr;
 }
 
+#if 0
 [[nodiscard]] static auto safe_add(const int32_t a, const int32_t b) noexcept -> int32_t {
   if (a >= 0) {
     if (b > (INT_MAX - a)) {
@@ -804,15 +809,22 @@ APM::~APM() noexcept {
   }
   return a + b;
 }
+#endif
 
-// Mixer - combines models using neural networks
+/**
+ * @class Mixer_t
+ * Combines models using neural networks
+ */
 class Mixer_t final {
 public:
   static constexpr uint32_t N_LAYERS{9};  // Number of neurons in the input layer
 
-  Mixer_t() : mxr_ctx{&_wx[0]} {
-    _tx.fill(0);
-    _wx.fill(0xA00);
+  static std::array<int16_t, N_LAYERS> tx_;
+  static std::array<int32_t, N_LAYERS * 1280> wx_;
+
+  Mixer_t() : mxr_ctx{&wx_[0]} {
+    tx_.fill(0);
+    wx_.fill(0xA00);
   }
 
   ~Mixer_t() noexcept = default;
@@ -822,15 +834,12 @@ public:
   auto operator=(const Mixer_t&) -> Mixer_t& = delete;
   auto operator=(Mixer_t&&) -> Mixer_t& = delete;
 
-  static std::array<int16_t, N_LAYERS> _tx;
-  static std::array<int32_t, N_LAYERS * 1280> _wx;
-
   void Update(const int16_t err) noexcept {  // train ...
     for (auto i{N_LAYERS}; i--;) {
 #if 1
-      mxr_ctx[i] += ((_tx[i] * err) + (1 << (14 - 1))) >> 14;
+      mxr_ctx[i] += ((tx_[i] * err) + (1 << (14 - 1))) >> 14;
 #else
-      mxr_ctx[i] = safe_add(mxr_ctx[i], ((_tx[i] * err) + (1 << (14 - 1))) >> 14);
+      mxr_ctx[i] = safe_add(mxr_ctx[i], ((tx_[i] * err) + (1 << (14 - 1))) >> 14);
 #endif
     }
   }
@@ -838,7 +847,7 @@ public:
   [[nodiscard]] auto Predict() noexcept -> int16_t {  // dot product ...
     auto sum{0};
     for (uint32_t i{N_LAYERS}; i--;) {
-      sum += mxr_ctx[i] * _tx[i];
+      sum += mxr_ctx[i] * tx_[i];
     }
     const auto pr{sum / (1 << DP_SHIFT)};
     return clamp12(pr);
@@ -852,9 +861,13 @@ private:
   int32_t* __restrict mxr_ctx;
 };
 
-std::array<int16_t, Mixer_t::N_LAYERS> Mixer_t::_tx;
-std::array<int32_t, Mixer_t::N_LAYERS * 1280> Mixer_t::_wx;
+std::array<int16_t, Mixer_t::N_LAYERS> Mixer_t::tx_;
+std::array<int32_t, Mixer_t::N_LAYERS * 1280> Mixer_t::wx_;
 
+/**
+ * @class Blend_t
+ * Combines predictions using a neural network
+ */
 template <const auto N_LAYERS>
 class Blend_t final {
 public:
@@ -863,7 +876,7 @@ public:
         _weights{static_cast<int32_t*>(std::calloc(n * N_LAYERS, sizeof(int32_t)))},
         _wt{_weights} {
     assert(ISPOWEROF2(n));
-    if (verbose) {
+    if (verbose_) {
       fprintf(stdout, "%" PRId64 " KiB for Blend_t\n", (n * N_LAYERS * sizeof(int32_t)) / INT64_C(1024));
     }
     for (auto i{n * N_LAYERS}; i--;) {
@@ -930,7 +943,7 @@ public:
         _hashtable{_ptr + 1} {
     assert(ISPOWEROF2(N));
     assert(_ptr);
-    if (verbose) {
+    if (verbose_) {
       fprintf(stdout, "%" PRId64 " KiB for HashTable\n", N / INT64_C(1024));
     }
     memset(_ptr, 0, N);
@@ -1073,7 +1086,7 @@ HashTable::~HashTable() noexcept {
   _aligned_free(_ptr);
 }
 
-static std::array<uint8_t*, 5> cp{{nullptr, nullptr, nullptr, nullptr, nullptr}};
+static std::array<uint8_t*, 5> cp_{{nullptr, nullptr, nullptr, nullptr, nullptr}};
 
 // Golden ratio of 2^32 (not a prime)
 static constexpr auto PHI32{UINT32_C(0x9E3779B9)};  // 2654435769
@@ -1122,7 +1135,7 @@ static constexpr auto MUL64_02{UINT64_C(0xE9C91DC159AB0D2D)};
   return uint32_t(hash >> (64 - hashbits));
 }
 
-template <const uint32_t SIZE>
+template <const uint32_t SIZE, const int32_t RATE>
 class StateMap_t final {
   static_assert(ISPOWEROF2(SIZE), "Size of state map must a power of two");
 
@@ -1141,6 +1154,13 @@ public:
     return _smt[i];
   }
 
+  [[nodiscard]] auto Update(const bool bit, const uint32_t ctx) noexcept -> int16_t {
+    uint16_t& balz{_smt[_ctx]};
+    balz = uint16_t(bit ? (balz + (uint16_t(~balz) >> RATE)) : (balz - (balz >> RATE)));
+    _ctx = ctx & (SIZE - 1);
+    return Stretch(_smt[_ctx] / 16);  // Conversion from 0..4095 into -2048..2047
+  }
+
   [[nodiscard]] auto Update(const bool bit, const uint32_t ctx, const int32_t rate) noexcept -> int16_t {
     uint16_t& balz{_smt[_ctx]};
     balz = uint16_t(bit ? (balz + (uint16_t(~balz) >> rate)) : (balz - (balz >> rate)));
@@ -1154,7 +1174,7 @@ private:
   int32_t : 32;  // Padding
 };
 
-template <const uint32_t SIZE>
+template <const uint32_t SIZE, const int32_t RATE>
 class RunContextMap_t final {
 public:
   explicit RunContextMap_t() = default;
@@ -1166,66 +1186,33 @@ public:
   auto operator=(RunContextMap_t&&) -> RunContextMap_t& = delete;
 
   void Set(const uint32_t cx) noexcept {  // update count
-    if ((0 == _cp[0]) || ((0xFF & gC4) != _cp[1])) {
-      _cp[0] = 1;
-      _cp[1] = 0xFF & gC4;
+    if ((0 == _cp[0]) || ((0xFF & c4_) != _cp[1])) {
+      _cp[0] = 1;           // Reset counts
+      _cp[1] = 0xFF & c4_;  // Set expected byte
     } else if (_cp[0] < 255) {
       ++_cp[0];
     }
     _cp = &_t[cx & (SIZE - 1)][0];
   }
 
-  [[nodiscard]] auto Predict() noexcept -> int16_t {  // predict next bit
-    const uint8_t counts{_cp[0]};
-    if (0 != counts) {
-      const uint8_t expected_byte{_cp[1]};
-      if ((expected_byte | 0x100u) >> (1 + gBcount) == gC0) {
-        const auto expected_bit{1 & (expected_byte >> gBcount)};
-        return int16_t(_ctp[counts] * ((expected_bit * 2) - 1));
-      }
+  [[nodiscard]] auto Predict(const bool bit) noexcept -> int16_t {  // predict next bit
+    const uint8_t expected_byte{_cp[1]};
+    if ((expected_byte | 0x100u) >> (1 + bcount_) == c0_) {
+      const uint32_t expected_bit{1u & (expected_byte >> bcount_)};
+      const uint32_t counts{_cp[0]};
+      const uint32_t ctx{(counts << 1) | expected_bit};  // 8+1=9 bits
+      return _ctp.Update(bit, ctx);
     }
-
     return 0;  // No or misprediction
   }
 
 private:
   std::array<std::array<uint8_t, 2>, SIZE> _t{};
   uint8_t* __restrict _cp{&_t[0][0]};
-
-#if 0
-    const double a = 4.0
-    std::array<double, 0x100> t;
-    for (uint32_t n = 0; n < 256; ++n) {
-      t[n] = std::log(((double(n) * a) + 1.0));
-    }
-    const double scale{2047.0 / t[255]};
-    for (uint32_t n = 0; n < 256; ++n) {
-      t[n] *= scale;
-    }
-    for (uint32_t n = 0; n < 256; ++n) {
-      _ctp[n] = int16_t(std::lround(t[n]));
-    }
-#endif
-  // Counts to prediction
-  static constexpr std::array<int16_t, 0x100> _ctp{{0,    475,  649,  758,  837,  899,  951,  995,  1033, 1067, 1097, 1125, 1150, 1173, 1194, 1215,  //
-                                                    1233, 1251, 1268, 1283, 1298, 1313, 1326, 1339, 1352, 1364, 1375, 1386, 1397, 1407, 1417, 1426,  //
-                                                    1436, 1445, 1454, 1462, 1470, 1478, 1486, 1494, 1501, 1509, 1516, 1523, 1529, 1536, 1542, 1549,  //
-                                                    1555, 1561, 1567, 1573, 1578, 1584, 1589, 1595, 1600, 1605, 1610, 1616, 1620, 1625, 1630, 1635,  //
-                                                    1639, 1644, 1649, 1653, 1657, 1662, 1666, 1670, 1674, 1678, 1682, 1686, 1690, 1694, 1698, 1701,  //
-                                                    1705, 1709, 1712, 1716, 1720, 1723, 1726, 1730, 1733, 1737, 1740, 1743, 1746, 1749, 1753, 1756,  //
-                                                    1759, 1762, 1765, 1768, 1771, 1774, 1777, 1780, 1782, 1785, 1788, 1791, 1794, 1796, 1799, 1802,  //
-                                                    1804, 1807, 1810, 1812, 1815, 1817, 1820, 1822, 1825, 1827, 1830, 1832, 1834, 1837, 1839, 1841,  //
-                                                    1844, 1846, 1848, 1850, 1853, 1855, 1857, 1859, 1862, 1864, 1866, 1868, 1870, 1872, 1874, 1876,  //
-                                                    1878, 1880, 1882, 1884, 1886, 1888, 1890, 1892, 1894, 1896, 1898, 1900, 1902, 1904, 1906, 1908,  //
-                                                    1909, 1911, 1913, 1915, 1917, 1919, 1920, 1922, 1924, 1926, 1927, 1929, 1931, 1933, 1934, 1936,  //
-                                                    1938, 1939, 1941, 1943, 1944, 1946, 1947, 1949, 1951, 1952, 1954, 1955, 1957, 1959, 1960, 1962,  //
-                                                    1963, 1965, 1966, 1968, 1969, 1971, 1972, 1974, 1975, 1977, 1978, 1980, 1981, 1983, 1984, 1985,  //
-                                                    1987, 1988, 1990, 1991, 1992, 1994, 1995, 1997, 1998, 1999, 2001, 2002, 2003, 2005, 2006, 2007,  //
-                                                    2009, 2010, 2011, 2013, 2014, 2015, 2017, 2018, 2019, 2020, 2022, 2023, 2024, 2025, 2027, 2028,  //
-                                                    2029, 2030, 2032, 2033, 2034, 2035, 2036, 2038, 2039, 2040, 2041, 2042, 2044, 2045, 2046, 2047}};
+  StateMap_t<0x200, RATE> _ctp;  // Counts to prediction
 };
 
-template <const uint32_t SIZE, const int32_t RATE0, const int32_t RATE1, const int32_t RATE2>
+template <const uint32_t SIZE, const int32_t RATE0, const int32_t RATE1, const int32_t RATE2, const int32_t RATE3>
 class ContextMap_t final {
 public:
   explicit ContextMap_t() = default;
@@ -1242,30 +1229,32 @@ public:
   }
 
   void Predict(int16_t* __restrict& pr, const bool bit) noexcept {
-    const auto& st{bit ? StateTableY1 : StateTableY0};
+    const auto& st{bit ? state_table_y1_ : state_table_y0_};
 
     _cs[0] = st[0][_cs[0]];
     _cs[1] = st[1][_cs[1]];
     _cs[2] = st[2][_cs[2]];
 
-    const auto ctx{(7 == gBcount) ? (0xFF & gC4) : gC0};
+    const auto ctx{(7 == bcount_) ? (0xFF & c4_) : c0_};
     _cs = &_st[(_ctx | ctx) & _mask][0];
 
-    *pr++ = _stp[0].Update(bit, _cs[0], RATE0);
-    *pr++ = _stp[1].Update(bit, _cs[1], RATE1);
-    *pr++ = _stp[2].Update(bit, _cs[2], RATE2);
-    *pr++ = _rc.Predict();
+    *pr++ = _stp0.Update(bit, _cs[0]);
+    *pr++ = _stp1.Update(bit, _cs[1]);
+    *pr++ = _stp2.Update(bit, _cs[2]);
+    *pr++ = _rc.Predict(bit);
   }
 
 private:
   std::array<std::array<uint8_t, 3>, (SIZE * 256)> _st{};
-  std::array<StateMap_t<0x100>, 3> _stp{};  // states to prediction
+  StateMap_t<0x100, RATE0> _stp0{};  // states to prediction
+  StateMap_t<0x100, RATE1> _stp1{};  // states to prediction
+  StateMap_t<0x100, RATE2> _stp2{};  // states to prediction
 
   uint8_t* __restrict _cs{&_st[0][0]};
   const uint32_t _mask{(SIZE * 256) - 1};
   uint32_t _ctx{0};
 
-  RunContextMap_t<SIZE> _rc{};
+  RunContextMap_t<SIZE, RATE3> _rc{};
 };
 
 class DynamicMarkovCmp_t final {
@@ -1275,7 +1264,7 @@ public:
         _max_nodes{uint32_t(_max_size_bytes / sizeof(Node))},
         _nodes{reinterpret_cast<Node*>(std::calloc(_max_size_bytes, sizeof(int8_t)))} {
     assert(0 == (_max_nodes >> 28));  // the top 4 bits must be unused by nx0 and nx1 for storing the 4+4 bits of the bit history state byte
-    if (verbose) {
+    if (verbose_) {
       fprintf(stdout, "%" PRId64 " KiB for DMC_t\n", (_max_size_bytes * sizeof(int8_t)) / INT64_C(1024));
     }
     Flush();
@@ -1298,12 +1287,12 @@ public:
       curr.count[0] = INCREMENT(curr.count[0], 0, 6);
       curr.count[1] = INCREMENT(curr.count[1], 1, 6);
 
-      curr.state = StateTableY1[0][curr.state];
+      curr.state = state_table_y1_[0][curr.state];
     } else {
       curr.count[0] = INCREMENT(curr.count[0], 1, 6);
       curr.count[1] = INCREMENT(curr.count[1], 0, 6);
 
-      curr.state = StateTableY0[0][curr.state];
+      curr.state = state_table_y0_[0][curr.state];
     }
 
     if (n > _threshold) {
@@ -1350,20 +1339,20 @@ public:
 
     _curr = uint32_t(bit ? curr.nx1 : curr.nx0);
 
-    int16_t* const __restrict pr = _blend.Set();
-    pr[0] = Predict();                                 // DMC prediction -2048..2047
-    pr[1] = _sm2.Update(bit, _nodes[_curr].state, 6);  // Rate of 6 is based on enwik9
+    int16_t* const __restrict pr{_blend.Set()};
+    pr[0] = Predict();  // DMC prediction -2048..2047
+    pr[1] = _sm2.Update(bit, _nodes[_curr].state);
 
     // Little improvements of DMC predictions
-    pr[2] = _sm3.Update(bit, (gC4 << 8) | gC0, 2);  // Rate of 2 is based on enwik9
-    pr[3] = _sm4.Update(bit, (gTt << 8) | gC0, 1);  // Rate of 1 is based on enwik9
-    pr[4] = _sm5.Update(bit, /*  */ gC2 | gC0, 1);  // Rate of 1 is based on enwik9
-    pr[5] = _sm6.Update(bit, (gX5 << 8) | gC0, 2);  // Rate of 2 is based on enwik9
+    pr[2] = _sm3.Update(bit, (c4_ << 8) | c0_);
+    pr[3] = _sm4.Update(bit, (tt_ << 8) | c0_);
+    pr[4] = _sm5.Update(bit, /*  */ c2_ | c0_);
+    pr[5] = _sm6.Update(bit, (x5_ << 8) | c0_);
 
-    const auto last_pr{Squash(Mixer_t::_tx[7])};  // Conversion from -2048..2047 (clamped) into 0..4095
-    const auto ctx{(gW5 << 3) | gBcount};
+    const auto last_pr{Squash(Mixer_t::tx_[7])};  // Conversion from -2048..2047 (clamped) into 0..4095
+    const auto ctx{(w5_ << 3) | bcount_};
     const auto px{_blend.Predict(bit, last_pr, ctx, 2)};  // Rate of 2 is based on enwik9
-    Mixer_t::_tx[7] = clamp12(px);
+    Mixer_t::tx_[7] = clamp12(px);
   }
 
 private:
@@ -1438,13 +1427,13 @@ private:
   uint32_t _curr{0};
   uint32_t _threshold{0};
   uint32_t _threshold_fine{0};
-  int32_t : 32;                // Padding
-  StateMap_t<0x100> _sm2{};    // state
-  StateMap_t<0x1000> _sm3{};   // gC4
-  StateMap_t<0x1000> _sm4{};   // gTt
-  StateMap_t<0x10000> _sm5{};  // gC2
-  StateMap_t<0x40000> _sm6{};  // gX5
-  Blend_t<6> _blend{0x40000};  // gW5
+  int32_t : 32;                   // Padding
+  StateMap_t<0x100, 6> _sm2{};    // state | Rate of 6 is based on enwik9
+  StateMap_t<0x1000, 2> _sm3{};   // c4_   | Rate of 2 is based on enwik9
+  StateMap_t<0x1000, 1> _sm4{};   // tt_   | Rate of 1 is based on enwik9
+  StateMap_t<0x10000, 1> _sm5{};  // c2_   | Rate of 1 is based on enwik9
+  StateMap_t<0x40000, 2> _sm6{};  // x5_   | Rate of 2 is based on enwik9
+  Blend_t<6> _blend{0x40000};     // w5_
 };
 DynamicMarkovCmp_t::~DynamicMarkovCmp_t() noexcept {
   std::free(_nodes);
@@ -1472,7 +1461,7 @@ public:
         _hashbits{countbits(((max_size > mem_limit) ? mem_limit : max_size) - UINT64_C(1))},
         _ht{static_cast<uint32_t*>(std::calloc((UINT64_C(1) << _hashbits) + UINT64_C(1), sizeof(uint32_t)))} {
     assert(ISPOWEROF2(max_size));
-    if (verbose) {
+    if (verbose_) {
       fprintf(stdout, "%" PRId64 " KiB for LZP_t\n", (((UINT64_C(1) << _hashbits) + UINT64_C(1)) * sizeof(uint32_t)) / INT64_C(1024));
     }
   }
@@ -1508,11 +1497,11 @@ public:
 
     _expected_byte = _buf[_match];
 
-    _rc.Set((_match_length << 8) | gC1);
+    _rc.Set((_match_length << 8) | c1_);  // 6+8 bits
   }
 
   [[nodiscard]] auto Predict(const bool bit) noexcept -> uint32_t {
-    if ((_match_length >= MINLEN) && (((_expected_byte | 0x100U) >> (1 + gBcount)) != gC0)) {
+    if ((_match_length >= MINLEN) && (((_expected_byte | 0x100U) >> (1 + bcount_)) != c0_)) {
       _match_length = 0;
     }
 
@@ -1522,39 +1511,39 @@ public:
 
     if (_match_length >= MINLEN) {
       const auto length{_match_length - MINLEN};
-      const auto expected_bit{1u & (_expected_byte >> gBcount)};
+      const auto expected_bit{1u & (_expected_byte >> bcount_)};
 
       const auto sign{int16_t((2 * expected_bit) - 1)};
       pr[0] = int16_t(sign * int16_t(length * 32));
 
-      const auto ctx0{(length << 9) | (expected_bit << 8) | gC1};
-      pr[1] = _sm.Update(bit, ctx0, 5);  // Rate of 5 is based on enwik9
+      const auto ctx0{(length << 9) | (expected_bit << 8) | c1_};  // 6+1+8=15 bits
+      pr[1] = _ltp.Update(bit, ctx0);
 
       // Length to order, based on enwik9 (value must start with 9 and end with 4)
-      const auto l2o{(7 == gBcount) ? UINT64_C(0x9999988888776654) : UINT64_C(0x9999998888776654)};
+      const auto l2o{(7 == bcount_) ? UINT64_C(0x9999988888776654) : UINT64_C(0x9999998888776654)};
       order = uint32_t(0xF & (l2o >> (4 * (length / 4))));
     } else {
       pr[0] = 0;
-      pr[1] = _sm.Update(bit, gC0, 2) / 2;  // Rate of 2 is based on enwik9
+      pr[1] = _ltp.Update(bit, c0_, 2) / 2;  // Rate of 2 is based on enwik9
 
       order = 0;
-      if (*cp[1]) {
+      if (*cp_[1]) {
         order = 1;
-        if (*cp[2]) {
+        if (*cp_[2]) {
           order = 2;
-          if (*cp[3]) {
+          if (*cp_[3]) {
             order = 3;
           }
         }
       }
     }
 
-    pr[2] = _rc.Predict();
+    pr[2] = _rc.Predict(bit);
 
-    const auto last_pr{Squash(Mixer_t::_tx[0])};  // Conversion from -2048..2047 (clamped) into 0..4095
-    const auto ctx{(gW5 << 3) | gBcount};
+    const auto last_pr{Squash(Mixer_t::tx_[0])};  // Conversion from -2048..2047 (clamped) into 0..4095
+    const auto ctx{(w5_ << 3) | bcount_};
     const auto px{_blend.Predict(bit, last_pr, ctx, 1)};  // Rate of 1 is based on enwik9
-    Mixer_t::_tx[0] = clamp12(px);
+    Mixer_t::tx_[0] = clamp12(px);
 
     return order;
   }
@@ -1569,10 +1558,10 @@ private:
   uint32_t _match{0};
   uint32_t _match_length{0};
   uint32_t _expected_byte{0};
-  int32_t : 32;                   // Padding
-  StateMap_t<0x8000> _sm{};       // 6+1+8=15 bits
-  RunContextMap_t<0x4000> _rc{};  // 6+8 bits
-  Blend_t<3> _blend{0x40000};     // gW5
+  int32_t : 32;                      // Padding
+  StateMap_t<0x8000, 5> _ltp{};      // Length to prediction | Rate of 5 is based on enwik9
+  RunContextMap_t<0x4000, 5> _rc{};  // Rate of 5 is based on enwik9
+  Blend_t<3> _blend{0x40000};        // w5_
 };
 LempelZivPredict_t::~LempelZivPredict_t() noexcept {
   std::free(_ht);
@@ -1599,7 +1588,7 @@ public:
   auto operator=(SparseMatchModel_t&&) -> SparseMatchModel_t& = delete;
 
   void Update() noexcept {
-    const auto idx{((UINT32_C(1) << NBITS) - 1) & gC4};
+    const auto idx{((UINT32_C(1) << NBITS) - 1) & c4_};
 
     if (_match_length >= MINLEN) {
       _match_length += _match_length < MAXLEN;
@@ -1618,31 +1607,31 @@ public:
     _expected_byte = _buf[_match] | 0x100U;
 
     _cm0.Set(0);
-    _cm1.Set(gTt);
-    _cm2.Set(gX5);
+    _cm1.Set(tt_);
+    _cm2.Set(x5_);
   }
 
   void Predict(const bool bit) noexcept {
-    if ((_match_length >= MINLEN) && ((_expected_byte >> (1 + gBcount)) != gC0)) {
+    if ((_match_length >= MINLEN) && ((_expected_byte >> (1 + bcount_)) != c0_)) {
       _match_length = 0;
     }
 
     int16_t* __restrict pr = _blend.Set();
 
     if (_match_length >= MINLEN) {
-      const auto expected_bit{1 & (_expected_byte >> gBcount)};
+      const auto expected_bit{1 & (_expected_byte >> bcount_)};
 
       const auto sign{int16_t((2 * expected_bit) - 1)};
       *pr++ = int16_t(sign * int16_t(_match_length * 32));
 
-      const auto ctx0{(_match_length << 9) | (expected_bit << 8) | gC1};
-      *pr++ = _sm0.Update(bit, ctx0, 5);  // Rate of 5 is based on enwik9
+      const auto ctx0{(_match_length << 9) | (expected_bit << 8) | c1_};
+      *pr++ = _sm0.Update(bit, ctx0);
 
-      const auto ctx1{(_expected_byte << 11) | (gBcount << 8) | _buf(1)};
-      *pr++ = _sm1.Update(bit, ctx1, 9);  // Rate of 9 is based on enwik9
+      const auto ctx1{(_expected_byte << 11) | (bcount_ << 8) | _buf(1)};
+      *pr++ = _sm1.Update(bit, ctx1);
     } else {
       *pr++ = 0;
-      *pr++ = _sm0.Update(bit, gC1, 5) / 4;      // Rate of 5 is based on enwik9
+      *pr++ = _sm0.Update(bit, c1_) / 4;
       *pr++ = _sm1.Update(bit, _buf(1), 4) / 8;  // Rate of 4, division of 8 are based on enwik9
     }
 
@@ -1650,10 +1639,10 @@ public:
     _cm1.Predict(pr, bit);
     _cm2.Predict(pr, bit);
 
-    const auto last_pr{Squash(Mixer_t::_tx[8])};  // Conversion from -2048..2047 (clamped) into 0..4095
-    const auto ctx{(gW5 * 8u) | gBcount};
+    const auto last_pr{Squash(Mixer_t::tx_[8])};  // Conversion from -2048..2047 (clamped) into 0..4095
+    const auto ctx{(w5_ * 8u) | bcount_};
     const auto px{_blend.Predict(bit, last_pr, ctx, 3)};  // Rate of 3 is based on enwik9
-    Mixer_t::_tx[8] = clamp12(px);
+    Mixer_t::tx_[8] = clamp12(px);
   }
 
 private:
@@ -1662,12 +1651,12 @@ private:
   uint32_t _match{0};
   uint32_t _match_length{0};
   uint32_t _expected_byte{};
-  int32_t : 32;                               // Padding
-  ContextMap_t<0x001, 0xC, 0xA, 0xD> _cm0{};  //     gC0  Rate of 12/10/13 are based on enwik9
-  ContextMap_t<0x100, 0xE, 0xD, 0x7> _cm1{};  // gTt|gC0  Rate of 14/13/ 7 are based on enwik9
-  ContextMap_t<0x100, 0xC, 0x6, 0xE> _cm2{};  // gX5|gC0  Rate of 12/ 6/14 are based on enwik9
-  StateMap_t<0x8000> _sm0{};                  // 6+1+8=15 bits
-  StateMap_t<0x80000> _sm1{};                 // 8+3+8=19 bits
+  int32_t : 32;                                    // Padding
+  ContextMap_t<0x001, 0xC, 0xA, 0xD, 0x1> _cm0{};  //     c0_         Rate of 12/10/13/ 1 are based on enwik9
+  ContextMap_t<0x100, 0xE, 0xD, 0x7, 0x5> _cm1{};  // tt_|c0_         Rate of 14/13/ 7/ 5 are based on enwik9
+  ContextMap_t<0x100, 0xC, 0x6, 0xE, 0xB> _cm2{};  // x5_|c0_         Rate of 12/ 6/14/11 are based on enwik9
+  StateMap_t<0x8000, 5> _sm0{};                    // 6+1+8=15 bits | Rate of 5 is based on enwik9
+  StateMap_t<0x80000, 9> _sm1{};                   // 8+3+8=19 bits | Rate of 9 is based on enwik9
   Blend_t<3 + (3 * 4)> _blend{0x10000};
 };
 SparseMatchModel_t::~SparseMatchModel_t() noexcept {
@@ -1727,8 +1716,15 @@ public:
       _prdct += _prdct;
       _value += _value;
 
-      if (1 & (_value >> 31)) {
-        if (1 & (_prdct >> 31)) {
+      // clang-format off
+      if (_a0p >> 31) { _prdct |= 1; } _a0p += _a0p;
+      if (_a0v >> 31) { _value |= 1; } _a0v += _a0v;
+      if (_a1p >> 31) {   _a0p |= 1; } _a1p += _a1p;
+      if (_a1v >> 31) {   _a0v |= 1; } _a1v += _a1v;
+      // clang-format on
+
+      if (_value >> 31) {
+        if (_prdct >> 31) {
           _pr = 0xFFF;  // Predict 1
           prediction = 0xFFF;
         } else {
@@ -1738,15 +1734,16 @@ public:
         return true;
       }
     } else {
-      if ((3 == gBcount) && (ESCAPE_CHAR != (0xFF & gC4)) && (0xC == (0xC & gC0))) {
-        if (0xC == (0xE & gC0)) {
+      // Detect dictionary indexes
+      if ((3 == bcount_) && (ESCAPE_CHAR != (0xFF & c4_)) && (0xC == (0xC & c0_))) {
+        if (0xC == (0xE & c0_)) {
           // < MID --> 2 bits prediction
           //         C0      80
           //       0b110xxxxx10xxxxxx
           //         ^^^     pp
           _prdct = 0b00000000100000000000000000000000U << 4;
           _value = 0b00000000110000000000000000000000U << 4;
-        } else if (0xE == (0xF & gC0)) {
+        } else if (0xE == (0xF & c0_)) {
           // < HIGH --> 5 bits prediction
           //         E0      C0      80
           //       0b1110xxxx110xxxxx10xxxxxx
@@ -1754,7 +1751,7 @@ public:
           _prdct = 0b00000000110000001000000000000000U << 4;
           _value = 0b00000000111000001100000000000000U << 4;
         } else {
-          assert(0xF == (0xF & gC0));
+          assert(0xF == (0xF & c0_));
           // >= HIGH --> 10 bits prediction
           //         F0      E0      C0      80
           //       0b11110xxx1110xxxx110xxxxx10xxxxxx
@@ -1762,6 +1759,78 @@ public:
           _prdct = 0b00000000111000001100000010000000U << 4;
           _value = 0b00001000111100001110000011000000U << 4;
         }
+      }
+
+      // Detect value transformation <escape><0xFx><0x8x>...<0x0x>
+      if ((7 == bcount_) && (ESCAPE_CHAR == (0xFF & (c4_ >> 8))) && (0xF0 == (0xF0 & c4_))) {
+        const auto costs{0x0F & c4_};
+        // clang-format off
+        switch (costs) {
+          case 0x4: // 80      80      80      00       --> 8 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000000000000U;
+            _value = 0b11000000110000001100000011000000U;
+            break;  // pp      pp      pp      pp
+
+          case 0x5: // 80      80      80      80                  00                               --> 10 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            00xxxxxx
+            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b00000000000000000000000000000000U;
+            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000000000000000000000000000U;
+            break;  // pp      pp      pp      pp                  pp
+
+          case 0x6: // 80      80      80      80                  80      00                       --> 12 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000000000000000000000000000U;
+            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000000000000000000000U;
+            break;  // pp      pp      pp      pp                  pp      pp
+
+          case 0x7: // 80      80      80      80                  80      80      00               --> 14 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000000000000000000000U;
+            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000000000000U;
+            break;  // pp      pp      pp      pp                  pp      pp      pp
+
+          case 0x8: // 80      80      80      80                  80      80      80      00       --> 16 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000000000000U;
+            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U;
+            break;  // pp      pp      pp      pp                  pp      pp      pp      pp
+
+          case 0x9: // 80      80      80      80                  80      80      80      80                  00                               --> 18 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx10xxxxxx            00xxxxxx
+            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000010000000U; _a1p = 0b00000000000000000000000000000000U;
+            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U; _a1v = 0b11000000000000000000000000000000U;
+            break;  // pp      pp      pp      pp                  pp      pp      pp      pp                  pp
+
+          case 0xA: // 80      80      80      80                  80      80      80      80                  80      00                       --> 20 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000010000000U; _a1p = 0b10000000000000000000000000000000U;
+            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U; _a1v = 0b11000000110000000000000000000000U;
+            break;  // pp      pp      pp      pp                  pp      pp      pp      pp                  pp      pp
+
+          case 0xB: // 80      80      80      80                  80      80      80      80                  80      80      00               --> 22 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000010000000U; _a1p = 0b10000000100000000000000000000000U;
+            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U; _a1v = 0b11000000110000001100000000000000U;
+            break;  // pp      pp      pp      pp                  pp      pp      pp      pp                  pp      pp      pp
+
+          case 0xC: // 80      80      80      80                  80      80      80      80                  80      80      80      00       --> 24 bits prediction (not used yet)
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000010000000U; _a1p = 0b10000000100000001000000000000000U;
+            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U; _a1v = 0b11000000110000001100000011000000U;
+            break;  // pp      pp      pp      pp                  pp      pp      pp      pp                  pp      pp      pp      pp
+
+          case 0x0:
+          case 0x1:
+          case 0x2:
+          case 0x3:
+          case 0xD:
+          case 0xE:
+          case 0xF:
+          default: // Ignore the not used costs
+            break;
+        }
+        // clang-format on
       }
     }
 
@@ -1778,11 +1847,15 @@ public:
   }
 
 private:
-  static constexpr int32_t ESCAPE_CHAR{4};
+  static constexpr int32_t ESCAPE_CHAR{4};  // 0x04
 
   int64_t _skip_bytes{0};
   uint32_t _prdct{0};
   uint32_t _value{0};
+  uint32_t _a0p{0};
+  uint32_t _a0v{0};
+  uint32_t _a1p{0};
+  uint32_t _a1v{0};
   uint16_t _pr{0x7FF};  // Prediction 0..4095
   bool _start{false};
   int32_t : 8;   // Padding
@@ -1813,13 +1886,18 @@ template <typename T>
   return T((((16 * px) - ((16 - weight) * (px - py))) + 8) / 16);
 }
 
+/**
+ * @class SSE_t
+ * Secondary Symbol Estimation
+ */
 class SSE_t final {
 public:
   SSE_t() {
     for (uint32_t pr{0x000}; pr <= 0xFFF; ++pr) {
       const uint32_t n0{0xFFF - pr};
       const uint32_t n1{pr};
-      _sse[pr] = (n0 << 16) | n1;
+      _n0[pr] = n0;
+      _n1[pr] = n1;
       assert(pr == ((0xFFF * n1) / (n0 + n1)));
     }
   }
@@ -1833,39 +1911,31 @@ public:
     assert(pr12 < 0x1000);
 
     // Update
-    uint32_t n0{*_t >> 16};
-    uint32_t n1{*_t & 0xFFFFu};
     if (bit) {
-      ++n1;
+      ++_n1[_sse];
     } else {
-      ++n0;
+      ++_n0[_sse];
     }
-    if ((n0 | n1) >> 16) {  // shift needed
-      n0 >>= 1;
-      n1 >>= 1;
+    if ((_n0[_sse] | _n1[_sse]) >> (DP_SHIFT + 2)) {  // shift needed
+      _n0[_sse] >>= 1;
+      _n1[_sse] >>= 1;
     }
-    *_t = (n0 << 16) | n1;
 
     // Predict
-    _t = &_sse[pr12];
-    n0 = *_t >> 16;
-    if (!n0) {
+    _sse = pr12;
+    if (!_n0[_sse]) {
       return 0xFFFFu;
     }
-
-    n1 = *_t & 0xFFFFu;
-    if (!n1) {
+    if (!_n1[_sse]) {
       return 1u;
     }
-    n0 += n0 + 1;
-    n1 += n1 + 1;
-    const uint32_t pr16_sse{MulDiv(0xFFFFu, n1, n0 + n1)};
-    return pr16_sse + (0u == pr16_sse);
+    return MulDiv(0xFFFFu, _n1[_sse], _n0[_sse] + _n1[_sse]);
   }
 
 private:
-  std::array<uint32_t, 4096> _sse;
-  uint32_t* _t{&_sse[0]};
+  std::array<uint32_t, 4096> _n0;
+  std::array<uint32_t, 4096> _n1;
+  uint32_t _sse{0};
 
   // Does '(x * y) / z' with rounding
   [[nodiscard]] ALWAYS_INLINE static constexpr auto MulDiv(const uint64_t x, const uint64_t y, const uint64_t z) noexcept -> uint32_t {
@@ -1878,7 +1948,7 @@ private:
 class Predict_t final {
 public:
   explicit Predict_t(Buffer_t& __restrict buf) : _buf{buf} {
-    cp[0] = cp[1] = cp[2] = cp[3] = cp[4] = &_t0[0];
+    cp_[0] = cp_[1] = cp_[2] = cp_[3] = cp_[4] = &_t0[0];
 
     for (uint32_t i{0}; i < 8192; ++i) {
       uint8_t v;
@@ -1905,7 +1975,7 @@ public:
   auto operator=(Predict_t&&) -> Predict_t& = delete;
 
   [[nodiscard]] auto Next(const bool bit) noexcept -> uint32_t {
-    if (_fails & 0x80) {
+    if ((_fails & 0x80) && (_failcount > 0)) {
       --_failcount;
     }
     _fails += _fails;
@@ -1924,14 +1994,16 @@ public:
 
     // Filter the context model with APMs
     const auto p0{Predict(bit)};
-    const auto p1{Balance(uint16_t(3), _a1.Predict(bit, p0, gC0, 3), p0)};  // Weight of 3 is based on enwik9
+    const auto p1{Balance(uint16_t(3), _a1.Predict(bit, p0, c0_, 3), p0)};  // Weight of 3 is based on enwik9
+
+    // const auto p1{_a1.Predict(bit, p0, c0_, 8)};
 
 #if 0
-    uint32_t cz{(1 & _fails) ? 9u : 1u};
-    cz += 0xF & (0x9440U >> (4 * (3 & (_fails >> 5))));  // 0x7340, 0x9440 is based on enwik8
-    cz += 0xF & (0xFAA0U >> (4 * (3 & (_fails >> 3))));  // 0xC660, 0xFAA0 is based on enwik8
-    cz += 0xF & (0xFC60U >> (4 * (3 & (_fails >> 1))));  // 0xC660, 0xFC60 is based on enwik8
-    cz = (std::min)(9U, (_failcount + cz) / 2);
+    uint32_t cz{(1u & _fails) ? 9u : 1u};
+    cz += 0xF & (0x7340 >> (4 * (3 & (_fails >> 5))));  // 0x7340, 0x9440 is based on enwik8
+    cz += 0xF & (0xC660 >> (4 * (3 & (_fails >> 3))));  // 0xC660, 0xFAA0 is based on enwik8
+    cz += 0xF & (0xFC60 >> (4 * (3 & (_fails >> 1))));  // 0xC660, 0xFC60 is based on enwik8
+    cz = (std::min)(9u, (_failcount + cz) / 2u);
 #else
     static constexpr std::array<uint8_t, 128> Table{{0x01, 0x09, 0x07, 0x0F, 0x0D, 0x12, 0x10, 0x12, 0x0B, 0x12, 0x11, 0x12, 0x12, 0x12, 0x12, 0x12,  //
                                                      0x0B, 0x12, 0x11, 0x12, 0x12, 0x12, 0x12, 0x12, 0x10, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,  //
@@ -1948,31 +2020,34 @@ public:
     const auto rate{6 + ((pos > (15 * 256 * 1024)) ? 1 : 0) + ((pos > (56 * 256 * 1024)) ? 1 : 0)};
 
     // clang-format off
-    const auto p2{_a2.Predict(bit, p0,           finalize64(hash(   8 * gC0, 0x7FF & _failz                         ), 27), rate+1)}; // 15 bits APM, hash bits of 27 is based on enwik9
-    const auto p3{_a3.Predict(bit, p0,           finalize64(hash(  32 * gC0, 0x80FFFF & gX5                         ), 25), rate  )}; // 15 bits APM, hash bits of 25 is based on enwik9
-    const auto p4{_a4.Predict(bit, p1, (2*gC0) ^ finalize64(hash(0xFF & gC4, 0xFF & (gX5 >> 8), 0x80FF & (gX5 >> 16)), 57), rate  )}; // 17 bits APM, hash bits of 57 is based on enwik9
-    const auto p5{_a5.Predict(bit, p2,           finalize64(hash(       gC0, gW5                                    ), 24), rate  )}; // 16 bits APM, hash bits of 24 is based on enwik9
-    const auto p6{_a6.Predict(bit, p4, (4*gC0) ^ finalize64(hash(       cz, 0x0080FF & gX5                          ), 57), rate  )}; // 16 bits APM, hash bits of 57 is based on enwik9
+    const auto p2{_a2.Predict(bit, p0,           finalize64(hash(   8 * c0_, 0x7FF & _failz                         ), 27), rate+1)}; // 15 bits APM, hash bits of 27 is based on enwik9
+    const auto p3{_a3.Predict(bit, p0,           finalize64(hash(  32 * c0_, 0x80FFFF & x5_                         ), 25), rate  )}; // 15 bits APM, hash bits of 25 is based on enwik9
+    const auto p4{_a4.Predict(bit, p1, (2*c0_) ^ finalize64(hash(0xFF & c4_, 0xFF & (x5_ >> 8), 0x80FF & (x5_ >> 16)), 57), rate  )}; // 17 bits APM, hash bits of 57 is based on enwik9
+    const auto p5{_a5.Predict(bit, p2,           finalize64(hash(       c0_, w5_                                    ), 24), rate  )}; // 16 bits APM, hash bits of 24 is based on enwik9
+    const auto p6{_a6.Predict(bit, p4, (4*c0_) ^ finalize64(hash(       cz, 0x0080FF & x5_                          ), 57), rate  )}; // 16 bits APM, hash bits of 57 is based on enwik9
     // clang-format on
 
-    int16_t* const __restrict px = _blend.Set();
+    auto* const __restrict px = _blend.Set();
     px[0] = Stretch(p3);  // Conversions from 0..4095 into -2048..2047
     px[1] = Stretch(p4);
     px[2] = Stretch(p5);
     px[3] = Stretch(p6);
 
-    const auto ctx{(gW5 << 1) | ((0xFF & _fails) ? 1 : 0)};
+    const auto ctx{(w5_ << 1) | ((0xFF & _fails) ? 1 : 0)};
     pr = _blend.Predict(bit, _pr, ctx, 5);  // Rate of 5 is based on enwik9
 
     uint16_t p7;
     if (_pt_predicts) {
-      assert((0 == _pt) || (0xFFF == _pt));  // Predicts only 0 or 1 with certainty of 100%
+      assert((0x000 == _pt) || (0xFFF == _pt));  // Predicts only 0 or 1 with certainty of 100%
       p7 = _pt;
     } else {
       p7 = Squash(pr);  // Conversion from -2048..2047 (clamped) into 0..4095
     }
 
-    const uint32_t pr16{_sse.Predict16(p7, bit)};
+    uint32_t pr16{_sse.Predict16(p7, bit)};
+    if (_pt_predicts) {
+      pr16 = _pt ? 0xFFFFu : 0x0000u;
+    }
     _pr = uint16_t(pr16 / 16);
     return pr16;
   }
@@ -2012,7 +2087,7 @@ private:
   uint16_t _pr{0x7FF};  // Prediction 0..4095
   uint16_t _pt{0x7FF};
   int32_t : 16;  // Padding
-  int32_t* __restrict _add2order{&Mixer_t::_wx[0]};
+  int32_t* __restrict _add2order{&Mixer_t::wx_[0]};
   HashTable* __restrict _t4a{new HashTable(MEM() * 2)};
   HashTable* __restrict _t4b{new HashTable(MEM() * 2)};
   Blend_t<4> _blend{0x20000};
@@ -2025,7 +2100,7 @@ private:
   uint32_t _ctx4{0};
   uint32_t _ctx5{0};
   int32_t : 32;  // Padding
-  int32_t* _ctx6{&smt[0][0]};
+  int32_t* _ctx6{&smt_[0][0]};
   uint64_t _word{0};
   uint32_t _pw{0};
   uint32_t _bc4cp0{0};  // Range 0,1,2 or 3
@@ -2036,6 +2111,7 @@ private:
   bool _is_binary{false};
   int32_t : 16;  // Padding
   SSE_t _sse{};
+  int32_t : 32;  // Padding
 
   [[nodiscard]] auto Predict_not32(const bool bit) noexcept -> uint16_t {
     auto y2o{(bit << 20) - bit};
@@ -2043,33 +2119,33 @@ private:
     const auto len{_lzp->Predict(bit)};       // len --> 0..9
     _mixer.Context(_add2order + (64 * len));  // len --> 0..576 --> 10800+576+(9*8)
     _ctx6[0] += (y2o - _ctx6[0]) >> 6;        // (6) 6 is based on enwik9 (little influence)
-    _ctx6 = &smt[_bc4cp0][_t0c1[gC0]];        // smt[0,1,2 or 3][...]
+    _ctx6 = &smt_[_bc4cp0][_t0c1[c0_]];       // smt[0,1,2 or 3][...]
 
-    smt[0x5][_ctx5] += (y2o - smt[0x5][_ctx5]) * limits_15a[_ctx5] >> 9;  // P5
-    y2o += 384;                                                           //
-    smt[0x4][_ctx1] += (y2o - smt[0x4][_ctx1]) >> 9;                      // P1
-    smt[0x6][_ctx2] += (y2o - smt[0x6][_ctx2]) >> 9;                      // P2
-    smt[0x8][_ctx3] += (y2o - smt[0x8][_ctx3]) >> 10;                     // P3
-    smt[0xA][_ctx4] += (y2o - smt[0xA][_ctx4]) >> 10;                     // P4
+    smt_[0x5][_ctx5] += (y2o - smt_[0x5][_ctx5]) * limits_15a_[_ctx5] >> 9;  // P5
+    y2o += 384;                                                              //
+    smt_[0x4][_ctx1] += (y2o - smt_[0x4][_ctx1]) >> 9;                       // P1
+    smt_[0x6][_ctx2] += (y2o - smt_[0x6][_ctx2]) >> 9;                       // P2
+    smt_[0x8][_ctx3] += (y2o - smt_[0x8][_ctx3]) >> 10;                      // P3
+    smt_[0xA][_ctx4] += (y2o - smt_[0xA][_ctx4]) >> 10;                      // P4
 
-    _ctx1 = *cp[0x0];
-    _ctx2 = *cp[0x1];
-    _ctx3 = *cp[0x2];
-    _ctx4 = *cp[0x3];
-    _ctx5 = *cp[0x4];
+    _ctx1 = *cp_[0x0];
+    _ctx2 = *cp_[0x1];
+    _ctx3 = *cp_[0x2];
+    _ctx4 = *cp_[0x3];
+    _ctx5 = *cp_[0x4];
 
-    Mixer_t::_tx[1] = Stretch256(smt[0x4][_ctx1]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[2] = Stretch256(smt[0x6][_ctx2]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[3] = Stretch256(smt[0x8][_ctx3]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[4] = Stretch256(smt[0xA][_ctx4]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[5] = Stretch256(smt[0x5][_ctx5]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[6] = Stretch256(_ctx6[0]);         // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[1] = Stretch256(smt_[0x4][_ctx1]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[2] = Stretch256(smt_[0x6][_ctx2]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[3] = Stretch256(smt_[0x8][_ctx3]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[4] = Stretch256(smt_[0xA][_ctx4]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[5] = Stretch256(smt_[0x5][_ctx5]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[6] = Stretch256(_ctx6[0]);          // Conversion from 0..1048575 into -2048..2047
 
     const auto pr{_mixer.Predict()};
-    _mxr_pr = _ax1.p1(bit, pr, gC2 | gC0);
+    _mxr_pr = _ax1.p1(bit, pr, c2_ | c0_);
     const auto px = Balance(uint16_t(3), Squash(pr), _mxr_pr);  // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 3 is based on enwik9
 
-    const auto py{_ax2.p2(bit, Stretch(px), (gFails * 8) + gBcount)};  // Conversion from 0..4095 into -2048..2047
+    const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + bcount_)};  // Conversion from 0..4095 into -2048..2047
     const auto pz = Balance(uint16_t(4), _mxr_pr, py);                 // Weight of 4 is based on enwik9
     assert(pz < 0x1000);
     return pz;
@@ -2081,41 +2157,41 @@ private:
     const auto len{_lzp->Predict(bit)};       // len --> 0..9
     _mixer.Context(_add2order + (64 * len));  // len --> 0..576 --> 10800+576+(9*8)
     _ctx6[0] += (y2o - _ctx6[0]) >> 6;        // (6) 6 is based on enwik9 (little influence)
-    _ctx6 = &smt[_bc4cp0][_t0c1[1]];          // smt[0,1,2 or 3][...] with gC0=1
+    _ctx6 = &smt_[_bc4cp0][_t0c1[1]];         // smt[0,1,2 or 3][...] with c0_=1
 
-    smt[0x4][_ctx1] += (y2o - smt[0x4][_ctx1]) >> 9;                      // P1
-    smt[0x5][_ctx5] += (y2o - smt[0x5][_ctx5]) * limits_15a[_ctx5] >> 9;  // P5
+    smt_[0x4][_ctx1] += (y2o - smt_[0x4][_ctx1]) >> 9;                       // P1
+    smt_[0x5][_ctx5] += (y2o - smt_[0x5][_ctx5]) * limits_15a_[_ctx5] >> 9;  // P5
 
-    if (0x2000 == (0xFF00 & gC4)) {
+    if (0x2000 == (0xFF00 & c4_)) {
       y2o += 768;
-      smt[0x7][_ctx2] += (y2o - smt[0x7][_ctx2]) >> 10;  // P2
-      smt[0x9][_ctx3] += (y2o - smt[0x9][_ctx3]) >> 11;  // P3
-      smt[0xB][_ctx4] += (y2o - smt[0xB][_ctx4]) >> 11;  // P4
+      smt_[0x7][_ctx2] += (y2o - smt_[0x7][_ctx2]) >> 10;  // P2
+      smt_[0x9][_ctx3] += (y2o - smt_[0x9][_ctx3]) >> 11;  // P3
+      smt_[0xB][_ctx4] += (y2o - smt_[0xB][_ctx4]) >> 11;  // P4
     } else {
       y2o += 384;
-      smt[0x6][_ctx2] += (y2o - smt[0x6][_ctx2]) >> 9;   // P2
-      smt[0x8][_ctx3] += (y2o - smt[0x8][_ctx3]) >> 10;  // P3
-      smt[0xA][_ctx4] += (y2o - smt[0xA][_ctx4]) >> 9;   // P4
+      smt_[0x6][_ctx2] += (y2o - smt_[0x6][_ctx2]) >> 9;   // P2
+      smt_[0x8][_ctx3] += (y2o - smt_[0x8][_ctx3]) >> 10;  // P3
+      smt_[0xA][_ctx4] += (y2o - smt_[0xA][_ctx4]) >> 9;   // P4
     }
 
-    _ctx1 = *cp[0x0];
-    _ctx2 = *cp[0x1];
-    _ctx3 = *cp[0x2];
-    _ctx4 = *cp[0x3];
-    _ctx5 = *cp[0x4];
+    _ctx1 = *cp_[0x0];
+    _ctx2 = *cp_[0x1];
+    _ctx3 = *cp_[0x2];
+    _ctx4 = *cp_[0x3];
+    _ctx5 = *cp_[0x4];
 
-    Mixer_t::_tx[1] = Stretch256(smt[0x4][_ctx1]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[2] = Stretch256(smt[0x6][_ctx2]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[3] = Stretch256(smt[0x8][_ctx3]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[4] = Stretch256(smt[0xA][_ctx4]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[5] = Stretch256(smt[0x5][_ctx5]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[6] = Stretch256(_ctx6[0]);         // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[1] = Stretch256(smt_[0x4][_ctx1]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[2] = Stretch256(smt_[0x6][_ctx2]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[3] = Stretch256(smt_[0x8][_ctx3]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[4] = Stretch256(smt_[0xA][_ctx4]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[5] = Stretch256(smt_[0x5][_ctx5]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[6] = Stretch256(_ctx6[0]);          // Conversion from 0..1048575 into -2048..2047
 
     const auto pr{_mixer.Predict()};
-    const auto px{_ax1.p1(bit, pr, gC2 | gC0)};
+    const auto px{_ax1.p1(bit, pr, c2_ | c0_)};
     _mxr_pr = Balance(uint16_t(2), Squash(pr), px);  // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 2 is based on enwik9
 
-    const auto py{_ax2.p2(bit, Stretch(px), (gFails * 8) + gBcount)};  // Conversion from 0..4095 into -2048..2047
+    const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + bcount_)};  // Conversion from 0..4095 into -2048..2047
     const auto pz = Balance(uint16_t(8), _mxr_pr, py);                 // Weight of 8 is based on enwik9
     assert(pz < 0x1000);
     return pz;
@@ -2127,32 +2203,32 @@ private:
     const auto len{_lzp->Predict(bit)};       // len --> 0..9
     _mixer.Context(_add2order + (64 * len));  // len --> 0..576 --> 10800+576+(9*8)
     _ctx6[0] += (y2o - _ctx6[0]) >> 7;        // (8) 7 is based on enwik9 (little influence)
-    _ctx6 = &smt[1][_t0c1[gC0]];
+    _ctx6 = &smt_[1][_t0c1[c0_]];
 
-    smt[0x5][_ctx5] += (y2o - smt[0x5][_ctx5]) * limits_15b[_ctx5] >> 10;  // P5
-    y2o += 768;                                                            //
-    smt[0x4][_ctx1] += (y2o - smt[0x4][_ctx1]) >> 14;                      // P1
-    smt[0x7][_ctx2] += (y2o - smt[0x7][_ctx2]) >> 10;                      // P2
-    smt[0x9][_ctx3] += (y2o - smt[0x9][_ctx3]) >> 11;                      // P3
-    smt[0xB][_ctx4] += (y2o - smt[0xB][_ctx4]) >> 10;                      // P4
+    smt_[0x5][_ctx5] += (y2o - smt_[0x5][_ctx5]) * limits_15b_[_ctx5] >> 10;  // P5
+    y2o += 768;                                                               //
+    smt_[0x4][_ctx1] += (y2o - smt_[0x4][_ctx1]) >> 14;                       // P1
+    smt_[0x7][_ctx2] += (y2o - smt_[0x7][_ctx2]) >> 10;                       // P2
+    smt_[0x9][_ctx3] += (y2o - smt_[0x9][_ctx3]) >> 11;                       // P3
+    smt_[0xB][_ctx4] += (y2o - smt_[0xB][_ctx4]) >> 10;                       // P4
 
-    _ctx1 = *cp[0x0];
-    _ctx2 = *cp[0x1];
-    _ctx3 = *cp[0x2];
-    _ctx4 = *cp[0x3];
-    _ctx5 = *cp[0x4];
+    _ctx1 = *cp_[0x0];
+    _ctx2 = *cp_[0x1];
+    _ctx3 = *cp_[0x2];
+    _ctx4 = *cp_[0x3];
+    _ctx5 = *cp_[0x4];
 
-    Mixer_t::_tx[1] = Stretch256(smt[0x4][_ctx1]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[2] = Stretch256(smt[0x7][_ctx2]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[3] = Stretch256(smt[0x9][_ctx3]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[4] = Stretch256(smt[0xB][_ctx4]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[5] = Stretch256(smt[0x5][_ctx5]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[6] = Stretch256(_ctx6[0]);         // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[1] = Stretch256(smt_[0x4][_ctx1]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[2] = Stretch256(smt_[0x7][_ctx2]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[3] = Stretch256(smt_[0x9][_ctx3]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[4] = Stretch256(smt_[0xB][_ctx4]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[5] = Stretch256(smt_[0x5][_ctx5]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[6] = Stretch256(_ctx6[0]);          // Conversion from 0..1048575 into -2048..2047
 
     const auto pr{_mixer.Predict()};
-    _mxr_pr = _ax1.p1(bit, pr, gC2 | gC0);
+    _mxr_pr = _ax1.p1(bit, pr, c2_ | c0_);
     const auto px{Balance(uint16_t(12), Squash(pr), _mxr_pr)};              // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 12 is based on enwik9
-    const auto py{_ax2.p2(bit, Stretch(_mxr_pr), (gFails * 8) + gBcount)};  // Conversion from 0..4095 into -2048..2047
+    const auto py{_ax2.p2(bit, Stretch(_mxr_pr), (fails_ * 8) + bcount_)};  // Conversion from 0..4095 into -2048..2047
     const auto pz{Balance(uint16_t(6), px, py)};                            // Weight of 6 is based on enwik9
     assert(pz < 0x1000);
     return pz;
@@ -2164,51 +2240,51 @@ private:
     const auto len{_lzp->Predict(bit)};       // len --> 0..9
     _mixer.Context(_add2order + (64 * len));  // len --> 0..576 --> 10800+576+(9*8)
     _ctx6[0] += (y2o - _ctx6[0]) >> 13;       // (12) 13 is based on enwik9 (little influence)
-    _ctx6 = &smt[1][_t0c1[1]];                // gC0=1
+    _ctx6 = &smt_[1][_t0c1[1]];               // c0_=1
 
-    smt[0x5][_ctx5] += (y2o - smt[0x5][_ctx5]) * limits_15b[_ctx5] >> 14;  // P5
-    y2o += 6144;                                                           //
-    smt[4][_ctx1] += (y2o - smt[4][_ctx1]) >> 14;                          // P1
+    smt_[0x5][_ctx5] += (y2o - smt_[0x5][_ctx5]) * limits_15b_[_ctx5] >> 14;  // P5
+    y2o += 6144;                                                              //
+    smt_[4][_ctx1] += (y2o - smt_[4][_ctx1]) >> 14;                           // P1
 
-    if (0x2000 == (0xFF00 & gC4)) {
-      smt[0x7][_ctx2] += (y2o - smt[0x7][_ctx2]) >> 13;  // P2
-      smt[0x9][_ctx3] += (y2o - smt[0x9][_ctx3]) >> 14;  // P3
-      smt[0xB][_ctx4] += (y2o - smt[0xB][_ctx4]) >> 13;  // P4
+    if (0x2000 == (0xFF00 & c4_)) {
+      smt_[0x7][_ctx2] += (y2o - smt_[0x7][_ctx2]) >> 13;  // P2
+      smt_[0x9][_ctx3] += (y2o - smt_[0x9][_ctx3]) >> 14;  // P3
+      smt_[0xB][_ctx4] += (y2o - smt_[0xB][_ctx4]) >> 13;  // P4
     } else {
-      smt[0x6][_ctx2] += (y2o - smt[0x6][_ctx2]) >> 13;  // P2
-      smt[0x8][_ctx3] += (y2o - smt[0x8][_ctx3]) >> 14;  // P3
-      smt[0xA][_ctx4] += (y2o - smt[0xA][_ctx4]) >> 13;  // P4
+      smt_[0x6][_ctx2] += (y2o - smt_[0x6][_ctx2]) >> 13;  // P2
+      smt_[0x8][_ctx3] += (y2o - smt_[0x8][_ctx3]) >> 14;  // P3
+      smt_[0xA][_ctx4] += (y2o - smt_[0xA][_ctx4]) >> 13;  // P4
     }
 
-    _ctx1 = *cp[0x0];
-    _ctx2 = *cp[0x1];
-    _ctx3 = *cp[0x2];
-    _ctx4 = *cp[0x3];
-    _ctx5 = *cp[0x4];
+    _ctx1 = *cp_[0x0];
+    _ctx2 = *cp_[0x1];
+    _ctx3 = *cp_[0x2];
+    _ctx4 = *cp_[0x3];
+    _ctx5 = *cp_[0x4];
 
-    Mixer_t::_tx[1] = Stretch256(smt[0x4][_ctx1]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[2] = Stretch256(smt[0x6][_ctx2]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[3] = Stretch256(smt[0x8][_ctx3]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[4] = Stretch256(smt[0xA][_ctx4]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[5] = Stretch256(smt[0x5][_ctx5]);  // Conversion from 0..1048575 into -2048..2047
-    Mixer_t::_tx[6] = Stretch256(_ctx6[0]);         // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[1] = Stretch256(smt_[0x4][_ctx1]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[2] = Stretch256(smt_[0x6][_ctx2]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[3] = Stretch256(smt_[0x8][_ctx3]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[4] = Stretch256(smt_[0xA][_ctx4]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[5] = Stretch256(smt_[0x5][_ctx5]);  // Conversion from 0..1048575 into -2048..2047
+    Mixer_t::tx_[6] = Stretch256(_ctx6[0]);          // Conversion from 0..1048575 into -2048..2047
 
     const auto pr{_mixer.Predict()};
-    const auto px{_ax1.p1(bit, pr, gC2 | gC0)};
+    const auto px{_ax1.p1(bit, pr, c2_ | c0_)};
     _mxr_pr = Balance(uint16_t(6), Squash(pr), px);  // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 6 is based on enwik9
 
-    const auto py{_ax2.p2(bit, Stretch(px), (gFails * 8) + gBcount)};  // Conversion from 0..4095 into -2048..2047
+    const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + bcount_)};  // Conversion from 0..4095 into -2048..2047
     const auto pz = Balance(uint16_t(12), _mxr_pr, py);                // Weight of 12 is based on enwik9
     assert(pz < 0x1000);
     return pz;
   }
 
   [[nodiscard]] auto Predict(const bool bit) noexcept -> uint16_t {
-    gFails += gFails;
+    fails_ += fails_;
 #if 1
-    // const auto MU{int8_t(INT64_C(0x091A1B14181C232E) >> (8 * gBcount))};  // based on lpaq9m
-    // const auto MU{int8_t(INT64_C(0x0117081224254D3B) >> (8 * gBcount))};  // based on enwik8
-    const auto MU{int8_t(INT64_C(0x01190E131717261C) >> (8 * gBcount))};  // based on enwik9
+    // const auto MU{int8_t(INT64_C(0x091A1B14181C232E) >> (8 * bcount_))};  // based on lpaq9m
+    // const auto MU{int8_t(INT64_C(0x0117081224254D3B) >> (8 * bcount_))};  // based on enwik8
+    const auto MU{int8_t(INT64_C(0x01190E131717261C) >> (8 * bcount_))};  // based on enwik9
 #else
     //                                 2E  23  1C  18  14  1B  1A  9
     // static constexpr int8_t flaw[8]{46, 35, 28, 24, 20, 27, 26, 9};  // based on lpaq9m
@@ -2218,24 +2294,24 @@ private:
 
     //                              1C  26  17  17  13  0E  19  1
     static constexpr int8_t flaw[8]{28, 38, 23, 23, 19, 14, 25, 1};  // based on enwik9
-    const int8_t MU{flaw[gBcount]};
+    const int8_t MU{flaw[bcount_]};
 #endif
     const auto err{int16_t((bit << 12) - int32_t(_mxr_pr) - bit)};
     if ((err <= -MU) || (err >= MU)) {
       assert((err + 4096) < 8192);
-      gFails |= _calcfails[(gBcount - 1) & 7][uint16_t(err + 4096)];
+      fails_ |= _calcfails[(bcount_ - 1) & 7][uint16_t(err + 4096)];
       _mixer.Update(err);
     }
-    auto cx{gC0};
-    gC0 += gC0 + uint32_t(bit);
-    gBcount = 7 & (gBcount - 1);
+    auto cx{c0_};
+    c0_ += c0_ + uint32_t(bit);
+    bcount_ = 7 & (bcount_ - 1);
     // bpos = (bpos + 1) & 7;
     _add2order += Mixer_t::N_LAYERS;
 
-    if (0 != (1 & gBcount)) {
-      const auto& p{bit ? StateTableY1 : StateTableY0};
+    if (0 != (1 & bcount_)) {
+      const auto& p{bit ? state_table_y1_ : state_table_y0_};
       int32_t j = 1 & cx;
-      const auto& q{j ? StateTableY1 : StateTableY0};
+      const auto& q{j ? state_table_y1_ : state_table_y0_};
 
       uint8_t* __restrict a{_t0c1};
       a[cx] = p[2][a[cx]];
@@ -2243,78 +2319,78 @@ private:
       a[cx] = q[2][a[cx]];
       j = j ^ ~0;  // 0 --> -1    1 --> -2
 
-      a = cp[0];
+      a = cp_[0];
       a[0] = p[1][a[0]];
       a[j] = q[1][a[j]];
-      a = cp[1];
+      a = cp_[1];
       a[0] = p[0][a[0]];  // in lpaq9m 4 for was32
       a[j] = q[0][a[j]];
-      a = cp[2];
+      a = cp_[2];
       a[0] = p[3][a[0]];
       a[j] = q[3][a[j]];
-      a = cp[3];
+      a = cp_[3];
       a[0] = p[4][a[0]];
       a[j] = q[4][a[j]];
-      a = cp[4];
+      a = cp_[4];
       a[0] = p[5][a[0]];
       a[j] = q[5][a[j]];
     }
 
-    switch (gBcount) {
+    switch (bcount_) {
       case 6:
       case 4:
       case 2:
       case 0: {
         const auto z{bit ? 2 : 1};
-        cp[0] += z;
-        cp[1] += z;
-        cp[2] += z;
-        cp[3] += z;
-        cp[4] += z;
+        cp_[0] += z;
+        cp_[1] += z;
+        cp_[2] += z;
+        cp_[3] += z;
+        cp_[4] += z;
       } break;
 
       case 5: {
-        auto zq{2 + (gC0 & 0x03) * 2};          // gC0 contains 2 bits
-        cp[0] = _t4b->get1x(0x00, zq + hh[0]);  // 000 (0)
-        cp[1] = _t4a->get1x(0x80, zq + hh[1]);  // 100 (4)
-        cp[4] = _t4b->get1x(0x00, zq + hh[4]);  // 000 (0)
+        auto zq{2 + (c0_ & 0x03) * 2};            // c0_ contains 2 bits
+        cp_[0] = _t4b->get1x(0x00, zq + hh_[0]);  // 000 (0)
+        cp_[1] = _t4a->get1x(0x80, zq + hh_[1]);  // 100 (4)
+        cp_[4] = _t4b->get1x(0x00, zq + hh_[4]);  // 000 (0)
         zq *= 2;
-        cp[2] = _t4a->get3a(0x00, zq + hh[2]);  // 000 (0)
-        cp[3] = _t4b->get3a(0x80, zq + hh[3]);  // 100 (4)
+        cp_[2] = _t4a->get3a(0x00, zq + hh_[2]);  // 000 (0)
+        cp_[3] = _t4b->get3a(0x80, zq + hh_[3]);  // 100 (4)
       } break;
 
       case 1: {
-        auto zq{2 + (gC0 & 0x3F) * 2};          // gC0 contains 6 bits
-        cp[0] = _t4b->get1x(0xC0, zq + hh[0]);  // 110 (6)
-        cp[1] = _t4a->get1x(0x40, zq + hh[1]);  // 010 (2)
-        cp[4] = _t4b->get1x(0xC0, zq + hh[4]);  // 110 (6)
+        auto zq{2 + (c0_ & 0x3F) * 2};            // c0_ contains 6 bits
+        cp_[0] = _t4b->get1x(0xC0, zq + hh_[0]);  // 110 (6)
+        cp_[1] = _t4a->get1x(0x40, zq + hh_[1]);  // 010 (2)
+        cp_[4] = _t4b->get1x(0xC0, zq + hh_[4]);  // 110 (6)
         zq *= 2;
-        cp[2] = _t4a->get3b(0xC0, zq + hh[2]);  // 110 (6)
-        cp[3] = _t4b->get3b(0x40, zq + hh[3]);  // 010 (2)
+        cp_[2] = _t4a->get3b(0xC0, zq + hh_[2]);  // 110 (6)
+        cp_[3] = _t4b->get3b(0x40, zq + hh_[3]);  // 010 (2)
       } break;
 
       case 3: {
-        const auto zq{2 + (gC0 & 0x0F) * 2};  // gC0 contains 4 bits
+        const auto zq{2 + (c0_ & 0x0F) * 2};  // c0_ contains 4 bits
         const auto blur{PHI32 * zq};
-        hh[0] = finalize64(hash(zq - hh[0]), 32);
-        hh[1] ^= blur;
-        hh[2] = finalize64(hash(zq, gC4, gC8 & 0x000080FF), 32);
-        hh[3] = finalize64(hash(zq, gC4, gC8 & 0x00FFFFFF), 32);
-        hh[4] ^= blur;
-        cp[0] = _t4b->get1x(0xA0, hh[0]);  // 101 (5)
-        cp[1] = _t4a->get1x(0x20, hh[1]);  // 001 (1)
-        cp[2] = _t4a->get3b(0xA0, hh[2]);  // 101 (5)
-        cp[3] = _t4b->get3b(0x20, hh[3]);  // 001 (1)
-        cp[4] = _t4b->get1x(0xA0, hh[4]);  // 101 (5)
+        hh_[0] = finalize64(hash(zq - hh_[0]), 32);
+        hh_[1] ^= blur;
+        hh_[2] = finalize64(hash(zq, c4_, c8_ & 0x000080FF), 32);
+        hh_[3] = finalize64(hash(zq, c4_, c8_ & 0x00FFFFFF), 32);
+        hh_[4] ^= blur;
+        cp_[0] = _t4b->get1x(0xA0, hh_[0]);  // 101 (5)
+        cp_[1] = _t4a->get1x(0x20, hh_[1]);  // 001 (1)
+        cp_[2] = _t4a->get3b(0xA0, hh_[2]);  // 101 (5)
+        cp_[3] = _t4b->get3b(0x20, hh_[3]);  // 001 (1)
+        cp_[4] = _t4b->get1x(0xA0, hh_[4]);  // 101 (5)
       } break;
 
       case 7:
       default: {
-        const auto c{uint8_t(gC0)};
-        gC0 = c;
-        const auto idx{Mixer_t::N_LAYERS * 10u * 4u * WRT_mxr[c]};  // 9*10*4*(0..30) --> 10800
-        assert(idx < Mixer_t::_wx.size());
-        _add2order = &Mixer_t::_wx[idx];
+        const auto c{uint8_t(c0_)};
+        c0_ = c;
+        const auto idx{Mixer_t::N_LAYERS * 10u * 4u * wrt_mxr_[c]};  // 9*10*4*(0..30) --> 10800
+        assert(idx < Mixer_t::wx_.size());
+        _add2order = &Mixer_t::wx_[idx];
 
         static constexpr std::array<uint8_t, 256> WRT_mtt{{0, 4, 4, 5, 0, 5, 3, 7, 0, 2, 4, 0, 0, 0, 0, 0,    //   0- 15 . . . . . . . . . . . . . . . .
                                                            0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,    //  16- 31 . . . . . . . . . . . . . . . .
@@ -2333,22 +2409,22 @@ private:
                                                            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,    // 224-239 . . . . . . . . . . . . . . . .
                                                            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}};  // 240-255 . . . . . . . . . . . . . . . .
         if (!(0xFF & _pw)) {
-          gC1 = (uint32_t(WRT_mtt[c]) << 2) + 33u;  // 0..61
+          c1_ = (uint32_t(WRT_mtt[c]) << 2) + 33u;  // 0..61
         } else {
-          gC1 = (uint32_t(WRT_mtt[c]) << 5) | (0x1F & _pw);
-          if (gC1 < 64) {
+          c1_ = (uint32_t(WRT_mtt[c]) << 5) | (0x1F & _pw);
+          if (c1_ < 64) {
             static constexpr std::array<uint8_t, 64> WRT_chc1{{0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,    //   0- 15 . . . . . . . . . . . . . . . .
                                                                16, 1,  18, 19, 20, 5,  22, 23, 24, 9,  26, 27, 28, 13, 30, 31,    //  16- 31 . . . . . . . . . . . . . . . .
                                                                32, 17, 34, 35, 36, 21, 38, 39, 40, 25, 42, 43, 44, 29, 46, 47,    //  32- 47   ! " # $ % & ' ( ) * + , - . /
                                                                48, 17, 50, 51, 52, 21, 54, 55, 56, 25, 58, 59, 60, 29, 62, 63}};  //  48- 63 0 1 2 3 4 5 6 7 8 9 : ; < = > ?
-            gC1 = WRT_chc1[gC1];
+            c1_ = WRT_chc1[c1_];
           }
         }
-        gC2 = gC1 * 256;
+        c2_ = c1_ * 256;
 
         _buf.Add(c);
-        gC8 = (gC8 << 8) + (gC4 >> 24);
-        gC4 = gC4 << 8 | c;
+        c8_ = (c8_ << 8) + (c4_ >> 24);
+        c4_ = c4_ << 8 | c;
         _t0c1 = &_t0[c * 256];
 
         if (c < 128) {
@@ -2382,15 +2458,15 @@ private:
           const auto& filter{_is_binary ? ExeFilter : TxtFilter};
           if (filter[c]) {
 #endif
-            gTt = (gTt & UINT32_C(-8)) + 1;
-            gW5 = (gW5 << 8) | 0x3FF;
-            gX5 = (gX5 << 8) + c;
+            tt_ = (tt_ & UINT32_C(-8)) + 1;
+            w5_ = (w5_ << 8) | 0x3FF;
+            x5_ = (x5_ << 8) + c;
           }
         }
 
-        gTt = (gTt * 8) + WRT_mtt[c];
-        gW5 = (gW5 * 4) + uint32_t(0xF & (UINT64_C(0x0000111111233444) >> (4 * (c >> 4))));  // WRT_mpw
-        gX5 = (gX5 << 8) + c;
+        tt_ = (tt_ * 8) + WRT_mtt[c];
+        w5_ = (w5_ * 4) + uint32_t(0xF & (UINT64_C(0x0000111111233444) >> (4 * (c >> 4))));  // WRT_mpw
+        x5_ = (x5_ << 8) + c;
 
         static constexpr std::array<uint8_t, 256> WRT_wrd{{0, 0, 0, 1, 0, 1, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0,    //   0- 15 . . . . . . . . . . . . . . . .
                                                            0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,    //  16- 31 . . . . . . . . . . . . . . . .
@@ -2419,17 +2495,17 @@ private:
           _word = 0;
         }
 
-        const auto ctx{_is_binary ? exectx(_buf) : (gC4 & 0x0080FFFF)};
-        hh[0] = finalize64(hash(ctx), 32);
-        hh[1] = finalize64(hash(gC4, WRT_mxr[gC4 >> 24]), 32);
-        hh[2] = finalize64(hash(gC4, gC8 & 0x0000C0FF), 32);
-        hh[3] = finalize64(hash(gC4, gC8 & 0x00FEFFFF, WRT_mxr[gC8 >> 24]), 32);
-        hh[4] = finalize64(combine64(_word, WRT_mxr[c]), 32);
-        cp[0] = _t4b->get1x(0xE0, hh[0]);  // 111 (7)
-        cp[1] = _t4a->get1x(0x60, hh[1]);  // 011 (3)
-        cp[2] = _t4a->get3a(0xE0, hh[2]);  // 111 (7)
-        cp[3] = _t4b->get3a(0x60, hh[3]);  // 011 (3)
-        cp[4] = _t4b->get1x(0xE0, hh[4]);  // 111 (7)
+        const auto ctx{_is_binary ? exectx(_buf) : (c4_ & 0x0080FFFF)};
+        hh_[0] = finalize64(hash(ctx), 32);
+        hh_[1] = finalize64(hash(c4_, wrt_mxr_[c4_ >> 24]), 32);
+        hh_[2] = finalize64(hash(c4_, c8_ & 0x0000C0FF), 32);
+        hh_[3] = finalize64(hash(c4_, c8_ & 0x00FEFFFF, wrt_mxr_[c8_ >> 24]), 32);
+        hh_[4] = finalize64(combine64(_word, wrt_mxr_[c]), 32);
+        cp_[0] = _t4b->get1x(0xE0, hh_[0]);  // 111 (7)
+        cp_[1] = _t4a->get1x(0x60, hh_[1]);  // 011 (3)
+        cp_[2] = _t4a->get3a(0xE0, hh_[2]);  // 111 (7)
+        cp_[3] = _t4b->get3a(0x60, hh_[3]);  // 011 (3)
+        cp_[4] = _t4b->get1x(0xE0, hh_[4]);  // 111 (7)
 
         _lzp->Update();
         _smm->Update();
@@ -2441,17 +2517,17 @@ private:
               ((15 == DP_SHIFT) && (pos == (4 * 256 * 1024))) ||   // 2 or 4 based on enwik9 (little influence)
               (14 == DP_SHIFT)) {
             DP_SHIFT++;
-            for (size_t q{Mixer_t::_wx.size()}; q--;) {
-#if 0
-              Mixer_t::_wx[q] *= 2;
+            for (size_t q{Mixer_t::wx_.size()}; q--;) {
+#if 1
+              Mixer_t::wx_[q] *= 2;
 #else
-              Mixer_t::_wx[q] = safe_add(Mixer_t::_wx[q], Mixer_t::_wx[q]);
+              Mixer_t::wx_[q] = safe_add(Mixer_t::wx_[q], Mixer_t::wx_[q]);
 #endif
             }
           }
         }
 
-        gC0 = 1;
+        c0_ = 1;
       } break;
     }
 
@@ -2460,10 +2536,10 @@ private:
 
     uint16_t pr;
 
-    if (32 == (0xFF & gC4)) {
-      pr = (7 == gBcount) ? Predict_was32s(bit) : Predict_was32(bit);
+    if (32 == (0xFF & c4_)) {
+      pr = (7 == bcount_) ? Predict_was32s(bit) : Predict_was32(bit);
     } else {
-      pr = (7 == gBcount) ? Predict_not32s(bit) : Predict_not32(bit);
+      pr = (7 == bcount_) ? Predict_not32s(bit) : Predict_not32(bit);
     }
 
     _pt_predicts = _txt->Predict(bit, _pt);
@@ -2499,45 +2575,45 @@ public:
 
     for (uint32_t i{12}; i--;) {
       for (uint32_t j{256}; j--;) {
-        smt[i][j] = 0x07FFFF;
+        smt_[i][j] = 0x07FFFF;
       }
     }
 
     for (uint32_t i{6}; i--;) {
-      int32_t* j{&smt[0xF & (0x578046 >> (i * 4))][0]};
-      uint8_t p1{StateTableY0[i][0]};
-      uint8_t p2{StateTableY0[i][0]};
-      uint8_t p3{StateTableY1[i][0]};
-      uint8_t p4{StateTableY1[i][0]};
-      p1 = StateTableY0[i][p1];
+      int32_t* j{&smt_[0xF & (0x578046 >> (i * 4))][0]};
+      uint8_t p1{state_table_y0_[i][0]};
+      uint8_t p2{state_table_y0_[i][0]};
+      uint8_t p3{state_table_y1_[i][0]};
+      uint8_t p4{state_table_y1_[i][0]};
+      p1 = state_table_y0_[i][p1];
       j[p1] = (0xFFFFF * 1) / 4;
-      p2 = StateTableY1[i][p2];
+      p2 = state_table_y1_[i][p2];
       j[p2] = (0xFFFFF * 2) / 4;
-      p3 = StateTableY0[i][p3];
+      p3 = state_table_y0_[i][p3];
       j[p3] = (0xFFFFF * 2) / 4;
-      p4 = StateTableY1[i][p4];
+      p4 = state_table_y1_[i][p4];
       j[p4] = (0xFFFFF * 3) / 4;
       uint8_t p5{p4};
       uint8_t p6{p1};
       for (auto z{5}; z < 70; ++z) {
         uint8_t px;
         // clang-format off
-        px = p1; p1 = StateTableY0[i][p1];                           if (p1 != px) { j[p1] = (0xFFFFF * (    1)) / z; }
-        px = p2; p2 = StateTableY1[i][p2];                           if (p2 != px) { j[p2] = (0xFFFFF * (z - 2)) / z; }
-        px = p3; p3 = StateTableY0[i][p3];                           if (p3 != px) { j[p3] = (0xFFFFF * (    2)) / z; }
-        px = p4; p4 = StateTableY1[i][p4];                           if (p4 != px) { j[p4] = (0xFFFFF * (z - 1)) / z; }
-        px = p5; p5 = StateTableY0[i][p5]; if (p5 < px) { p5 = px; } if (p5 != px) { j[p5] = (0xFFFFF * (    3)) / z; }
-        px = p6; p6 = StateTableY1[i][p6]; if (p6 < px) { p6 = px; } if (p6 != px) { j[p6] = (0xFFFFF * (z - 3)) / z; }
+        px = p1; p1 = state_table_y0_[i][p1];                           if (p1 != px) { j[p1] = (0xFFFFF * (    1)) / z; }
+        px = p2; p2 = state_table_y1_[i][p2];                           if (p2 != px) { j[p2] = (0xFFFFF * (z - 2)) / z; }
+        px = p3; p3 = state_table_y0_[i][p3];                           if (p3 != px) { j[p3] = (0xFFFFF * (    2)) / z; }
+        px = p4; p4 = state_table_y1_[i][p4];                           if (p4 != px) { j[p4] = (0xFFFFF * (z - 1)) / z; }
+        px = p5; p5 = state_table_y0_[i][p5]; if (p5 < px) { p5 = px; } if (p5 != px) { j[p5] = (0xFFFFF * (    3)) / z; }
+        px = p6; p6 = state_table_y1_[i][p6]; if (p6 < px) { p6 = px; } if (p6 != px) { j[p6] = (0xFFFFF * (z - 3)) / z; }
         // clang-format on
       }
     }
 
-    memcpy(&smt[0x1], &smt[0x0], smt[0x0].size());
-    memcpy(&smt[0x2], &smt[0x0], smt[0x0].size());
-    memcpy(&smt[0x3], &smt[0x0], smt[0x0].size());
-    memcpy(&smt[0x9], &smt[0x8], smt[0x8].size());
-    memcpy(&smt[0xA], &smt[0x7], smt[0x7].size());
-    memcpy(&smt[0xB], &smt[0x7], smt[0x7].size());
+    memcpy(&smt_[0x1], &smt_[0x0], smt_[0x0].size());
+    memcpy(&smt_[0x2], &smt_[0x0], smt_[0x0].size());
+    memcpy(&smt_[0x3], &smt_[0x0], smt_[0x0].size());
+    memcpy(&smt_[0x9], &smt_[0x8], smt_[0x8].size());
+    memcpy(&smt_[0xA], &smt_[0x7], smt_[0x7].size());
+    memcpy(&smt_[0xB], &smt_[0x7], smt_[0x7].size());
   }
   ~Encoder_t() noexcept override;
 
@@ -2547,7 +2623,7 @@ public:
   auto operator=(const Encoder_t&) -> Encoder_t& = delete;
   auto operator=(Encoder_t&&) -> Encoder_t& = delete;
 
-  void Compress(int32_t c) noexcept final {
+  void Compress(const int32_t c) noexcept final {
     for (auto n{8}; n--;) {
       Code((c >> n) & 1);
     }
@@ -2561,7 +2637,7 @@ public:
     return c;
   }
 
-  void CompressN(const int32_t N, int64_t c) noexcept final {
+  void CompressN(const int32_t N, const int64_t c) noexcept final {
     for (auto n{N}; n--;) {
       Code((c >> n) & 1);
     }
@@ -2572,6 +2648,26 @@ public:
     for (auto n{N}; n--;) {
       c += c + Code();
     }
+    return c;
+  }
+
+  void CompressVLI(int64_t c) noexcept final {
+    while (c > 0x7F) {
+      Compress(int32_t(0x80 | (0x7F & c)));
+      c >>= 7;
+    }
+    Compress(int32_t(c));
+  }
+
+  [[nodiscard]] auto DecompressVLI() noexcept -> int64_t final {
+    int64_t c{0};
+    int32_t k{0};
+    int32_t b;
+    do {
+      b = Decompress();
+      c |= int64_t(0x7F & b) << k;
+      k += 7;
+    } while ((b >> 7) > 0);
     return c;
   }
 
@@ -2726,7 +2822,7 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
           "Based on PAQ compressor series by M. Mahoney.\n"
           "Free under GPL, https://www.gnu.org/licenses/");
 
-  level = DEFAULT_OPTION;
+  level_ = DEFAULT_OPTION;
   bool compress{false};
   const char* inFileName{nullptr};
   const char* outFileName{nullptr};
@@ -2735,14 +2831,14 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
 
   for (auto n{1}; n < argc; ++n) {
     if (!verbose_str.compare(argv[n])) {
-      verbose = true;
+      verbose_ = true;
     } else if ((1 == strnlen(argv[n], 3)) && ('c' == argv[n][0])) {
       compress = true;
     } else if ((1 == strnlen(argv[n], 3)) && ('d' == argv[n][0])) {
       compress = false;
     } else if ((2 <= strnlen(argv[n], 3)) && ('-' == argv[n][0])) {
       if ((argv[n][1] >= '0') && (argv[n][1] <= '9')) {
-        level = std::clamp(std::abs(std::stoi(argv[n], nullptr, 10)), 0, 12);
+        level_ = std::clamp(std::abs(std::stoi(argv[n], nullptr, 10)), 0, 12);
       }
     } else {
       if (nullptr != inFileName) {
@@ -2782,10 +2878,8 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
 
   const auto start_time{std::chrono::high_resolution_clock::now()};
 
-  static constexpr auto coding_length{int64_t(6 * 8)};  // Limits file length to 2^48 bytes
-
   if (compress) {
-    fprintf(stdout, "\nEncoding file '%s' ... with memory option %d\n", inFileName, level);
+    fprintf(stdout, "\nEncoding file '%s' ... with memory option %d\n", inFileName, level_);
 
 #if 1
     File_t tmp;  // ("_tmp_.txt", "wb+");
@@ -2816,21 +2910,21 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
 #endif
     infile.Rewind();
 
-    assert((level >= 0) && (level <= 12));
-    outfile.putc(level);  // Write memory level
+    assert((level_ >= 0) && (level_ <= 12));
+    outfile.putc(level_);  // Write memory level
 
     Buffer_t _buf{MEM()};
     Encoder_t en{_buf, true, outfile};
 
     // Original file length
-    en.CompressN(coding_length, iLen);
+    en.CompressVLI(iLen);
 
     // File length after text preparation (successful or not)
     const auto len{infile.Size()};
-    en.CompressN(coding_length, len);
+    en.CompressVLI(len);
 
     // Start point text preparation (successful or not)
-    en.CompressN(coding_length, data_pos);
+    en.CompressVLI(data_pos);
 
     const bool is_txtprep{iLen != len};  // Set if there was text preparation done
 
@@ -2867,25 +2961,25 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
       return EXIT_FAILURE;
     }
 
-    level = infile.getc();  // Read memory level
-    if (!((level >= 0) && (level <= 12))) {
+    level_ = infile.getc();  // Read memory level
+    if (!((level_ >= 0) && (level_ <= 12))) {
       fprintf(stderr, "\nFile '%s' is damaged, decoding not possible!", inFileName);
       return EXIT_FAILURE;
     }
 
-    fprintf(stdout, "\nDecoding file '%s' ... with memory option %d\n", inFileName, level);
+    fprintf(stdout, "\nDecoding file '%s' ... with memory option %d\n", inFileName, level_);
 
     Buffer_t _buf{MEM()};
     Encoder_t en{_buf, false, infile};
 
     // Original file length
-    const auto iLen{en.DecompressN(coding_length)};
+    const auto iLen{en.DecompressVLI()};
 
     // File length after text preparation (successful or not)
-    auto len{en.DecompressN(coding_length)};
+    auto len{en.DecompressVLI()};
 
     // Start point text preparation (successful or not)
-    const int64_t data_pos{en.DecompressN(coding_length)};
+    const int64_t data_pos{en.DecompressVLI()};
     assert((data_pos >= 0) && (data_pos < 0x07FFFFFF));
 
     const bool is_txtprep{iLen != len};  // Set if there was text preparation done
@@ -2952,10 +3046,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement = INT64_C(138365990) - outfile.Size();
+      const auto improvement = INT64_C(138355753) - outfile.Size();
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
-      const auto improvement = INT64_C(17486266) - outfile.Size();
+      const auto improvement = INT64_C(17485045) - outfile.Size();
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     }
 #endif
