@@ -187,16 +187,16 @@ public:
     int32_t b;
     do {
       b = getc();
-      i |= int64_t(0x7F & b) << k;
-      k += 7;
-    } while ((b >> 7) > 0);
+      i |= int64_t(0x3F & b) << k;
+      k += 6;
+    } while (0x80 & b);
     return i;
   }
 
   void putVLI(int64_t i) const noexcept {
-    while (i > 0x7F) {
-      putc(int32_t(0x80 | (0x7F & i)));
-      i >>= 7;
+    while (i > 0x3F) {
+      putc(int32_t(0x80 | (0x3F & i)));
+      i >>= 6;
     }
     putc(int32_t(i));
   }

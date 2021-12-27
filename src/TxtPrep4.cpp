@@ -229,13 +229,16 @@ public:
     }
   }
 
-  [[nodiscard]] auto word2frequency(const std::string& word, uint32_t& frequency) const noexcept -> bool {
+  struct word2frequency_result_t {
+    uint32_t frequency;
+    bool found;
+  };
+  [[nodiscard]] auto word2frequency(const std::string& word) const noexcept -> word2frequency_result_t {
     const auto it{_word_map.find(word)};
     if (it != _word_map.end()) {
-      frequency = it->second;
-      return true;
+      return {it->second, true};
     }
-    return false;
+    return {0, false};
   }
 
   auto bytes2word(uint32_t bytes) noexcept -> const std::string& {
@@ -585,9 +588,9 @@ private:
     const char* __restrict__ word{cword.c_str()};
 
     if (length >= MIN_WORD_SIZE) {
-      uint32_t frequency;
-      if (_dictionary.word2frequency(cword, frequency)) {
-        EncodeCodeWord(frequency);
+      const auto wrd{_dictionary.word2frequency(cword)};
+      if (wrd.found) {
+        EncodeCodeWord(wrd.frequency);
         return;
       }
 
@@ -597,9 +600,10 @@ private:
       // Try to find shorter word, strip end of word
       for (uint32_t offset{length - 1}; offset >= MIN_SHORTER_WORD_SIZE; --offset) {
         const std::string shorter(word, offset);
-        if (_dictionary.word2frequency(shorter, frequency)) {
+        const auto short_word{_dictionary.word2frequency(shorter)};
+        if (short_word.found) {
           offset_end = offset;
-          frequency_end = frequency;
+          frequency_end = short_word.frequency;
           break;
         }
       }
@@ -610,9 +614,10 @@ private:
       // Try to find shorter word, strip begin of word
       for (uint32_t offset{1}; (length - offset) >= MIN_SHORTER_WORD_SIZE; ++offset) {
         const std::string shorter(word + offset, length - offset);
-        if (_dictionary.word2frequency(shorter, frequency)) {
+        const auto short_word{_dictionary.word2frequency(shorter)};
+        if (short_word.found) {
           offset_begin = offset;
-          frequency_begin = frequency;
+          frequency_begin = short_word.frequency;
           break;
         }
       }

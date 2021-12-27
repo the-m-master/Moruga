@@ -21,6 +21,9 @@
 
 #include <cstdint>
 
+#if !defined(NDEBUG)
+#define ALWAYS_INLINE
+#else
 #if defined(_MSC_VER)
 #define ALWAYS_INLINE __forceinline
 #define __restrict__ __restrict
@@ -29,6 +32,7 @@
 #define ALWAYS_INLINE inline __attribute__((always_inline))
 #else
 #define ALWAYS_INLINE inline
+#endif
 #endif
 
 template <typename T>
