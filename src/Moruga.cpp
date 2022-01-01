@@ -1,5 +1,5 @@
 /* Moruga file compressor based on PAQ8 by Matt Mahoney
- * Release by Marwijn Hessel, May., 2021
+ * Release by Marwijn Hessel, May., 2022
  *
  * Copyright (C) 2008 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
  * Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -37,6 +37,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <memory>
 #include <new>
 #include <string>
 #include <utility>
@@ -816,6 +817,7 @@ public:
   static std::array<int16_t, N_LAYERS> tx_;
 
   Mixer_t() {
+    tx_.fill(0);
     wx_.fill(0xA00);
   }
 
@@ -930,7 +932,7 @@ public:
   explicit HashTable(const uint64_t max_size)
       : N{(max_size > mem_limit) ? mem_limit : max_size},  //
         NB{uint32_t((N / B) - 1)},
-        _ptr{static_cast<uint8_t*>(_aligned_malloc(N, Align))},
+        _ptr{static_cast<uint8_t*>(_aligned_malloc(N, 64))},
         _hashtable{_ptr + 1} {
     assert(ISPOWEROF2(N));
     assert(_ptr);
@@ -1064,7 +1066,6 @@ public:
   }
 
 private:
-  static constexpr size_t Align{64};
   static constexpr auto B{4};
   static constexpr auto mem_limit{UINT64_C(0x400000000)};  // 16 GiB
 
@@ -1178,8 +1179,7 @@ public:
   auto operator=(RunContextMap_t&&) -> RunContextMap_t& = delete;
 
   void Set(const uint32_t cx) noexcept {  // update count
-    uint8_t* const __restrict cp{&_t[_ctx][0]};
-    if ((0 == cp[0]) || ((0xFF & c4_) != cp[1])) {
+    if (uint8_t* const __restrict cp{&_t[_ctx][0]}; (0 == cp[0]) || ((0xFF & c4_) != cp[1])) {
       cp[0] = 1;           // Reset counts
       cp[1] = 0xFF & c4_;  // Set expected byte
     } else if (cp[0] < 255) {
@@ -1189,8 +1189,7 @@ public:
   }
 
   [[nodiscard]] auto Predict(const bool bit) noexcept -> int16_t {  // predict next bit
-    const uint8_t expected_byte{_t[_ctx][1]};
-    if ((expected_byte | 0x100u) >> (1 + bcount_) == c0_) {
+    if (const uint8_t expected_byte{_t[_ctx][1]}; (expected_byte | 0x100u) >> (1 + bcount_) == c0_) {
       const uint32_t expected_bit{1u & (expected_byte >> bcount_)};
       const uint32_t counts{_t[_ctx][0]};
       const uint32_t ctx{(counts << 1) | expected_bit};  // 8+1=9 bits
@@ -1292,9 +1291,8 @@ public:
       const auto next{uint32_t(bit ? curr.nx1 : curr.nx0)};
       auto n0{_nodes[next].count[0]};
       auto n1{_nodes[next].count[1]};
-      const auto nn{uint32_t(n0 + n1)};
 
-      if (nn > (n + _threshold)) {
+      if (const auto nn{uint32_t(n0 + n1)}; nn > (n + _threshold)) {
         const auto top_count0{MulDiv(n0, n, nn)};  // 16+16-16
         assert(n0 >= top_count0);
 
@@ -1603,19 +1601,28 @@ public:
 
     _expected_byte = _buf[_match] | 0x100U;
 
+    // TODO find proper context
+    // c1_     17512641 -30123
+    // _buf(1) 17511206 -28688 (c4_)
+    // x5_>>8  17501815 -19297
+    // _buf(2) 17501410 -18892
+    // _buf(3) 17497991 -15473
+    // _buf(4) 17498764 -16246
+    // w5+ml   17499107
+    // tt_>>16 17498382 -15864
+    // w5_     17496243 -13725
+    // tt_>>8  17495449 -12931
+    // 0       17483336 -818
+
     _cm0.Set(0);
     _cm1.Set(tt_);
     _cm2.Set(x5_);
   }
 
   void Predict(const bool bit) noexcept {
-    if ((_match_length >= MINLEN) && ((_expected_byte >> (1 + bcount_)) != c0_)) {
-      _match_length = 0;
-    }
-
     int16_t* __restrict pr{_blend.Set()};
 
-    if (_match_length >= MINLEN) {
+    if ((_match_length >= MINLEN) && ((_expected_byte >> (1 + bcount_)) == c0_)) {
       const auto expected_bit{1 & (_expected_byte >> bcount_)};
 
       const auto sign{int16_t((2 * expected_bit) - 1)};
@@ -1627,6 +1634,7 @@ public:
       const auto ctx1{(_expected_byte << 11) | (bcount_ << 8) | _buf(1)};
       *pr++ = _sm1.Update(bit, ctx1);
     } else {
+      _match_length = 0;  // Misprediction, reset!
       *pr++ = 0;
       *pr++ = _sm0.Update(bit, c1_) / 4;
       *pr++ = _sm1.Update(bit, _buf(1), 4) / 8;  // Rate of 4, division of 8 are based on enwik9
@@ -1694,30 +1702,31 @@ public:
     }
   }
 
-  struct NoModel_t {
-    uint16_t prediction;
-    bool hasPrediction;
-    int32_t : 8;  // Padding
-  };
-
   /**
    * Forecast a few bits with 100% accuracy
    * @param bit List bit seen
    * @return True when there is a forecast otherwise false
    */
-  [[nodiscard]] auto Predict(const bool bit) noexcept -> NoModel_t {
+  [[nodiscard]] auto Predict(const bool bit) noexcept -> std::pair<bool, uint16_t> {
+    //    (No prediction) || (          1 predicted) || (           0 predicted)
     assert((0x7FF == _pr) || (bit && (0xFFF == _pr)) || (!bit && (0x000 == _pr)));
+    (void)bit;  // bit is only used for verification
 
     if (!_start || (_skip_bytes > 0)) {
-      _pr = 0x7FF;  // No prediction
-      return {_pr, false};
+      return {false, _pr = 0x7FF};  // No prediction
     }
 
     if (_value) {
-      if ((_prdct >> 31) != bit) {
-        // value transformation can interfere with exception value preceding with an escape
-        Reset();
+#if 0  // Validate and reset
+      if ((_value >> 31) && ((_prdct >> 31) != bit)) {
+        _prdct = 0;
+        _value = 0;
+        _a0p = 0;
+        _a0v = 0;
+        _a1p = 0;
+        _a1v = 0;
       }
+#endif
 
       _prdct += _prdct;
       _value += _value;
@@ -1730,12 +1739,7 @@ public:
       // clang-format on
 
       if (_value >> 31) {
-        if (_prdct >> 31) {
-          _pr = 0xFFF;  // Predict 1
-        } else {
-          _pr = 0x000;  // Predict 0
-        }
-        return {_pr, true};
+        return {true, _pr = (_prdct >> 31) ? 0xFFF : 0x000};  // Prediction
       }
     } else {
       // Detect dictionary indexes
@@ -1765,6 +1769,7 @@ public:
         }
       }
 
+#if 1
       // Detect value transformation <escape><0xFx><0x8x>...<0x0x>
       if ((7 == bcount_) && (ESCAPE_CHAR == (0xFF & (c4_ >> 8))) && (0xF0 == (0xF0 & c4_))) {
         const auto costs{0x0F & c4_};
@@ -1836,10 +1841,10 @@ public:
         }
         // clang-format on
       }
+#endif
     }
 
-    _pr = 0x7FF;  // No prediction
-    return {_pr, false};
+    return {false, _pr = 0x7FF};  // No prediction
   }
 
   void SetDataPos(const int64_t data_pos) noexcept {
@@ -1852,15 +1857,6 @@ public:
 
 private:
   static constexpr int32_t ESCAPE_CHAR{4};  // 0x04
-
-  void Reset() noexcept {
-    _prdct = 0;
-    _value = 0;
-    _a0p = 0;
-    _a0v = 0;
-    _a1p = 0;
-    _a1v = 0;
-  }
 
   int64_t _skip_bytes{0};
   uint32_t _prdct{0};
@@ -1929,7 +1925,7 @@ public:
     } else {
       ++_n0[_sse];
     }
-    if ((_n0[_sse] | _n1[_sse]) >> (DP_SHIFT + 2)) {  // shift needed
+    if ((_n0[_sse] | _n1[_sse]) >> (DP_SHIFT + 1)) {  // shift needed
       _n0[_sse] >>= 1;
       _n1[_sse] >>= 1;
     }
@@ -2037,11 +2033,11 @@ public:
     const auto rate{6 + ((pos > (15 * 256 * 1024)) ? 1 : 0) + ((pos > (56 * 256 * 1024)) ? 1 : 0)};
 
     // clang-format off
-    const auto p2{_a2.Predict(bit, p0,           finalize64(hash(   8 * c0_, 0x7FF & _failz                         ), 27), rate+1)}; // 15 bits APM, hash bits of 27 is based on enwik9
-    const auto p3{_a3.Predict(bit, p0,           finalize64(hash(  32 * c0_, 0x80FFFF & x5_                         ), 25), rate  )}; // 15 bits APM, hash bits of 25 is based on enwik9
-    const auto p4{_a4.Predict(bit, p1, (2*c0_) ^ finalize64(hash(0xFF & c4_, 0xFF & (x5_ >> 8), 0x80FF & (x5_ >> 16)), 57), rate  )}; // 17 bits APM, hash bits of 57 is based on enwik9
-    const auto p5{_a5.Predict(bit, p2,           finalize64(hash(       c0_, w5_                                    ), 24), rate  )}; // 16 bits APM, hash bits of 24 is based on enwik9
-    const auto p6{_a6.Predict(bit, p4, (4*c0_) ^ finalize64(hash(       cz, 0x0080FF & x5_                          ), 57), rate  )}; // 16 bits APM, hash bits of 57 is based on enwik9
+    const auto p2{_a2.Predict(bit, p0,           finalize64(hash( 8 * c0_, 0x7FF & _failz                         ), 27), rate+1)}; // 15 bits APM, hash bits of 27 is based on enwik9
+    const auto p3{_a3.Predict(bit, p0,           finalize64(hash(32 * c0_, 0x80FFFF & x5_                         ), 25), rate  )}; // 15 bits APM, hash bits of 25 is based on enwik9
+    const auto p4{_a4.Predict(bit, p1, (2*c0_) ^ finalize64(hash( _buf(1), 0xFF & (x5_ >> 8), 0x80FF & (x5_ >> 16)), 57), rate  )}; // 17 bits APM, hash bits of 57 is based on enwik9
+    const auto p5{_a5.Predict(bit, p2,           finalize64(hash(     c0_, w5_                                    ), 24), rate  )}; // 16 bits APM, hash bits of 24 is based on enwik9
+    const auto p6{_a6.Predict(bit, p4, (4*c0_) ^ finalize64(hash(     cz, 0x0080FF & x5_                          ), 57), rate  )}; // 16 bits APM, hash bits of 57 is based on enwik9
     // clang-format on
 
     auto* const __restrict px{_blend.Set()};
@@ -2089,10 +2085,10 @@ private:
   Buffer_t& __restrict _buf;
   Mixer_t _mixer{};
   uint32_t _add2order{0};
-  std::unique_ptr<DynamicMarkovCmp_t> _dmc{new DynamicMarkovCmp_t(MEM())};
-  std::unique_ptr<LempelZivPredict_t> _lzp{new LempelZivPredict_t(_buf, MEM() / 4)};
-  std::unique_ptr<SparseMatchModel_t> _smm{new SparseMatchModel_t(_buf)};
-  std::unique_ptr<Txt_t> _txt{new Txt_t()};
+  std::unique_ptr<DynamicMarkovCmp_t> _dmc{std::make_unique<DynamicMarkovCmp_t>(MEM())};
+  std::unique_ptr<LempelZivPredict_t> _lzp{std::make_unique<LempelZivPredict_t>(_buf, MEM() / 4)};
+  std::unique_ptr<SparseMatchModel_t> _smm{std::make_unique<SparseMatchModel_t>(_buf)};
+  std::unique_ptr<Txt_t> _txt{std::make_unique<Txt_t>()};
   APM_t _ax1{0x10000, 18};
   APM_t _ax2{0x800, 40};
   APM _a1{0x100};
@@ -2105,8 +2101,8 @@ private:
   uint16_t _pt{0x7FF};
   uint16_t _pr{0x7FF};  // Prediction 0..4095
   int32_t : 16;         // Padding
-  std::unique_ptr<HashTable> _t4a{new HashTable(MEM() * 2)};
-  std::unique_ptr<HashTable> _t4b{new HashTable(MEM() * 2)};
+  std::unique_ptr<HashTable> _t4a{std::make_unique<HashTable>(MEM() * 2)};
+  std::unique_ptr<HashTable> _t4b{std::make_unique<HashTable>(MEM() * 2)};
   Blend_t<4> _blend{0x20000};
   std::array<std::array<uint8_t, 8192>, 8> _calcfails;
   std::array<uint8_t, 0x10000> _t0{};
@@ -2312,8 +2308,7 @@ private:
     static constexpr int8_t flaw[8]{28, 38, 23, 23, 19, 14, 25, 1};  // based on enwik9
     const int8_t MU{flaw[bcount_]};
 #endif
-    const auto err{int16_t((bit << 12) - int32_t(_mxr_pr) - bit)};
-    if ((err <= -MU) || (err >= MU)) {
+    if (const auto err{int16_t((bit << 12) - int32_t(_mxr_pr) - bit)}; (err <= -MU) || (err >= MU)) {
       assert((err + 4096) < 8192);
       fails_ |= _calcfails[(bcount_ - 1) & 7][uint16_t(err + 4096)];
       _mixer.Update(err);
@@ -2442,13 +2437,12 @@ private:
         c4_ = c4_ << 8 | c;
         _t0c1 = &_t0[c * 256];
 
-        if (c < 128) {
+        if (!(c & 0x80)) {
 #if defined(__SIZEOF_INT128__)
           static constexpr auto TxtFilter{0x28000001D00000000000C14000000400_xxl};
           static constexpr auto ExeFilter{0x00000000000000000000000000008002_xxl};
 
-          const auto filter{_is_binary ? ExeFilter : TxtFilter};
-          if (1 & (filter >> c)) {
+          if (const auto filter{_is_binary ? ExeFilter : TxtFilter}; 1 & (filter >> c)) {
 #else
           // \n & ( . / \ ^ _ ' { }                            0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F                0 1 2 3 4 5 6 7 8 9 A B C D E F
           static constexpr std::array<uint8_t, 128> TxtFilter{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,    //   0- 15 . . . . . . . . . . . . . . . .
@@ -2470,8 +2464,7 @@ private:
                                                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //  96-111 ` a b c d e f g h i j k l m n o
                                                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};  // 112-127 p q r s t u v w x y z { | } ~ .
 
-          const auto& filter{_is_binary ? ExeFilter : TxtFilter};
-          if (filter[c]) {
+          if (const auto& filter{_is_binary ? ExeFilter : TxtFilter}; filter[c]) {
 #endif
             tt_ = (tt_ & UINT32_C(-8)) + 1;
             w5_ = (w5_ << 8) | 0x3FF;
@@ -2526,12 +2519,11 @@ private:
         _smm->Update();
         _txt->Update();
 
-        const auto pos{_buf.Pos()};
-        if (0 == (pos & (256 * 1024 - 1))) {
+        if (const auto pos{_buf.Pos()}; 0 == (pos & (256 * 1024 - 1))) {
           if (((16 == DP_SHIFT) && (pos == (25 * 256 * 1024))) ||  // 22 or 25 based on enwik9 (little influence)
               ((15 == DP_SHIFT) && (pos == (4 * 256 * 1024))) ||   // 2 or 4 based on enwik9 (little influence)
               (14 == DP_SHIFT)) {
-            DP_SHIFT++;
+            ++DP_SHIFT;
             _mixer.ScaleUp();
           }
         }
@@ -2545,19 +2537,17 @@ private:
 
     uint16_t pr;
 
-    if (32 == (0xFF & c4_)) {
+    if (32 == _buf(1)) {
       pr = (7 == bcount_) ? Predict_was32s(bit) : Predict_was32(bit);
     } else {
       pr = (7 == bcount_) ? Predict_not32s(bit) : Predict_not32(bit);
     }
 
-    const auto no_model{_txt->Predict(bit)};
-    if (no_model.hasPrediction) {
-      assert((0x000 == no_model.prediction) || (0xFFF == no_model.prediction));  // Predicts only 0 or 1 with certainty of 100%
-      pr = no_model.prediction;
-      _pt = no_model.prediction;
+    if (const auto no_model{_txt->Predict(bit)}; no_model.first) {
+      assert((0x000 == no_model.second) || (0xFFF == no_model.second));  // Predicts only 0 or 1 with certainty of 100%
+      _pt = pr = no_model.second;
     } else {
-      _pt = 0x7FF;
+      _pt = 0x7FF;  // No prediction
     }
     return pr;
   }
@@ -2567,7 +2557,7 @@ Predict_t::~Predict_t() noexcept = default;
 // Encoder - Arithmetic coding
 class Encoder_t final : public iEncoder_t {
 public:
-  explicit Encoder_t(Buffer_t& __restrict buf, bool encode, File_t& file) : _stream{file}, _predict{new Predict_t(buf)} {
+  explicit Encoder_t(Buffer_t& __restrict buf, bool encode, File_t& file) : _stream{file}, _predict{std::make_unique<Predict_t>(buf)} {
     if (!encode) {
       _x = _stream.get32();
     }
@@ -2651,9 +2641,9 @@ public:
   }
 
   void CompressVLI(int64_t c) noexcept final {
-    while (c > 0x3F) {
-      Compress(int32_t(0x80 | (0x3F & c)));
-      c >>= 6;
+    while (c > 0x7F) {
+      Compress(int32_t(0x80 | (0x7F & c)));
+      c >>= 7;
     }
     Compress(int32_t(c));
   }
@@ -2664,8 +2654,8 @@ public:
     int32_t b;
     do {
       b = Decompress();
-      c |= int64_t(0x3F & b) << k;
-      k += 6;
+      c |= int64_t(0x7F & b) << k;
+      k += 7;
     } while (0x80 & b);
     return c;
   }
@@ -2673,7 +2663,7 @@ public:
   void Flush() noexcept final {
     // Flush first unequal byte of range
     _stream.putc(int32_t(_low >> 24));
-    fflush(_stream);
+    _stream.Flush();
   }
 
   void SetBinary(const bool is_binary) noexcept final {
@@ -2712,13 +2702,12 @@ private:
   }
 
   void Code(const bool bit) noexcept {
-    const auto mid{Rescale()};
-    if (bit) {
+    if (const auto mid{Rescale()}; bit) {
       _high = mid;
     } else {
       _low = mid + 1;
     }
-    while ((_low ^ _high) < 0x01000000u) {  // Shift out identical leading bytes
+    while ((_low ^ _high) < 0x01000000U) {  // Shift out identical leading bytes
       _stream.putc(int32_t(_high >> 24));
       _high = (_high << 8) | 0xFF;
       _low <<= 8;
@@ -2728,15 +2717,14 @@ private:
 
   [[nodiscard]] auto Code() noexcept -> bool {
     bool bit;
-    const auto mid{Rescale()};
-    if (_x <= mid) {
+    if (const auto mid{Rescale()}; _x <= mid) {
       _high = mid;
       bit = true;
     } else {
       _low = mid + 1;
       bit = false;
     }
-    while ((_low ^ _high) < 0x01000000u) {  // Shift out identical leading bytes
+    while ((_low ^ _high) < 0x01000000U) {  // Shift out identical leading bytes
       _high = (_high << 8) | 0xFF;
       _low <<= 8;
       _x = (_x << 8) | (_stream.getc() & 0xFF);  // EOF is OK
@@ -2806,15 +2794,15 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
   _stretch = new Stretch_t();
 #elif 0
   if ((6 == argc) && !strnicmp(argv[5], "--XX", 4)) {
-    extern int32_t XX;
-    XX = std::strtol(4 + argv[5], nullptr, 16);
+    extern uint32_t XX;
+    XX = std::strtoul(4 + argv[5], nullptr, 16);
     argc--;
     fprintf(stdout, "\nXX : %02" PRIX32 "\n", XX);
   }
 #endif
 
   fprintf(stdout,
-          "Moruga v1.00 compressor (C) 2021, M.W. Hessel.\n"
+          "Moruga v1.00 compressor (C) 2022, M.W. Hessel.\n"
           "Based on PAQ compressor series by M. Mahoney.\n"
           "Free under GPL, https://www.gnu.org/licenses/");
 
@@ -3042,10 +3030,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement = INT64_C(138196520) - outfile.Size();
+      const auto improvement = INT64_C(138197495) - outfile.Size();
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
-      const auto improvement = INT64_C(17482518) - outfile.Size();
+      const auto improvement = INT64_C(17478573) - outfile.Size();
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     }
 #endif

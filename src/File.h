@@ -1,6 +1,6 @@
 /* File, fast file handling
  *
- * Copyright (c) 2019-2021 Marwijn Hessel
+ * Copyright (c) 2019-2022 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,7 +48,8 @@ static std::string getTempFileLocation() noexcept {
   char temppath[MAX_PATH];
   const uint32_t i{GetTempPathA(sizeof(temppath), temppath)};
   if (i < sizeof(temppath)) {
-    GetTempFileNameA(temppath, "Moruga", 0, filename);
+    static constexpr char prefix[]{"Moruga"};
+    GetTempFileNameA(temppath, prefix, 0, filename);
   }
   return filename;
 }
@@ -63,7 +64,7 @@ public:
   explicit File_t() : File_t(getTempFileLocation().c_str(), _mode) {}
 #endif
 
-  explicit File_t(const char* path, const std::string& mode) : _stream{path ? fopen(path, mode.c_str()) : std::tmpfile()} {
+  explicit File_t(const char* const path, const std::string& mode) : _stream{path ? fopen(path, mode.c_str()) : std::tmpfile()} {
     if (!_stream) {
       fprintf(stderr, "Cannot open file '%s'\n", path);
       exit(EXIT_FAILURE);
@@ -103,7 +104,7 @@ public:
    * @return The size of file
    */
   [[nodiscard]] auto Size() const noexcept -> int64_t {
-    fflush(_stream);  // Mandatory to flush first!
+    Flush();  // Mandatory to flush first!
 #if defined(__CYGWIN__)
     struct stat fileInfo;
     fstat(fileno(_stream), &fileInfo);
@@ -127,19 +128,18 @@ public:
 #elif defined(_MSC_VER)
     return _ftelli64(_stream);
 #else
-    fpos_t pos;
-    if (fgetpos(_stream, &pos)) {
-      return INT64_C(-1);
-    }
+    if (fpos_t pos; !fgetpos(_stream, &pos)) {
 #if defined(__linux__)
-    return pos.__pos;
+      return pos.__pos;
 #else
-    return pos;
+      return pos;
 #endif
+    }
+    return INT64_C(-1);
 #endif
   }
 
-  auto Seek(int64_t offset) const noexcept -> int32_t {
+  auto Seek(const int64_t offset) const noexcept -> int32_t {
 #if defined(__linux__)
     return fseeko64(_stream, offset, SEEK_SET);
 #else
@@ -150,6 +150,10 @@ public:
 
   auto Rewind() const noexcept -> int32_t {
     return Seek(0);
+  }
+
+  auto Flush() const noexcept -> int32_t {
+    return fflush(_stream);
   }
 
   void Close() noexcept {
@@ -163,7 +167,7 @@ public:
     return getc_unlocked(_stream);
   }
 
-  ALWAYS_INLINE void putc(int32_t ch) const noexcept {
+  ALWAYS_INLINE void putc(const int32_t ch) const noexcept {
     putc_unlocked(ch, _stream);
   }
 
@@ -174,7 +178,7 @@ public:
            uint32_t(getc());
   }
 
-  void put32(uint32_t x) const noexcept {
+  void put32(const uint32_t x) const noexcept {
     putc(int32_t(x >> 24));
     putc(int32_t(x >> 16));
     putc(int32_t(x >> 8));
@@ -201,16 +205,16 @@ public:
     putc(int32_t(i));
   }
 
-  auto Read(void* data, size_t size) const noexcept -> size_t {
+  auto Read(void* const data, const size_t size) const noexcept -> size_t {
     return fread(data, sizeof(char), size, _stream);
   }
 
-  auto Write(void* data, size_t size) const noexcept -> size_t {
+  auto Write(const void* const data, const size_t size) const noexcept -> size_t {
     return fwrite(data, sizeof(char), size, _stream);
   }
 
 private:
-  static constexpr char _mode[] = "wb+TD";
+  static constexpr char _mode[]{"wb+TD"};
 
   FILE* _stream;
 };

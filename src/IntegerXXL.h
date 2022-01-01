@@ -1,6 +1,6 @@
 /* IntegerXXL, large integer definition in128_t/uint128_t
  *
- * Copyright (c) 2021 Marwijn Hessel
+ * Copyright (c) 2022 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

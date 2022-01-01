@@ -1,7 +1,7 @@
 #===============================================================================
 # Moruga project
 #===============================================================================
-# Copyright (c) 2019-2021 Marwijn Hessel
+# Copyright (c) 2019-2022 Marwijn Hessel
 #
 # Moruga is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

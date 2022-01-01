@@ -1,6 +1,6 @@
 /* CaseSpace, is a text preparation for text compressing/decompressing
  *
- * Copyright (c) 2019-2021 Marwijn Hessel
+ * Copyright (c) 2019-2022 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -124,14 +124,12 @@ public:
     _word.push_back(char(ch));
 
     const auto key{find_match(_string_code, ch)};
-    HashTable_t& ht{_hashTable[key]};
-    if (UNUSED != ht.code_value) {
+
+    if (HashTable_t& ht{_hashTable[key]}; UNUSED != ht.code_value) {
       _string_code = int32_t(ht.code_value);
 
-      const auto length{_word.length()};
-      if ((length >= MIN_WORD_SIZE) && (length < 256)) {
-        auto it{_esteem.find(_word)};
-        if (it != _esteem.end()) {
+      if (const auto length{_word.length()}; (length >= MIN_WORD_SIZE) && (length < 256)) {
+        if (auto it{_esteem.find(_word)}; it != _esteem.end()) {
           it->second += 1;  // Increase frequency
         } else {
           _esteem[_word] = 0;  // Start with frequency is zero
@@ -155,8 +153,7 @@ public:
   auto finish() noexcept -> std::string {
     std::vector<CaseSpace_t::Dictionary_t> dictionary{};
     std::for_each(_esteem.begin(), _esteem.end(), [&dictionary](const auto& entry) {
-      const auto frequency{entry.second};
-      if (frequency > MIN_FREQUENCY) {
+      if (const auto frequency{entry.second}; frequency > MIN_FREQUENCY) {
         dictionary.emplace_back(CaseSpace_t::Dictionary_t(entry.first, entry.second));
       }
     });
@@ -253,7 +250,10 @@ ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
   return is_upper(ch) || is_lower(ch);
 }
 
-CaseSpace_t::CaseSpace_t(File_t& in, File_t& out) : _in{in}, _out{out}, _lzw{new LempelZivWelch_t()} {
+CaseSpace_t::CaseSpace_t(File_t& in, File_t& out)
+    : _in{in},  //
+      _out{out},
+      _lzw{std::make_unique<LempelZivWelch_t>()} {
   _char_freq.fill(0);
 }
 
@@ -422,21 +422,18 @@ auto CaseSpace_t::Decode() noexcept -> int64_t {
 }
 
 void CaseSpace_t::DecodeWord(std::string& word, const WordType t) noexcept {
-  auto wordLength{word.length()};
-  if (wordLength > 0) {
-    const char* __restrict__ str{word.c_str()};
-
-    switch (t) {
+  if (word.length() > 0) {
+    switch (const char* __restrict__ str{word.c_str()}; t) {
       case ALL_BIG:
-        while (wordLength-- > 0) {
-          int32_t ch{*str++};
+        while (*str) {
+          const int32_t ch{*str++};
           _out.putc(to_upper(ch));
         }
         break;
 
       case FIRST_BIG_REST_SMALL:
-        if (wordLength-- > 0) {
-          int32_t ch{*str++};
+        if (*str) {
+          const int32_t ch{*str++};
           _out.putc(to_upper(ch));
         }
         [[fallthrough]];
@@ -445,8 +442,8 @@ void CaseSpace_t::DecodeWord(std::string& word, const WordType t) noexcept {
       case ALL_SMALL:
       case CRLF_MARKER:
       case ESCAPE_CHAR:
-        while (wordLength-- > 0) {
-          int32_t ch{*str++};
+        while (*str) {
+          const int32_t ch{*str++};
           _out.putc(ch);
         }
         break;

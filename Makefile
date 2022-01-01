@@ -1,7 +1,7 @@
 #===============================================================================
 # Moruga project
 #===============================================================================
-# Copyright (c) 2019-2021 Marwijn Hessel
+# Copyright (c) 2019-2022 Marwijn Hessel
 #
 # Moruga is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -111,7 +111,7 @@ ifeq ($(MODE),debug)
     CCFLAGS += -fstack-protector-strong
   endif
 else
-  CCFLAGS += -O3 -flto -fomit-frame-pointer -fno-rtti -funroll-loops -ftree-vectorize
+  CCFLAGS += -O3 -flto -fno-rtti -funroll-loops -ftree-vectorize
   ifeq ($(MODE),profile)
     CCFLAGS += -fprofile-generate=$(PROFILE_DIR)
   else

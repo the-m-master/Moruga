@@ -1,6 +1,6 @@
 /* Buffer, history handling using buffer
  *
- * Copyright (c) 2019-2021 Marwijn Hessel
+ * Copyright (c) 2019-2022 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,6 @@ public:
   }
   ~Buffer_t() noexcept {
     std::free(_buffer);
-    _buffer = nullptr;
   }
   Buffer_t(const Buffer_t&) = delete;
   Buffer_t(Buffer_t&&) = delete;
@@ -65,7 +64,7 @@ private:
 
   const uint32_t _mask;
   uint32_t _pos{0};  // Number of input bytes read (is wrapped)
-  uint8_t* __restrict _buffer;
+  uint8_t* const __restrict _buffer;
 };
 
 #endif /* _BUFFER_HDR_ */

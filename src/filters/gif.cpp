@@ -1,6 +1,6 @@
 /* GIF, encoding and decoding gif-lzw
  *
- * Copyright (c) 2019-2021 Marwijn Hessel
+ * Copyright (c) 2019-2022 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -121,7 +121,7 @@ auto Gif_t::Decode() noexcept -> int64_t {
             _output[4096 - size] = uint8_t(j);
 
             if (1 == phase) {
-              fwrite(&_output[4096 - size], sizeof(char), size, _out);
+              _out.Write(&_output[4096 - size], size);
             } else {
               _diffPos += size;
             }
@@ -348,7 +348,7 @@ auto Gif_t::WriteBlock(int32_t count, const bool compare) noexcept -> bool {
       }
     }
   } else {
-    fwrite(&_output[0], sizeof(uint8_t), size_t(count + 1), _out);
+    _out.Write(&_output[0], size_t(count + 1));
   }
   _outsize += int64_t(count + 1);
   _block_size = 0;

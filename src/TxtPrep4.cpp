@@ -1,6 +1,6 @@
 /* TxtPrep4, is a text preparation for text encoding/decoding
  *
- * Copyright (c) 2019-2021 Marwijn Hessel
+ * Copyright (c) 2019-2022 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -94,8 +94,8 @@ static bool to_numbers_{false};
 
 template <typename T>
 ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
-  return ('>' == ch) || is_lower(ch) || (ch > 127) ||  //
-         (to_numbers_ && ((' ' == ch) || ('.' == ch) || is_number(ch)));
+  return ('>' == ch) || is_lower(ch) || (ch > 127) ||                     // Default for text files
+         (to_numbers_ && ((' ' == ch) || ('.' == ch) || is_number(ch)));  // In case of a file with a lot of values
 }
 
 class Dictionary final : public iMonitor_t {
@@ -152,8 +152,7 @@ public:
     dictionary.reserve(_word_map.size());
 
     std::for_each(_word_map.begin(), _word_map.end(), [&dictionary](const auto entry) {
-      const auto frequency{entry.second + 1};  // The first element has count 0 (!)
-      if (frequency >= MIN_WORD_FREQ) {
+      if (const auto frequency{entry.second + 1}; frequency >= MIN_WORD_FREQ) {  // The first element has count 0 (!)
         dictionary.emplace_back(CaseSpace_t::Dictionary_t(entry.first, frequency));
       }
     });
@@ -199,7 +198,7 @@ public:
     out.putVLI(_dicLength);  // write length of dictionary
 
     for (uint32_t n{0}; n < _dicLength; ++n) {
-      fwrite(dictionary[n].word.c_str(), sizeof(char), dictionary[n].word.length(), out);
+      out.Write(dictionary[n].word.c_str(), dictionary[n].word.length());
       out.putc(SEPARATE_CHAR);
     }
 
@@ -229,16 +228,11 @@ public:
     }
   }
 
-  struct word2frequency_result_t {
-    uint32_t frequency;
-    bool found;
-  };
-  [[nodiscard]] auto word2frequency(const std::string& word) const noexcept -> word2frequency_result_t {
-    const auto it{_word_map.find(word)};
-    if (it != _word_map.end()) {
-      return {it->second, true};
+  [[nodiscard]] auto word2frequency(const std::string& word) const noexcept -> std::pair<bool, uint32_t> {
+    if (const auto it{_word_map.find(word)}; it != _word_map.end()) {
+      return {true, it->second};  // Is found, frequency
     }
-    return {0, false};
+    return {false, 0};  // Not found...
   }
 
   auto bytes2word(uint32_t bytes) noexcept -> const std::string& {
@@ -275,8 +269,7 @@ private:
   }
 
   void AppendWord(const std::string& word) noexcept {
-    auto it{_word_map.find(word)};
-    if (it != _word_map.end()) {
+    if (auto it{_word_map.find(word)}; it != _word_map.end()) {
       it->second++;
     } else {
       _word_map[word] = 0;
@@ -347,7 +340,7 @@ public:
   auto operator=(const TxtPrep&) -> TxtPrep& = delete;
   auto operator=(TxtPrep&&) -> TxtPrep& = delete;
 
-  void EncodeChar(const int32_t ch, std::string& word) noexcept {
+  void EncodeChar(int32_t ch, std::string& word) noexcept {
     if (is_word_char(ch) && (word.length() < MAX_WORD_SIZE)) {
       word.push_back(char(ch));
     } else {
@@ -467,6 +460,7 @@ public:
             k += 6;
             --costs;
           } while (0x80 & b);
+          assert(0 == costs);
           if (0 == costs) {
             std::array<char, 30> tmp;
             snprintf(&tmp[0], tmp.size(), "%" PRIu64, value);
@@ -547,8 +541,7 @@ private:
   }
 
   void ValidateAndEncodeValue(std::string& value) noexcept {
-    const auto valueLength{value.length()};
-    if ((valueLength <= MIN_NUMBER_SIZE) || !EncodeValue(value)) {
+    if ((value.length() <= MIN_NUMBER_SIZE) || !EncodeValue(value)) {
       const char* __restrict src{value.c_str()};
       while (*src) {
         Putc(*src++);
@@ -576,10 +569,11 @@ private:
   void Literal(const char* __restrict__ literal, uint32_t length) noexcept {
     if (length > 0) {
       while (length-- > 0) {
-        if (0x80 & *literal) {
+        int32_t ch{*literal++};
+        if (0x80 & ch) {
           Putc(ESCAPE_CHAR);
         }
-        Putc(*literal++);
+        Putc(ch);
       }
     }
   }
@@ -588,9 +582,8 @@ private:
     const char* __restrict__ word{cword.c_str()};
 
     if (length >= MIN_WORD_SIZE) {
-      const auto wrd{_dictionary.word2frequency(cword)};
-      if (wrd.found) {
-        EncodeCodeWord(wrd.frequency);
+      if (const auto whole_word{_dictionary.word2frequency(cword)}; whole_word.first) {
+        EncodeCodeWord(whole_word.second);
         return;
       }
 
@@ -600,10 +593,9 @@ private:
       // Try to find shorter word, strip end of word
       for (uint32_t offset{length - 1}; offset >= MIN_SHORTER_WORD_SIZE; --offset) {
         const std::string shorter(word, offset);
-        const auto short_word{_dictionary.word2frequency(shorter)};
-        if (short_word.found) {
+        if (const auto short_word{_dictionary.word2frequency(shorter)}; short_word.first) {
           offset_end = offset;
-          frequency_end = short_word.frequency;
+          frequency_end = short_word.second;
           break;
         }
       }
@@ -614,10 +606,9 @@ private:
       // Try to find shorter word, strip begin of word
       for (uint32_t offset{1}; (length - offset) >= MIN_SHORTER_WORD_SIZE; ++offset) {
         const std::string shorter(word + offset, length - offset);
-        const auto short_word{_dictionary.word2frequency(shorter)};
-        if (short_word.found) {
+        if (const auto short_word{_dictionary.word2frequency(shorter)}; short_word.first) {
           offset_begin = offset;
-          frequency_begin = short_word.frequency;
+          frequency_begin = short_word.second;
           break;
         }
       }
@@ -681,8 +672,7 @@ TxtPrep::~TxtPrep() noexcept = default;
 
 auto encode_txt(File_t& in, File_t& out) noexcept -> int64_t {
   int64_t length{0};
-  File_t tmp;  //("_tmp_.cse", "wb+");
-  if (tmp.isOpen()) {
+  if (File_t tmp /*("_tmp_.cse", "wb+")*/; tmp.isOpen()) {
     CaseSpace_t cse(in, tmp);
     cse.Encode();
 
@@ -701,8 +691,7 @@ auto encode_txt(File_t& in, File_t& out) noexcept -> int64_t {
 
 auto decode_txt(File_t& in, File_t& out) noexcept -> int64_t {
   int64_t length{0};
-  File_t tmp;  //("_tmp_.cse", "wb+");
-  if (tmp.isOpen()) {
+  if (File_t tmp /*("_tmp_.cse", "wb+")*/; tmp.isOpen()) {
     TxtPrep txtprep(in, tmp, nullptr, "");
     txtprep.Decode();
 
