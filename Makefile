@@ -101,7 +101,7 @@ CXXFLAGS := -std=c++20 -fdata-sections -ffunction-sections
 # c\c++ compiler flags
 #===============================================================================
 
-CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native -pthread
+CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native
 
 ifeq ($(MODE),debug)
   CCFLAGS += -g3 -O0
@@ -111,7 +111,7 @@ ifeq ($(MODE),debug)
     CCFLAGS += -fstack-protector-strong
   endif
 else
-  CCFLAGS += -O3 -flto -fno-rtti -funroll-loops -ftree-vectorize
+  CCFLAGS += -O3 -flto -fno-rtti -fno-asm -funroll-loops -ftree-vectorize
   ifeq ($(MODE),profile)
     CCFLAGS += -fprofile-generate=$(PROFILE_DIR)
   else
@@ -137,7 +137,8 @@ ifeq ($(TOOLCHAIN),llvm)
              -Wno-unknown-attributes \
              -Wno-used-but-marked-unused
 else
-  CCFLAGS += -Wall \
+  CCFLAGS += -pthread \
+             -Wall \
              -Wcast-align \
              -Wcast-qual \
              -Wchar-subscripts \

@@ -64,8 +64,8 @@ private:
   };
 
   void Encode(int32_t ch) noexcept;
-  void EncodeWord(std::string& word) noexcept;
-  void DecodeWord(std::string& word, const WordType t) noexcept;
+  void EncodeWord() noexcept;
+  void DecodeWord() noexcept;
 
   [[nodiscard]] auto inputLength() const noexcept -> int64_t final;
   [[nodiscard]] auto outputLength() const noexcept -> int64_t final;
@@ -74,11 +74,12 @@ private:
 
   File_t& _in;
   File_t& _out;
-  int64_t _originalLength{};
+  int64_t _original_length{};
   std::array<int64_t, 256> _char_freq{};
-  WordType _ch_type{ALL_SMALL};
+  WordType _wtype{ALL_SMALL};
   int32_t : 32;  // Padding
   std::unique_ptr<LempelZivWelch_t> _lzw;
+  std::string _word{};
   std::string _quote{};
 };
 

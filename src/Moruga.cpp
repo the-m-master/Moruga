@@ -1389,7 +1389,7 @@ private:
    * @param z Input 'z' can not be zero
    * @return (x * y) / z
    */
-  [[nodiscard]] ALWAYS_INLINE static constexpr auto MulDiv(const uint32_t x, const uint32_t y, const uint32_t z) noexcept -> uint16_t {
+  [[nodiscard]] ALWAYS_INLINE constexpr auto MulDiv(const uint32_t x, const uint32_t y, const uint32_t z) const noexcept -> uint16_t {
     assert(z > 0);
     return uint16_t(((2 * (x * y)) + z) / (z + z));
   }
@@ -1671,7 +1671,7 @@ SparseMatchModel_t::~SparseMatchModel_t() noexcept {
 /**
  * @class Txt_t
  * This is not really a prediction model. It is more of a state machine that
- * can follow the sequence of text preparation.
+ * can follow the sequence of text or value preparation.
  * If the text preparation fails or is ineffective, this model does nothing.
  * If the text preparation is successful, it can follow the byte order of the
  * text preparation. It can predict single bits with 100% accuracy.
@@ -1679,9 +1679,8 @@ SparseMatchModel_t::~SparseMatchModel_t() noexcept {
  * Therefore the function 'Predict' has a parameter 'bit',
  * normally (release build) it is not used.
  * This model is not "super" effective, but does not claim memory or heavy CPU usage.
- * It is very lightweight and small.
- * If the model is active, it predicts a few bits (2, 5 or 10), in line
- * with text preparation.
+ * If the model is active, it predicts a few bits (2,5 or 10), in line with text preparation,
+ * and it predicts a few bits (6,8,10,12,14,16,18,20,22,24,26 and 28), in line with value preparation.
  */
 class Txt_t final {
 public:
@@ -1717,131 +1716,135 @@ public:
     }
 
     if (_value) {
-#if 0  // Validate and reset
-      if ((_value >> 31) && ((_prdct >> 31) != bit)) {
-        _prdct = 0;
-        _value = 0;
-        _a0p = 0;
-        _a0v = 0;
-        _a1p = 0;
-        _a1v = 0;
-      }
-#endif
+      Shift();
 
-      _prdct += _prdct;
-      _value += _value;
-
-      // clang-format off
-      if (_a0p >> 31) { _prdct |= 1; } _a0p += _a0p;
-      if (_a0v >> 31) { _value |= 1; } _a0v += _a0v;
-      if (_a1p >> 31) {   _a0p |= 1; } _a1p += _a1p;
-      if (_a1v >> 31) {   _a0v |= 1; } _a1v += _a1v;
-      // clang-format on
-
-      if (_value >> 31) {
-        return {true, _pr = (_prdct >> 31) ? 0xFFF : 0x000};  // Prediction
+      if (_value >> 127) {
+        return {true, _pr = (_prdct >> 127) ? 0xFFF : 0x000};  // Prediction
       }
     } else {
       // Detect dictionary indexes
       if ((3 == bcount_) && (ESCAPE_CHAR != (0xFF & c4_)) && (0xC == (0xC & c0_))) {
         if (0xC == (0xE & c0_)) {
-          // < MID --> 2 bits prediction
-          //         C0      80
+          // < MID
+          //         C0      80 --> 2 bits prediction
           //       0b110xxxxx10xxxxxx
+          _prdct = 0b00000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+          _value = 0b00000000110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
           //         ^^^     pp
-          _prdct = 0b00000000100000000000000000000000U << 4;
-          _value = 0b00000000110000000000000000000000U << 4;
+          //
         } else if (0xE == (0xF & c0_)) {
-          // < HIGH --> 5 bits prediction
-          //         E0      C0      80
+          // < HIGH
+          //         E0      C0      80 --> 5 bits prediction
           //       0b1110xxxx110xxxxx10xxxxxx
+          _prdct = 0b00000000110000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+          _value = 0b00000000111000001100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
           //         ^^^^    ppp     pp
-          _prdct = 0b00000000110000001000000000000000U << 4;
-          _value = 0b00000000111000001100000000000000U << 4;
-        } else {
-          assert(0xF == (0xF & c0_));
-          // >= HIGH --> 10 bits prediction
-          //         F0      E0      C0      80
+          //
+        } else if (0xF == (0xF & c0_)) {
+          // >= HIGH
+          //         F0      E0      C0      80 --> 10 bits prediction
           //       0b11110xxx1110xxxx110xxxxx10xxxxxx
+          _prdct = 0b00000000111000001100000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+          _value = 0b00001000111100001110000011000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
           //         ^^^^p   pppp    ppp     pp
-          _prdct = 0b00000000111000001100000010000000U << 4;
-          _value = 0b00001000111100001110000011000000U << 4;
+          //
         }
+
+        Shift();  // Get in sync
+        Shift();
+        Shift();
+        Shift();
       }
 
-#if 1
       // Detect value transformation <escape><0xFx><0x8x>...<0x0x>
-      if ((7 == bcount_) && (ESCAPE_CHAR == (0xFF & (c4_ >> 8))) && (0xF0 == (0xF0 & c4_))) {
+      if ((5 == bcount_) && (ESCAPE_CHAR == (0xFF & (c4_ >> 8))) && (0xF0 == (0xF0 & c4_)) && (0x06 == c0_)) {
         const auto costs{0x0F & c4_};
         // clang-format off
         switch (costs) {
-          case 0x4: // 80      80      80      00       --> 8 bits prediction
+          case 0x4: // 80      80      80      00 --> 6 bits prediction
             //       0b10xxxxxx10xxxxxx10xxxxxx00xxxxxx
-            _prdct = 0b10000000100000001000000000000000U;
-            _value = 0b11000000110000001100000011000000U;
-            break;  // pp      pp      pp      pp
+            _prdct = 0b10000000100000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp
 
-          case 0x5: // 80      80      80      80                  00                               --> 10 bits prediction
-            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            00xxxxxx
-            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b00000000000000000000000000000000U;
-            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000000000000000000000000000U;
-            break;  // pp      pp      pp      pp                  pp
+          case 0x5: // 80      80      80      80      00 --> 8 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp
 
-          case 0x6: // 80      80      80      80                  80      00                       --> 12 bits prediction
-            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx00xxxxxx
-            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000000000000000000000000000U;
-            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000000000000000000000U;
-            break;  // pp      pp      pp      pp                  pp      pp
+          case 0x6: // 80      80      80      80      80      00 --> 10 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp
 
-          case 0x7: // 80      80      80      80                  80      80      00               --> 14 bits prediction
-            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx00xxxxxx
-            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000000000000000000000U;
-            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000000000000U;
-            break;  // pp      pp      pp      pp                  pp      pp      pp
+          case 0x7: // 80      80      80      80      80      80      00 --> 12 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000011000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp      pp
 
-          case 0x8: // 80      80      80      80                  80      80      80      00       --> 16 bits prediction
-            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx00xxxxxx
-            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000000000000U;
-            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U;
-            break;  // pp      pp      pp      pp                  pp      pp      pp      pp
+          case 0x8: // 80      80      80      80      80      80      80      00 --> 14 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000001000000010000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000011000000110000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp      pp      pp
 
-          case 0x9: // 80      80      80      80                  80      80      80      80                  00                               --> 18 bits prediction
-            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx10xxxxxx            00xxxxxx
-            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000010000000U; _a1p = 0b00000000000000000000000000000000U;
-            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U; _a1v = 0b11000000000000000000000000000000U;
-            break;  // pp      pp      pp      pp                  pp      pp      pp      pp                  pp
+          case 0x9: // 80      80      80      80      80      80      80      80      00 --> 16 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000001000000010000000100000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000011000000110000001100000000000000000000000000000000000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp      pp      pp      pp
 
-          case 0xA: // 80      80      80      80                  80      80      80      80                  80      00                       --> 20 bits prediction
-            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx00xxxxxx
-            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000010000000U; _a1p = 0b10000000000000000000000000000000U;
-            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U; _a1v = 0b11000000110000000000000000000000U;
-            break;  // pp      pp      pp      pp                  pp      pp      pp      pp                  pp      pp
+          case 0xA: // 80      80      80      80      80      80      80      80      80      00 --> 18 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000001000000010000000100000001000000000000000000000000000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000011000000110000001100000011000000000000000000000000000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp      pp      pp      pp      pp
 
-          case 0xB: // 80      80      80      80                  80      80      80      80                  80      80      00               --> 22 bits prediction
-            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx00xxxxxx
-            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000010000000U; _a1p = 0b10000000100000000000000000000000U;
-            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U; _a1v = 0b11000000110000001100000000000000U;
-            break;  // pp      pp      pp      pp                  pp      pp      pp      pp                  pp      pp      pp
+          case 0xB: // 80      80      80      80      80      80      80      80      80      80      00 --> 20 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000001000000010000000100000001000000010000000000000000000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000011000000110000001100000011000000110000000000000000000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp
 
-          case 0xC: // 80      80      80      80                  80      80      80      80                  80      80      80      00       --> 24 bits prediction (not used yet)
-            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx10xxxxxx            10xxxxxx10xxxxxx10xxxxxx00xxxxxx
-            _prdct = 0b10000000100000001000000010000000U; _a0p = 0b10000000100000001000000010000000U; _a1p = 0b10000000100000001000000000000000U;
-            _value = 0b11000000110000001100000011000000U; _a0v = 0b11000000110000001100000011000000U; _a1v = 0b11000000110000001100000011000000U;
-            break;  // pp      pp      pp      pp                  pp      pp      pp      pp                  pp      pp      pp      pp
+          case 0xC: // 80      80      80      80      80      80      80      80      80      80      80      00 --> 22 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000001000000010000000100000001000000010000000100000000000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000011000000110000001100000011000000110000001100000000000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp
+
+          case 0xD: // 80      80      80      80      80      80      80      80      80      80      80      80      00 --> 24 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000000000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000011000000110000001100000011000000110000001100000011000000000000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp
+
+          case 0xE: // 80      80      80      80      80      80      80      80      80      80      80      80      80      00 --> 26 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000000000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000011000000110000001100000011000000110000001100000011000000110000000000000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp
+
+          case 0xF: // 80      80      80      80      80      80      80      80      80      80      80      80      80      80      00 --> 28 bits prediction
+            //       0b10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx10xxxxxx00xxxxxx
+            _prdct = 0b10000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000000000000000000000_xxl;
+            _value = 0b11000000110000001100000011000000110000001100000011000000110000001100000011000000110000001100000011000000110000001100000000000000_xxl;
+            break;  // ^^      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp      pp
 
           case 0x0:
           case 0x1:
           case 0x2:
           case 0x3:
-          case 0xD:
-          case 0xE:
-          case 0xF:
           default: // Ignore the not used costs
             break;
         }
         // clang-format on
+
+        Shift();  // Get in sync
+        Shift();
       }
-#endif
     }
 
     return {false, _pr = 0x7FF};  // No prediction
@@ -1858,13 +1861,14 @@ public:
 private:
   static constexpr int32_t ESCAPE_CHAR{4};  // 0x04
 
+  void Shift() noexcept {
+    _prdct += _prdct;
+    _value += _value;
+  }
+
+  uint128_t _prdct{0};
+  uint128_t _value{0};
   int64_t _skip_bytes{0};
-  uint32_t _prdct{0};
-  uint32_t _value{0};
-  uint32_t _a0p{0};
-  uint32_t _a0v{0};
-  uint32_t _a1p{0};
-  uint32_t _a1v{0};
   uint16_t _pr{0x7FF};  // Prediction 0..4095
   bool _start{false};
   int32_t : 8;   // Padding
@@ -1953,7 +1957,7 @@ private:
    * @param z Input 'z' can not be zero
    * @return (x * y) / z
    */
-  [[nodiscard]] ALWAYS_INLINE static constexpr auto MulDiv(const uint64_t x, const uint64_t y, const uint64_t z) noexcept -> uint32_t {
+  [[nodiscard]] ALWAYS_INLINE constexpr auto MulDiv(const uint64_t x, const uint64_t y, const uint64_t z) const noexcept -> uint32_t {
     assert(z > 0);
     return uint32_t(((2 * (x * y)) + z) / (z + z));
   }
@@ -2155,10 +2159,10 @@ private:
 
     const auto pr{_mixer.Predict()};
     _mxr_pr = _ax1.p1(bit, pr, c2_ | c0_);
-    const auto px = Balance(uint16_t(3), Squash(pr), _mxr_pr);  // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 3 is based on enwik9
+    const auto px{Balance(uint16_t(3), Squash(pr), _mxr_pr)};  // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 3 is based on enwik9
 
     const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + bcount_)};  // Conversion from 0..4095 into -2048..2047
-    const auto pz = Balance(uint16_t(4), _mxr_pr, py);                 // Weight of 4 is based on enwik9
+    const auto pz{Balance(uint16_t(4), _mxr_pr, py)};                  // Weight of 4 is based on enwik9
     assert(pz < 0x1000);
     return pz;
   }
@@ -2204,7 +2208,7 @@ private:
     _mxr_pr = Balance(uint16_t(2), Squash(pr), px);  // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 2 is based on enwik9
 
     const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + bcount_)};  // Conversion from 0..4095 into -2048..2047
-    const auto pz = Balance(uint16_t(8), _mxr_pr, py);                 // Weight of 8 is based on enwik9
+    const auto pz{Balance(uint16_t(8), _mxr_pr, py)};                  // Weight of 8 is based on enwik9
     assert(pz < 0x1000);
     return pz;
   }
@@ -2286,7 +2290,7 @@ private:
     _mxr_pr = Balance(uint16_t(6), Squash(pr), px);  // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 6 is based on enwik9
 
     const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + bcount_)};  // Conversion from 0..4095 into -2048..2047
-    const auto pz = Balance(uint16_t(12), _mxr_pr, py);                // Weight of 12 is based on enwik9
+    const auto pz{Balance(uint16_t(12), _mxr_pr, py)};                 // Weight of 12 is based on enwik9
     assert(pz < 0x1000);
     return pz;
   }
@@ -2771,7 +2775,7 @@ private:
 };
 Monitor_t::~Monitor_t() noexcept = default;
 
-static auto checksum(const uint8_t* __restrict data, size_t len) noexcept -> uint8_t {
+[[nodiscard]] static auto checksum(const uint8_t* __restrict data, size_t len) noexcept -> uint8_t {
   uint8_t sum{0};
   while (len--) {
     sum = uint8_t(sum + *data++);
@@ -2795,9 +2799,9 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
 #elif 0
   if ((6 == argc) && !strnicmp(argv[5], "--XX", 4)) {
     extern uint32_t XX;
-    XX = std::strtoul(4 + argv[5], nullptr, 16);
+    XX = std::strtoul(4 + argv[5], nullptr, 10);
     argc--;
-    fprintf(stdout, "\nXX : %02" PRIX32 "\n", XX);
+    fprintf(stdout, "\nXX : %02" PRId32 "\n", XX);
   }
 #endif
 
@@ -3030,7 +3034,7 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement = INT64_C(138197495) - outfile.Size();
+      const auto improvement = INT64_C(138194578) - outfile.Size();
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
       const auto improvement = INT64_C(17478573) - outfile.Size();

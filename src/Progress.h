@@ -57,7 +57,7 @@ private:
   TraceProgress_t _tracer;
   int32_t : 16;  // Padding
   int32_t : 32;  // Padding
-  std::thread _monitorWorker;
+  std::thread _monitor_worker;
 };
 
 #endif  // _progress_hdr_

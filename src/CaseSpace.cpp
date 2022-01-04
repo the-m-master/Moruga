@@ -125,7 +125,7 @@ public:
 
     const auto key{find_match(_string_code, ch)};
 
-    if (HashTable_t& ht{_hashTable[key]}; UNUSED != ht.code_value) {
+    if (HashTable_t & ht{_hashTable[key]}; UNUSED != ht.code_value) {
       _string_code = int32_t(ht.code_value);
 
       if (const auto length{_word.length()}; (length >= MIN_WORD_SIZE) && (length < 256)) {
@@ -171,8 +171,8 @@ public:
       File_t txt("dictionary.txt", "wb+");
       for (auto dic : dictionary) {
         fprintf(txt, "%2" PRIu64 " %8" PRIu32 " %8" PRIu64 " ", dic.word.length(), dic.frequency, dic.frequency * dic.word.length());
-        const char* str = dic.word.c_str();
-        size_t length = dic.word.length();
+        auto* str{dic.word.c_str()};
+        auto length{dic.word.length()};
         while (length--) {
           if (isprint(*str)) {
             fprintf(txt, "%c", *str);
@@ -186,8 +186,8 @@ public:
 #elif 0  // !defined(NDEBUG)
       {
         fprintf(stdout, "\n");
-        const char* str = dictionary[0].word.c_str();
-        size_t length = dictionary[0].word.length();
+        auto* str{dictionary[0].word.c_str()};
+        auto length{dictionary[0].word.length()};
         while (length--) {
           if (isprint(*str)) {
             fprintf(stdout, "%c", *str);
@@ -245,10 +245,14 @@ private:
 
 LempelZivWelch_t::~LempelZivWelch_t() noexcept = default;
 
+namespace CaseSpace {
+
 template <typename T>
 ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
-  return is_upper(ch) || is_lower(ch);
+  return Utilities::is_upper(ch) || Utilities::is_lower(ch);
 }
+
+}  // namespace CaseSpace
 
 CaseSpace_t::CaseSpace_t(File_t& in, File_t& out)
     : _in{in},  //
@@ -276,33 +280,32 @@ auto CaseSpace_t::outputLength() const noexcept -> int64_t {
 }
 
 auto CaseSpace_t::workLength() const noexcept -> int64_t {
-  return _originalLength;
+  return _original_length;
 }
 
 auto CaseSpace_t::layoutLength() const noexcept -> int64_t {
-  return _originalLength;
+  return _original_length;
 }
 
-void CaseSpace_t::Encode(int32_t ch) noexcept {
+void CaseSpace_t::Encode(const int32_t ch) noexcept {
   _out.putc(ch);
   _lzw->append(ch);
 }
 
 void CaseSpace_t::Encode() noexcept {
-  _originalLength = _in.Size();
-  _out.putVLI(_originalLength);
+  _original_length = _in.Size();
+  _out.putVLI(_original_length);
 
   Progress_t progress("CSE", true, *this);
 
   bool set{false};
-  std::string word{};
   int32_t ch;
   while (EOF != (ch = _in.getc())) {
     _char_freq[uint32_t(ch)] += 1;
 
     if (set) {
       set = false;
-      EncodeWord(word);
+      EncodeWord();
       if ('\n' == ch) {  // 0x0A
         Encode(CRLF_MARKER);
         continue;
@@ -313,10 +316,10 @@ void CaseSpace_t::Encode() noexcept {
       continue;
     }
 
-    if (is_word_char(ch)) {  // a..z || A..Z
-      word.push_back(char(ch));
+    if (CaseSpace::is_word_char(ch)) {  // a..z || A..Z
+      _word.push_back(char(ch));
     } else {
-      EncodeWord(word);
+      EncodeWord();
 
       if ((ALL_SMALL == ch) || (ALL_BIG == ch) || (FIRST_BIG_REST_SMALL == ch) || (ESCAPE_CHAR == ch) || (CRLF_MARKER == ch)) {
         Encode(ESCAPE_CHAR);
@@ -325,67 +328,65 @@ void CaseSpace_t::Encode() noexcept {
     }
   }
 
-  EncodeWord(word);
+  EncodeWord();
 
   _quote = _lzw->finish();
 }
 
-void CaseSpace_t::EncodeWord(std::string& word) noexcept {
-  auto wordLength{word.length()};
-  if (wordLength > 0) {
-    size_t offset{0};
-    while (wordLength > 0) {
-      size_t length{0};
-      if (is_lower(word[offset + length])) {
+void CaseSpace_t::EncodeWord() noexcept {
+  auto wlength{uint32_t(_word.length())};
+  if (wlength > 0) {
+    uint32_t offset{0};
+    while (wlength > 0) {
+      uint32_t length{0};
+      if (Utilities::is_lower(_word[offset + length])) {
         length++;
-        while ((length < wordLength) && is_lower(word[offset + length])) {
+        while ((length < wlength) && Utilities::is_lower(_word[offset + length])) {
           length++;
         }
-        _ch_type = ALL_SMALL;
+        _wtype = ALL_SMALL;
       } else {
         length++;
-        if (is_upper(word[offset + length])) {
-          while ((length < wordLength) && is_upper(word[offset + length])) {
+        if (Utilities::is_upper(_word[offset + length])) {
+          while ((length < wlength) && Utilities::is_upper(_word[offset + length])) {
             length++;
           }
-          _ch_type = ALL_BIG;
+          _wtype = ALL_BIG;
         } else {
-          while ((length < wordLength) && is_lower(word[offset + length])) {
+          while ((length < wlength) && Utilities::is_lower(_word[offset + length])) {
             length++;
           }
-          _ch_type = FIRST_BIG_REST_SMALL;
+          _wtype = FIRST_BIG_REST_SMALL;
         }
       }
 
-      if ((0 != offset) || (ALL_SMALL != _ch_type)) {
-        Encode(_ch_type);
+      if ((0 != offset) || (ALL_SMALL != _wtype)) {
+        Encode(_wtype);
       }
 
-      wordLength -= length;
+      wlength -= length;
       while (length-- > 0) {
-        int32_t ch = word[offset++];
-        Encode(to_lower(ch));
+        const auto ch{_word[offset++]};
+        Encode(Utilities::to_lower(ch));
       }
     }
 
-    word.clear();
+    _word.clear();
   }
 }
 
 auto CaseSpace_t::Decode() noexcept -> int64_t {
-  _originalLength = _in.getVLI();
-  assert(_originalLength > 0);
+  _original_length = _in.getVLI();
+  assert(_original_length > 0);
 
   Progress_t progress("CSD", false, *this);
 
-  WordType t{ALL_SMALL};
-  std::string word{};
   int32_t ch;
   while (EOF != (ch = _in.getc())) {
     switch (WordType(ch)) {
       case ESCAPE_CHAR:
-        DecodeWord(word, t);
-        t = ALL_SMALL;
+        DecodeWord();
+        _wtype = ALL_SMALL;
         ch = _in.getc();
         _out.putc(ch);
         break;
@@ -393,48 +394,48 @@ auto CaseSpace_t::Decode() noexcept -> int64_t {
       case ALL_SMALL:
       case ALL_BIG:
       case FIRST_BIG_REST_SMALL:
-        DecodeWord(word, t);
-        t = WordType(ch);
+        DecodeWord();
+        _wtype = WordType(ch);
         break;
 
       case CRLF_MARKER:
-        DecodeWord(word, t);
-        t = ALL_SMALL;
+        DecodeWord();
+        _wtype = ALL_SMALL;
         _out.putc('\r');
         _out.putc('\n');
         break;
 
       default:
-        if (is_word_char(ch)) {  // a..z || A..Z
-          word.push_back(char(ch));
+        if (CaseSpace::is_word_char(ch)) {  // a..z || A..Z
+          _word.push_back(char(ch));
         } else {
-          DecodeWord(word, t);
-          t = ALL_SMALL;
+          DecodeWord();
+          _wtype = ALL_SMALL;
           _out.putc(ch);
         }
         break;
     }
   }
 
-  DecodeWord(word, t);
+  DecodeWord();
 
-  return _originalLength;
+  return _original_length;
 }
 
-void CaseSpace_t::DecodeWord(std::string& word, const WordType t) noexcept {
-  if (word.length() > 0) {
-    switch (const char* __restrict__ str{word.c_str()}; t) {
+void CaseSpace_t::DecodeWord() noexcept {
+  if (_word.length() > 0) {
+    switch (const char* __restrict__ str{_word.c_str()}; _wtype) {
       case ALL_BIG:
         while (*str) {
-          const int32_t ch{*str++};
-          _out.putc(to_upper(ch));
+          const auto ch{*str++};
+          _out.putc(Utilities::to_upper(ch));
         }
         break;
 
       case FIRST_BIG_REST_SMALL:
         if (*str) {
-          const int32_t ch{*str++};
-          _out.putc(to_upper(ch));
+          const auto ch{*str++};
+          _out.putc(Utilities::to_upper(ch));
         }
         [[fallthrough]];
 
@@ -443,12 +444,12 @@ void CaseSpace_t::DecodeWord(std::string& word, const WordType t) noexcept {
       case CRLF_MARKER:
       case ESCAPE_CHAR:
         while (*str) {
-          const int32_t ch{*str++};
+          const auto ch{*str++};
           _out.putc(ch);
         }
         break;
     }
 
-    word.clear();
+    _word.clear();
   }
 }

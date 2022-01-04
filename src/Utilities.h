@@ -35,6 +35,8 @@
 #endif
 #endif
 
+namespace Utilities {
+
 template <typename T>
 ALWAYS_INLINE constexpr auto is_number(const T ch) noexcept -> bool {
   return (ch >= '0') && (ch <= '9');
@@ -59,5 +61,7 @@ template <typename T>
 ALWAYS_INLINE constexpr auto to_lower(const T ch) noexcept -> T {
   return is_upper(ch) ? ch - 'A' + 'a' : ch;
 }
+
+}  // namespace Utilities
 
 #endif /* UTILITIES_HDR */

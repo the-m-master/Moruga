@@ -74,7 +74,7 @@ static auto memoryUseKiB() noexcept -> uint32_t {
 static auto getConsoleScreenBufferInfo(void** handler = nullptr) noexcept -> const CONSOLE_SCREEN_BUFFER_INFO* {
   void* const handle{GetStdHandle(STD_OUTPUT_HANDLE)};
   if (nullptr != handle) {
-    static CONSOLE_SCREEN_BUFFER_INFO csbi = {{0, 0}, {0, 0}, 0, {0, 0, 0, 0}, {0, 0}};
+    static CONSOLE_SCREEN_BUFFER_INFO csbi{{0, 0}, {0, 0}, 0, {0, 0, 0, 0}, {0, 0}};
     if (0 != GetConsoleScreenBufferInfo(handle, &csbi)) {
       if (nullptr != handler) {
         *handler = handle;
@@ -294,7 +294,7 @@ Progress_t::Progress_t(const std::string& workType, bool encode, const iMonitor_
               .digits = digits(monitor.layoutLength()),
               .monitor = monitor,
               .start = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count()},  //
-      _monitorWorker{MonitorWorker, &_tracer} {
+      _monitor_worker{MonitorWorker, &_tracer} {
   nFilter_ = 0;
   nBMP_ = 0;
   nELF_ = 0;
@@ -315,7 +315,7 @@ Progress_t::Progress_t(const std::string& workType, bool encode, const iMonitor_
 
 Progress_t::~Progress_t() noexcept {
   _tracer.isRunning = false;
-  _monitorWorker.join();
+  _monitor_worker.join();
   ProgressBar(&_tracer);  // Flush!
   fputc('\n', stdout);
   fflush(stdout);
