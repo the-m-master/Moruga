@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class TGA_filter final : public iFilter_t {
 public:
-  explicit TGA_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di);
+  explicit TGA_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di) noexcept;
   virtual ~TGA_filter() noexcept override;
 
   TGA_filter() = delete;

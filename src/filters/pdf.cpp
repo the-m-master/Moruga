@@ -76,7 +76,7 @@ auto Header_t::ScanPDF(int32_t ch) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-PDF_filter::PDF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf)
+PDF_filter::PDF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf) noexcept
     : _buf{buf},  //
       _stream{stream},
       _coder{coder},

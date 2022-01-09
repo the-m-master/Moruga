@@ -84,10 +84,9 @@ static uint32_t tt_{0};
 static uint32_t w5_{0};
 static uint32_t x5_{0};
 
-// #define GENERATE_SQUASH_STRETCH
+//#define GENERATE_SQUASH_STRETCH
 
 #if defined(GENERATE_SQUASH_STRETCH)
-#include <cmath>
 
 enum {
   NBITS = 12,        // Construct 12 bit tables
@@ -127,7 +126,7 @@ enum {
 
 class Squash_t final {
 public:
-  explicit Squash_t(const double a = 756.1) {
+  explicit Squash_t(const double a = 756.1) noexcept {
     std::array<double, TOP> table{};
 #if 1
     //
@@ -209,7 +208,7 @@ static Squash_t* _squash{nullptr};
 
 class Stretch_t final {
 public:
-  explicit Stretch_t(const double a = 756.1) {
+  explicit Stretch_t(const double a = 756.1) noexcept {
 #if 1
     // Inverse of sigmoid: y(x) = inverf(x)
     //
@@ -320,7 +319,27 @@ template <typename T>
   return int16_t(pr);
 }
 
-static int32_t DP_SHIFT{14};
+static std::string getDimension(size_t size) noexcept {
+  std::string dim{"Byte"};
+  if (size > 9999) {
+    size = ((size / 512) + 1) / 2;
+    dim = "KiB";
+    if (size > 9999) {
+      size = ((size / 512) + 1) / 2;
+      dim = "MiB";
+      if (size > 9999) {
+        size = ((size / 512) + 1) / 2;
+        dim = "GiB";
+      }
+    }
+  }
+
+  std::array<char, 16> tmp;
+  snprintf(&tmp[0], tmp.size(), "%4" PRId64 " %s", size, dim.c_str());
+  return &tmp[0];
+}
+
+static int32_t dp_shift_{14};
 
 static std::array<std::array<int32_t, 256>, 12> smt_;
 static std::array<uint32_t, 5> hh_{{0, 0, 0, 0, 0}};
@@ -593,7 +612,7 @@ static constexpr std::array<uint8_t, 256> limits_15b_             //
  */
 class APM_t final {
 public:
-  explicit APM_t(uint32_t n, uint32_t)
+  explicit APM_t(uint32_t n, uint32_t) noexcept
       : N{n * 24},  //
         _mask{n - 1},
         _table{new uint32_t[N]} {
@@ -651,6 +670,7 @@ private:
   const uint32_t _mask;               // ctx limit
   uint32_t* const __restrict _table;  // ctx -> prediction
   uint32_t _ctx{0};                   // Context of last prediction
+  int32_t : 32;                       // Padding
 };
 APM_t::~APM_t() noexcept {
   delete[] _table;
@@ -664,13 +684,13 @@ APM_t::~APM_t() noexcept {
  */
 class APM_t final {
 public:
-  explicit APM_t(uint32_t n, uint32_t start)
+  explicit APM_t(uint32_t n, uint32_t start) noexcept
       : N{(n * 24) + 1},  //
         _mask{n - 1},
         _table{static_cast<uint32_t*>(std::calloc(N, sizeof(uint32_t)))} {
     assert(ISPOWEROF2(n));
     if (verbose_) {
-      fprintf(stdout, "%" PRId64 " KiB for APM_t\n", (N * sizeof(uint32_t)) / INT64_C(1024));
+      fprintf(stdout, "%s for APM_t\n", getDimension(N * sizeof(uint32_t)).c_str());
     }
 
     for (uint32_t i{0}; i < N; ++i) {
@@ -742,11 +762,11 @@ APM_t::~APM_t() noexcept {
  */
 class APM final {
 public:
-  explicit APM(uint32_t n)
+  explicit APM(uint32_t n) noexcept
       : N{n - 1},  //
         _table{static_cast<uint16_t*>(std::calloc(n * 33, sizeof(uint16_t)))} {
     if (verbose_) {
-      fprintf(stdout, "%" PRId64 " KiB for APM\n", (n * 33 * sizeof(uint16_t)) / INT64_C(1024));
+      fprintf(stdout, "%s for APM\n", getDimension(n * 33 * sizeof(uint16_t)).c_str());
     }
     for (uint32_t j{0}; j < 33; ++j) {
       _table[j] = uint16_t(Squash(int16_t((int32_t(j) - 16) * 128)) * 16);  // Conversion from -2048..2047 (clamped) into 0..4095
@@ -816,7 +836,7 @@ public:
 
   static std::array<int16_t, N_LAYERS> tx_;
 
-  Mixer_t() {
+  Mixer_t() noexcept {
     tx_.fill(0);
     wx_.fill(0xA00);
   }
@@ -829,19 +849,19 @@ public:
   auto operator=(Mixer_t&&) -> Mixer_t& = delete;
 
   void Update(const int16_t err) noexcept {  // train ...
-    int32_t* const __restrict wx{&wx_[ctx_]};
+    auto* const __restrict wx{&wx_[ctx_]};
     for (uint32_t i{N_LAYERS}; i--;) {
       wx[i] += ((tx_[i] * err) + (1 << (14 - 1))) >> 14;
     }
   }
 
   [[nodiscard]] auto Predict() noexcept -> int16_t {  // dot product ...
-    const int32_t* const __restrict wx{&wx_[ctx_]};
+    const auto* const __restrict wx{&wx_[ctx_]};
     auto sum{0};
     for (uint32_t i{N_LAYERS}; i--;) {
       sum += wx[i] * tx_[i];
     }
-    const auto pr{sum / (1 << DP_SHIFT)};
+    const auto pr{sum / (1 << dp_shift_)};
     return clamp12(pr);
   }
 
@@ -866,15 +886,15 @@ std::array<int16_t, Mixer_t::N_LAYERS> Mixer_t::tx_;
  * @class Blend_t
  * Combines predictions using a neural network
  */
-template <const auto N_LAYERS>
+template <const uint32_t N_LAYERS, const int32_t RATE>
 class Blend_t final {
 public:
-  explicit Blend_t(const uint32_t n)
+  explicit Blend_t(const uint32_t n) noexcept
       : _mask{n - 1},  //
         _weights{static_cast<int32_t*>(std::calloc(n * N_LAYERS, sizeof(int32_t)))} {
     assert(ISPOWEROF2(n));
     if (verbose_) {
-      fprintf(stdout, "%" PRId64 " KiB for Blend_t\n", (n * N_LAYERS * sizeof(int32_t)) / INT64_C(1024));
+      fprintf(stdout, "%s for Blend_t\n", getDimension(n * N_LAYERS * sizeof(int32_t)).c_str());
     }
     for (auto i{n * N_LAYERS}; i--;) {
       _weights[i] = 1 << 23;
@@ -895,27 +915,27 @@ public:
     return _new;
   }
 
-  [[nodiscard]] auto Predict(const bool bit, const uint32_t lastpr, const uint32_t ctx, const int32_t rate) noexcept -> int16_t {
+  [[nodiscard]] auto Predict(const bool bit, const uint32_t lastpr, const uint32_t ctx) noexcept -> int16_t {
     assert(lastpr < 4096);
 
     const auto err{(bit << 12) - int32_t(lastpr) - bit};
 
-    int32_t* __restrict wt{&_weights[_ctx]};
+    auto* __restrict wt{&_weights[_ctx]};
     for (auto i{N_LAYERS}; i--;) {  // train ...
-      wt[i] += (_prev[i] * err) >> rate;
+      wt[i] += (_prev[i] * err) >> RATE;
     }
 
     _ctx = (ctx & _mask) * N_LAYERS;
     wt = &_weights[_ctx];
 
-    int64_t pr{0};
+    int64_t sum{0};
     for (auto i{N_LAYERS}; i--;) {  // dot product ...
-      pr += int64_t(wt[i]) * int64_t(_new[i]);
+      sum += (int64_t(wt[i]) * _new[i]) >> 2;
     }
 
     std::swap(_new, _prev);
 
-    return int16_t(pr >> 25);
+    return int16_t(sum >> 23);
   }
 
 private:
@@ -929,7 +949,7 @@ private:
 
 class HashTable final {
 public:
-  explicit HashTable(const uint64_t max_size)
+  explicit HashTable(const uint64_t max_size) noexcept
       : N{(max_size > mem_limit) ? mem_limit : max_size},  //
         NB{uint32_t((N / B) - 1)},
         _ptr{static_cast<uint8_t*>(_aligned_malloc(N, 64))},
@@ -937,7 +957,7 @@ public:
     assert(ISPOWEROF2(N));
     assert(_ptr);
     if (verbose_) {
-      fprintf(stdout, "%" PRId64 " KiB for HashTable\n", N / INT64_C(1024));
+      fprintf(stdout, "%s for HashTable\n", getDimension(N).c_str());
     }
     memset(_ptr, 0, N);
   }
@@ -1131,10 +1151,14 @@ static constexpr auto MUL64_02{UINT64_C(0xE9C91DC159AB0D2D)};
 template <const uint32_t SIZE, const int32_t RATE>
 class StateMap_t final {
   static_assert(ISPOWEROF2(SIZE), "Size of state map must a power of two");
+  static_assert(RATE > 0, "Speed of state map must be positive");
 
 public:
-  StateMap_t() {
+  StateMap_t() noexcept {
     _smt.fill(0x7FFF);  // No prediction
+    if (verbose_) {
+      fprintf(stdout, "%s for StateMap_t\n", getDimension(_smt.size() * sizeof(_smt[0])).c_str());
+    }
   }
   virtual ~StateMap_t() noexcept = default;
 
@@ -1167,25 +1191,85 @@ private:
   int32_t : 32;  // Padding
 };
 
-template <const uint32_t SIZE, const int32_t RATE>
-class RunContextMap_t final {
-public:
-  explicit RunContextMap_t() = default;
-  virtual ~RunContextMap_t() = default;
+template <const uint32_t SIZE, const int32_t RATE0, const int32_t RATE1, const int32_t RATE2>
+class ContextMap_t final {
+  static_assert(ISPOWEROF2(SIZE), "Size of context map must a power of two");
+  static_assert(RATE0 > 0, "Speed(s) of context map must be positive");
+  static_assert(RATE1 > 0, "Speed(s) of context map must be positive");
+  static_assert(RATE2 > 0, "Speed(s) of context map must be positive");
 
+public:
+  explicit ContextMap_t() noexcept = default;
+  virtual ~ContextMap_t() noexcept = default;
+
+  ContextMap_t(const ContextMap_t&) = delete;
+  ContextMap_t(ContextMap_t&&) = delete;
+  auto operator=(const ContextMap_t&) -> ContextMap_t& = delete;
+  auto operator=(ContextMap_t&&) -> ContextMap_t& = delete;
+
+  void Set(const uint32_t ctx) noexcept {
+    _ctx_new = ctx << 8;
+  }
+
+  auto Predict(const bool bit) noexcept -> std::array<int16_t, 3> {
+    const auto& state_table{bit ? state_table_y1_ : state_table_y0_};
+
+    uint8_t* const __restrict st{&_state[_ctx_last_prediction][0]};
+    st[0] = state_table[0][st[0]];
+    st[1] = state_table[1][st[1]];
+    st[2] = state_table[2][st[2]];
+
+    const auto ctx{(7 == bcount_) ? (0xFF & c4_) : c0_};
+    _ctx_last_prediction = (_ctx_new | ctx) & _mask;
+
+    return {{_sm0.Update(bit, _state[_ctx_last_prediction][0]),  //
+             _sm1.Update(bit, _state[_ctx_last_prediction][1]),  //
+             _sm2.Update(bit, _state[_ctx_last_prediction][2])}};
+  }
+
+private:
+  std::array<std::array<uint8_t, 3>, (SIZE * 256)> _state{};
+  StateMap_t<0x100, RATE0> _sm0{};  // State to prediction
+  StateMap_t<0x100, RATE1> _sm1{};  // State to prediction
+  StateMap_t<0x100, RATE2> _sm2{};  // State to prediction
+
+  const uint32_t _mask{(SIZE * 256) - 1};
+  uint32_t _ctx_new{0};
+  uint32_t _ctx_last_prediction{0};
+  int32_t : 32;  // Padding
+};
+
+template <const int32_t RATE>
+class RunContextMap_t final {
+  static_assert(RATE > 0, "Speed of run context map must be positive");
+
+public:
+  explicit RunContextMap_t(const int32_t max_size) noexcept
+      : _t{reinterpret_cast<std::array<uint8_t, 2>*>(std::calloc(1u << max_size, sizeof(uint16_t)))},
+        _mask{(1u << max_size) - 1}  //
+  {
+    if (verbose_) {
+      fprintf(stdout, "%s for RunContextMap_t\n", getDimension((1u << max_size) * sizeof(uint16_t)).c_str());
+    }
+  }
+  virtual ~RunContextMap_t() noexcept {
+    std::free(_t);
+  }
+
+  RunContextMap_t() = delete;
   RunContextMap_t(const RunContextMap_t&) = delete;
   RunContextMap_t(RunContextMap_t&&) = delete;
   auto operator=(const RunContextMap_t&) -> RunContextMap_t& = delete;
   auto operator=(RunContextMap_t&&) -> RunContextMap_t& = delete;
 
   void Set(const uint32_t cx) noexcept {  // update count
-    if (uint8_t* const __restrict cp{&_t[_ctx][0]}; (0 == cp[0]) || ((0xFF & c4_) != cp[1])) {
+    if (auto* const __restrict cp{&_t[_ctx][0]}; (0 == cp[0]) || ((0xFF & c4_) != cp[1])) {
       cp[0] = 1;           // Reset counts
       cp[1] = 0xFF & c4_;  // Set expected byte
     } else if (cp[0] < 255) {
       ++cp[0];
     }
-    _ctx = cx & (SIZE - 1);
+    _ctx = cx & _mask;
   }
 
   [[nodiscard]] auto Predict(const bool bit) noexcept -> int16_t {  // predict next bit
@@ -1199,76 +1283,36 @@ public:
   }
 
 private:
-  uint32_t _ctx{0};  // Context of last prediction
-  std::array<std::array<uint8_t, 2>, SIZE> _t{};
+  std::array<uint8_t, 2>* const __restrict _t;
   StateMap_t<0x200, RATE> _ctp;  // Counts to prediction
+  const uint32_t _mask;          //
+  uint32_t _ctx{0};              // Context of last prediction
 };
 
-template <const uint32_t SIZE, const int32_t RATE0, const int32_t RATE1, const int32_t RATE2, const int32_t RATE3>
-class ContextMap_t final {
+class DynamicMarkovModel_t final {
 public:
-  explicit ContextMap_t() = default;
-  virtual ~ContextMap_t() = default;
-
-  ContextMap_t(const ContextMap_t&) = delete;
-  ContextMap_t(ContextMap_t&&) = delete;
-  auto operator=(const ContextMap_t&) -> ContextMap_t& = delete;
-  auto operator=(ContextMap_t&&) -> ContextMap_t& = delete;
-
-  void Set(const uint32_t ctx) {
-    _ctx = ctx << 8;
-    _rc.Set(ctx);
-  }
-
-  void Predict(int16_t* __restrict& pr, const bool bit) noexcept {
-    const auto& st{bit ? state_table_y1_ : state_table_y0_};
-
-    _cs[0] = st[0][_cs[0]];
-    _cs[1] = st[1][_cs[1]];
-    _cs[2] = st[2][_cs[2]];
-
-    const auto ctx{(7 == bcount_) ? (0xFF & c4_) : c0_};
-    _cs = &_st[(_ctx | ctx) & _mask][0];
-
-    *pr++ = _stp0.Update(bit, _cs[0]);
-    *pr++ = _stp1.Update(bit, _cs[1]);
-    *pr++ = _stp2.Update(bit, _cs[2]);
-    *pr++ = _rc.Predict(bit);
-  }
-
-private:
-  std::array<std::array<uint8_t, 3>, (SIZE * 256)> _st{};
-  StateMap_t<0x100, RATE0> _stp0{};  // states to prediction
-  StateMap_t<0x100, RATE1> _stp1{};  // states to prediction
-  StateMap_t<0x100, RATE2> _stp2{};  // states to prediction
-
-  uint8_t* __restrict _cs{&_st[0][0]};
-  const uint32_t _mask{(SIZE * 256) - 1};
-  uint32_t _ctx{0};  // Context of last prediction
-
-  RunContextMap_t<SIZE, RATE3> _rc{};
-};
-
-class DynamicMarkovCmp_t final {
-public:
-  explicit DynamicMarkovCmp_t(const uint64_t max_size)
+  explicit DynamicMarkovModel_t(const uint64_t max_size) noexcept
       : _max_size_bytes{(max_size > mem_limit) ? mem_limit : max_size},
         _max_nodes{uint32_t(_max_size_bytes / sizeof(Node))},
-        _nodes{reinterpret_cast<Node*>(std::calloc(_max_size_bytes, sizeof(int8_t)))} {
+        _nodes{reinterpret_cast<Node*>(std::calloc(_max_size_bytes + sizeof(Node), sizeof(int8_t)))} {
     assert(0 == (_max_nodes >> 28));  // the top 4 bits must be unused by nx0 and nx1 for storing the 4+4 bits of the bit history state byte
     if (verbose_) {
-      fprintf(stdout, "%" PRId64 " KiB for DMC_t\n", (_max_size_bytes * sizeof(int8_t)) / INT64_C(1024));
+      fprintf(stdout, "%s for DMC_t\n", getDimension(_max_size_bytes + sizeof(Node)).c_str());
     }
     Flush();
   }
-  ~DynamicMarkovCmp_t() noexcept;
-  DynamicMarkovCmp_t() = delete;
-  DynamicMarkovCmp_t(const DynamicMarkovCmp_t&) = delete;
-  DynamicMarkovCmp_t(DynamicMarkovCmp_t&&) = delete;
-  auto operator=(const DynamicMarkovCmp_t&) -> DynamicMarkovCmp_t& = delete;
-  auto operator=(DynamicMarkovCmp_t&&) -> DynamicMarkovCmp_t& = delete;
+  ~DynamicMarkovModel_t() noexcept;
+  DynamicMarkovModel_t() = delete;
+  DynamicMarkovModel_t(const DynamicMarkovModel_t&) = delete;
+  DynamicMarkovModel_t(DynamicMarkovModel_t&&) = delete;
+  auto operator=(const DynamicMarkovModel_t&) -> DynamicMarkovModel_t& = delete;
+  auto operator=(DynamicMarkovModel_t&&) -> DynamicMarkovModel_t& = delete;
 
-#define INCREMENT(x, increment, rate) uint16_t(((((x) << (rate)) - (x)) >> (rate)) + ((increment) << (16 - (rate))))
+  // Adaptively increment a counter
+  template <typename T, const uint16_t RATE = 6>
+  [[nodiscard]] ALWAYS_INLINE constexpr auto increment_counter(const T x, const T increment) const noexcept -> T {
+    return T((((x << RATE) - x) >> RATE) + (increment << (16 - RATE)));
+  }
 
   void Predict(const bool bit) noexcept {
     Node& curr{_nodes[_curr]};
@@ -1276,13 +1320,13 @@ public:
     const auto n{curr.count[bit]};
 
     if (bit) {
-      curr.count[0] = INCREMENT(curr.count[0], 0, 6);
-      curr.count[1] = INCREMENT(curr.count[1], 1, 6);
+      curr.count[0] = increment_counter(curr.count[0], uint16_t(0));
+      curr.count[1] = increment_counter(curr.count[1], uint16_t(1));
 
       curr.state = state_table_y1_[0][curr.state];
     } else {
-      curr.count[0] = INCREMENT(curr.count[0], 1, 6);
-      curr.count[1] = INCREMENT(curr.count[1], 0, 6);
+      curr.count[0] = increment_counter(curr.count[0], uint16_t(1));
+      curr.count[1] = increment_counter(curr.count[1], uint16_t(0));
 
       curr.state = state_table_y0_[0][curr.state];
     }
@@ -1342,7 +1386,7 @@ public:
 
     const auto last_pr{Squash(Mixer_t::tx_[7])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
-    const auto px{_blend.Predict(bit, last_pr, ctx, 2)};  // Rate of 2 is based on enwik9
+    const auto px{_blend.Predict(bit, last_pr, ctx)};
     Mixer_t::tx_[7] = clamp12(px);
   }
 
@@ -1360,8 +1404,8 @@ private:
     return Stretch(pr);                          // Conversion from 0..4095 into -2048..2047
   }
 
-#pragma pack(push, 1)
   struct Node {
+#pragma pack(push, 1)
     union {
       uint64_t all;
       struct {
@@ -1370,9 +1414,9 @@ private:
         uint64_t state : 8;
       };
     };
+#pragma pack(pop)
     std::array<uint16_t, 2> count;
   };
-#pragma pack(pop)
   static_assert(0 == offsetof(Node, all), "Alignment failure in DMC node");
   static_assert(8 == offsetof(Node, count), "Alignment failure in DMC node");
   static_assert(12 == sizeof(Node), "Alignment failure in DMC node");
@@ -1430,9 +1474,9 @@ private:
   StateMap_t<0x1000, 1> _sm4{};   // tt_   | Rate of 1 is based on enwik9
   StateMap_t<0x10000, 1> _sm5{};  // c2_   | Rate of 1 is based on enwik9
   StateMap_t<0x40000, 2> _sm6{};  // x5_   | Rate of 2 is based on enwik9
-  Blend_t<6> _blend{0x40000};     // w5_
+  Blend_t<6, 2> _blend{0x40000};  // w5_   | Rate of 2 is based on enwik9
 };
-DynamicMarkovCmp_t::~DynamicMarkovCmp_t() noexcept {
+DynamicMarkovModel_t::~DynamicMarkovModel_t() noexcept {
   std::free(_nodes);
 }
 
@@ -1452,13 +1496,13 @@ class LempelZivPredict_t final {  // MatchModel
   }
 
 public:
-  explicit LempelZivPredict_t(const Buffer_t& __restrict buf, const uint64_t max_size)
+  explicit LempelZivPredict_t(const Buffer_t& __restrict buf, const uint64_t max_size) noexcept
       : _buf{buf},  //
         _hashbits{countbits(((max_size > mem_limit) ? mem_limit : max_size) - UINT64_C(1))},
         _ht{static_cast<uint32_t*>(std::calloc((UINT64_C(1) << _hashbits) + UINT64_C(1), sizeof(uint32_t)))} {
     assert(ISPOWEROF2(max_size));
     if (verbose_) {
-      fprintf(stdout, "%" PRId64 " KiB for LZP_t\n", (((UINT64_C(1) << _hashbits) + UINT64_C(1)) * sizeof(uint32_t)) / INT64_C(1024));
+      fprintf(stdout, "%s for LZP_t\n", getDimension(((UINT64_C(1) << _hashbits) + UINT64_C(1)) * sizeof(uint32_t)).c_str());
     }
   }
 
@@ -1497,30 +1541,37 @@ public:
   }
 
   [[nodiscard]] auto Predict(const bool bit) noexcept -> uint32_t {
-    if ((_match_length >= MINLEN) && (((_expected_byte | 0x100U) >> (1 + bcount_)) != c0_)) {
-      _match_length = 0;
-    }
-
-    uint32_t order;
-
     int16_t* const __restrict pr{_blend.Set()};
 
-    if (_match_length >= MINLEN) {
+    uint32_t ctx0{0};
+    uint32_t order;
+
+    if ((_match_length >= MINLEN) && (((_expected_byte | 0x100U) >> (1 + bcount_)) == c0_)) {
       const auto length{_match_length - MINLEN};
       const auto expected_bit{1u & (_expected_byte >> bcount_)};
 
       const auto sign{int16_t((2 * expected_bit) - 1)};
       pr[0] = int16_t(sign * int16_t(length * 32));
 
-      const auto ctx0{(length << 9) | (expected_bit << 8) | c1_};  // 6+1+8=15 bits
-      pr[1] = _ltp.Update(bit, ctx0);
+      if (length > 0) {
+        if (length <= 16) {
+          ctx0 = (2 * (length - 1)) + expected_bit;  // 0..31
+        } else {
+          ctx0 = 24 + (2 * ((length - 1) / 4)) + expected_bit;  // 32..55
+        }
+        ctx0 = (ctx0 << 8) | c0_;  // 6+8=14 bits
+      }
+
+      const auto ctx1{(length << 9) | (expected_bit << 8) | c1_};  // 6+1+8=15 bits
+      pr[1] = _ltp0.Update(bit, ctx1);
 
       // Length to order, based on enwik9 (value must start with 9 and end with 4)
       const auto l2o{(7 == bcount_) ? UINT64_C(0x9999988888776654) : UINT64_C(0x9999998888776654)};
       order = uint32_t(0xF & (l2o >> (4 * (length / 4))));
     } else {
+      _match_length = 0;  // Misprediction, reset!
       pr[0] = 0;
-      pr[1] = _ltp.Update(bit, c0_, 2) / 2;  // Rate of 2 is based on enwik9
+      pr[1] = _ltp0.Update(bit, c0_, 2) / 2;  // Rate of 2 is based on enwik9
 
       order = 0;
       if (*cp_[1]) {
@@ -1534,11 +1585,13 @@ public:
       }
     }
 
-    pr[2] = _rc.Predict(bit);
+    const auto py{_ltp1.Update(bit, ctx0)};
+    pr[2] = ctx0 ? py : 0;
+    pr[3] = _rc.Predict(bit);
 
     const auto last_pr{Squash(Mixer_t::tx_[0])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
-    const auto px{_blend.Predict(bit, last_pr, ctx, 1)};  // Rate of 1 is based on enwik9
+    const auto px{_blend.Predict(bit, last_pr, ctx)};
     Mixer_t::tx_[0] = clamp12(px);
 
     return order;
@@ -1554,10 +1607,11 @@ private:
   uint32_t _match{0};
   uint32_t _match_length{0};
   uint32_t _expected_byte{0};
-  int32_t : 32;                      // Padding
-  StateMap_t<0x8000, 5> _ltp{};      // Length to prediction | Rate of 5 is based on enwik9
-  RunContextMap_t<0x4000, 5> _rc{};  // Rate of 5 is based on enwik9
-  Blend_t<3> _blend{0x40000};        // w5_
+  int32_t : 32;                   // Padding
+  StateMap_t<0x8000, 5> _ltp0{};  // Length to prediction          | Rate of 5 is based on enwik9
+  StateMap_t<0x4000, 8> _ltp1{};  // (curved) Length to prediction | Rate of 8 is based on enwik9
+  RunContextMap_t<5> _rc{14};     // match_length | c1_            | Rate of 5 is based on enwik9
+  Blend_t<4, 1> _blend{0x40000};  //                               | Rate of 1 is based on enwik9
 };
 LempelZivPredict_t::~LempelZivPredict_t() noexcept {
   std::free(_ht);
@@ -1565,15 +1619,19 @@ LempelZivPredict_t::~LempelZivPredict_t() noexcept {
 
 class SparseMatchModel_t final {
   enum {
-    NBITS = 15,  // Size of look-up table (< 32)
-    MINLEN = 2,  // Minimum required match length
-    MAXLEN = 63  // Longest allowed match (max 6 bits)
+    NBITS = 15,           // Size of look-up table (< 32) default 15 based on enwik9
+    MINLEN = 2,           // Minimum required match length
+    MAXLEN = MINLEN + 63  // Longest allowed match (max 6 bits, after subtraction of minimum length)
   };
 
 public:
-  explicit SparseMatchModel_t(const Buffer_t& __restrict buf)
+  explicit SparseMatchModel_t(const Buffer_t& __restrict buf) noexcept
       : _buf{buf},  //
-        _ht{static_cast<uint32_t*>(std::calloc((UINT64_C(1) << NBITS) + UINT64_C(1), sizeof(uint32_t)))} {}
+        _ht{static_cast<uint32_t*>(std::calloc((UINT64_C(1) << NBITS) + UINT64_C(1), sizeof(uint32_t)))} {
+    if (verbose_) {
+      fprintf(stdout, "%s for SparseMatchModel_t\n", getDimension(((UINT64_C(1) << NBITS) + UINT64_C(1)) * sizeof(uint32_t)).c_str());
+    }
+  }
 
   virtual ~SparseMatchModel_t() noexcept;
   SparseMatchModel_t() = delete;
@@ -1599,54 +1657,59 @@ public:
     }
     _ht[idx] = _buf.Pos();
 
-    _expected_byte = _buf[_match] | 0x100U;
-
-    // TODO find proper context
-    // c1_     17512641 -30123
-    // _buf(1) 17511206 -28688 (c4_)
-    // x5_>>8  17501815 -19297
-    // _buf(2) 17501410 -18892
-    // _buf(3) 17497991 -15473
-    // _buf(4) 17498764 -16246
-    // w5+ml   17499107
-    // tt_>>16 17498382 -15864
-    // w5_     17496243 -13725
-    // tt_>>8  17495449 -12931
-    // 0       17483336 -818
+    _expected_byte = _buf[_match];
 
     _cm0.Set(0);
-    _cm1.Set(tt_);
-    _cm2.Set(x5_);
+    _cm1.Set(x5_);
+    _cm2.Set(tt_);
+    _rc0.Set(w5_);
+    _rc1.Set(x5_);
+    _rc2.Set(tt_);
   }
 
   void Predict(const bool bit) noexcept {
-    int16_t* __restrict pr{_blend.Set()};
+    int16_t* const __restrict pr{_blend.Set()};
 
-    if ((_match_length >= MINLEN) && ((_expected_byte >> (1 + bcount_)) == c0_)) {
-      const auto expected_bit{1 & (_expected_byte >> bcount_)};
+    if ((_match_length >= MINLEN) && (((_expected_byte | 0x100U) >> (1 + bcount_)) == c0_)) {
+      const auto expected_bit{1u & (_expected_byte >> bcount_)};
 
       const auto sign{int16_t((2 * expected_bit) - 1)};
-      *pr++ = int16_t(sign * int16_t(_match_length * 32));
+      pr[0x0] = int16_t(sign * int16_t(_match_length * 32));
 
-      const auto ctx0{(_match_length << 9) | (expected_bit << 8) | c1_};
-      *pr++ = _sm0.Update(bit, ctx0);
+      const auto ctx0{(_match_length << 9) | (expected_bit << 8) | c1_};  // 6+1+8=15 bits
+      pr[0x1] = _ltp.Update(bit, ctx0);
 
-      const auto ctx1{(_expected_byte << 11) | (bcount_ << 8) | _buf(1)};
-      *pr++ = _sm1.Update(bit, ctx1);
+      const auto ctx1{(_expected_byte << 11) | (bcount_ << 8) | _buf(1)};  // 8+3+8=19 bits
+      pr[0x2] = _sm1.Update(bit, ctx1);
     } else {
       _match_length = 0;  // Misprediction, reset!
-      *pr++ = 0;
-      *pr++ = _sm0.Update(bit, c1_) / 4;
-      *pr++ = _sm1.Update(bit, _buf(1), 4) / 8;  // Rate of 4, division of 8 are based on enwik9
+      pr[0x0] = 0;
+      pr[0x1] = _ltp.Update(bit, c1_) / 4;
+      pr[0x2] = _sm1.Update(bit, _buf(1), 4) / 8;  // Rate of 4, division of 8 are based on enwik9
     }
 
-    _cm0.Predict(pr, bit);
-    _cm1.Predict(pr, bit);
-    _cm2.Predict(pr, bit);
+    const auto pm0{_cm0.Predict(bit)};
+    pr[0x3] = pm0[0];
+    pr[0x4] = pm0[1];
+    pr[0x5] = pm0[2];
+
+    const auto pm1{_cm1.Predict(bit)};
+    pr[0x6] = pm1[0];
+    pr[0x7] = pm1[1];
+    pr[0x8] = pm1[2];
+
+    const auto pm2{_cm2.Predict(bit)};
+    pr[0x9] = pm2[0];
+    pr[0xA] = pm2[1];
+    pr[0xB] = pm2[2];
+
+    pr[0xC] = _rc0.Predict(bit);
+    pr[0xD] = _rc1.Predict(bit);
+    pr[0xE] = _rc2.Predict(bit);
 
     const auto last_pr{Squash(Mixer_t::tx_[8])};  // Conversion from -2048..2047 (clamped) into 0..4095
-    const auto ctx{(w5_ * 8u) | bcount_};
-    const auto px{_blend.Predict(bit, last_pr, ctx, 3)};  // Rate of 3 is based on enwik9
+    const auto ctx{(w5_ << 3) | bcount_};
+    const auto px{_blend.Predict(bit, last_pr, ctx)};
     Mixer_t::tx_[8] = clamp12(px);
   }
 
@@ -1655,14 +1718,17 @@ private:
   uint32_t* const __restrict _ht;
   uint32_t _match{0};
   uint32_t _match_length{0};
-  uint32_t _expected_byte{};
-  int32_t : 32;                                    // Padding
-  ContextMap_t<0x001, 0xC, 0xA, 0xD, 0x1> _cm0{};  //     c0_         Rate of 12/10/13/ 1 are based on enwik9
-  ContextMap_t<0x100, 0xE, 0xD, 0x7, 0x5> _cm1{};  // tt_|c0_         Rate of 14/13/ 7/ 5 are based on enwik9
-  ContextMap_t<0x100, 0xC, 0x6, 0xE, 0xB> _cm2{};  // x5_|c0_         Rate of 12/ 6/14/11 are based on enwik9
-  StateMap_t<0x8000, 5> _sm0{};                    // 6+1+8=15 bits | Rate of 5 is based on enwik9
-  StateMap_t<0x80000, 9> _sm1{};                   // 8+3+8=19 bits | Rate of 9 is based on enwik9
-  Blend_t<3 + (3 * 4)> _blend{0x10000};
+  uint32_t _expected_byte{0};
+  int32_t : 32;                                 // Padding
+  ContextMap_t<0x001, 0xC, 0xA, 0xD> _cm0{};    //     c0_                     | Rate of 12/10/13 are based on enwik9 | not part of SparseMatchModel, just an improvement
+  ContextMap_t<0x100, 0xC, 0x6, 0xE> _cm1{};    // x5_|c0_                     | Rate of 12/ 6/14 are based on enwik9 | not part of SparseMatchModel, just an improvement
+  ContextMap_t<0x4000, 0xE, 0xD, 0x7> _cm2{};   // tt_|c0_                     | Rate of 14/13/ 7 are based on enwik9 | not part of SparseMatchModel, just an improvement
+  RunContextMap_t<6> _rc0{17 + level_};         // w5_                         | Rate of 6 is based on enwik9         | not part of SparseMatchModel, just an improvement
+  RunContextMap_t<7> _rc1{17 + level_};         // x5_                         | Rate of 7 is based on enwik9         | not part of SparseMatchModel, just an improvement
+  RunContextMap_t<5> _rc2{18 + level_};         // tt_                         | Rate of 5 is based on enwik9         | not part of SparseMatchModel, just an improvement
+  StateMap_t<0x8000, 5> _ltp{};                 // length|expected_bit|c1      | Rate of 5 is based on enwik9
+  StateMap_t<0x80000, 9> _sm1{};                // expected_byte|bcount|buf(1) | Rate of 9 is based on enwik9
+  Blend_t<3 + (3 * 3) + 3, 3> _blend{0x10000};  //                             | Rate of 3 is based on enwik9
 };
 SparseMatchModel_t::~SparseMatchModel_t() noexcept {
   std::free(_ht);
@@ -1684,7 +1750,7 @@ SparseMatchModel_t::~SparseMatchModel_t() noexcept {
  */
 class Txt_t final {
 public:
-  explicit Txt_t() = default;
+  explicit Txt_t() noexcept = default;
   ~Txt_t() noexcept = default;
 
   Txt_t(const Txt_t&) = delete;
@@ -1728,7 +1794,7 @@ public:
           // < MID
           //         C0      80 --> 2 bits prediction
           //       0b110xxxxx10xxxxxx
-          _prdct = 0b00000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+          _prdct = 0b11000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
           _value = 0b00000000110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
           //         ^^^     pp
           //
@@ -1736,7 +1802,7 @@ public:
           // < HIGH
           //         E0      C0      80 --> 5 bits prediction
           //       0b1110xxxx110xxxxx10xxxxxx
-          _prdct = 0b00000000110000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+          _prdct = 0b11100000110000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
           _value = 0b00000000111000001100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
           //         ^^^^    ppp     pp
           //
@@ -1744,7 +1810,7 @@ public:
           // >= HIGH
           //         F0      E0      C0      80 --> 10 bits prediction
           //       0b11110xxx1110xxxx110xxxxx10xxxxxx
-          _prdct = 0b00000000111000001100000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
+          _prdct = 0b11110000111000001100000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
           _value = 0b00001000111100001110000011000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_xxl;
           //         ^^^^p   pppp    ppp     pp
           //
@@ -1905,7 +1971,7 @@ template <typename T>
  */
 class SSE_t final {
 public:
-  SSE_t() {
+  SSE_t() noexcept {
     for (uint32_t pr{0x000}; pr <= 0xFFF; ++pr) {
       const uint32_t n0{0xFFF - pr};
       const uint32_t n1{pr};
@@ -1929,7 +1995,7 @@ public:
     } else {
       ++_n0[_sse];
     }
-    if ((_n0[_sse] | _n1[_sse]) >> (DP_SHIFT + 1)) {  // shift needed
+    if ((_n0[_sse] | _n1[_sse]) >> (dp_shift_ + 1)) {  // shift needed
       _n0[_sse] >>= 1;
       _n1[_sse] >>= 1;
     }
@@ -1966,7 +2032,7 @@ private:
 // Main model - predicts next bit probability from previous data
 class Predict_t final {
 public:
-  explicit Predict_t(Buffer_t& __restrict buf) : _buf{buf} {
+  explicit Predict_t(Buffer_t& __restrict buf) noexcept : _buf{buf} {
     cp_[0] = cp_[1] = cp_[2] = cp_[3] = cp_[4] = &_t0[0];
 
     for (uint32_t i{0}; i < 8192; ++i) {
@@ -2051,7 +2117,7 @@ public:
     px[3] = Stretch(p6);
 
     const auto ctx{(w5_ << 1) | ((0xFF & _fails) ? 1 : 0)};
-    pr = _blend.Predict(bit, _pr, ctx, 5);  // Rate of 5 is based on enwik9
+    pr = _blend.Predict(bit, _pr, ctx);
 
     uint16_t p7;
     if (0x7FF != _pt) {
@@ -2089,7 +2155,7 @@ private:
   Buffer_t& __restrict _buf;
   Mixer_t _mixer{};
   uint32_t _add2order{0};
-  std::unique_ptr<DynamicMarkovCmp_t> _dmc{std::make_unique<DynamicMarkovCmp_t>(MEM())};
+  std::unique_ptr<DynamicMarkovModel_t> _dmc{std::make_unique<DynamicMarkovModel_t>(MEM())};
   std::unique_ptr<LempelZivPredict_t> _lzp{std::make_unique<LempelZivPredict_t>(_buf, MEM() / 4)};
   std::unique_ptr<SparseMatchModel_t> _smm{std::make_unique<SparseMatchModel_t>(_buf)};
   std::unique_ptr<Txt_t> _txt{std::make_unique<Txt_t>()};
@@ -2107,7 +2173,7 @@ private:
   int32_t : 16;         // Padding
   std::unique_ptr<HashTable> _t4a{std::make_unique<HashTable>(MEM() * 2)};
   std::unique_ptr<HashTable> _t4b{std::make_unique<HashTable>(MEM() * 2)};
-  Blend_t<4> _blend{0x20000};
+  Blend_t<4, 5> _blend{0x20000};  // Rate of 5 is based on enwik9
   std::array<std::array<uint8_t, 8192>, 8> _calcfails;
   std::array<uint8_t, 0x10000> _t0{};
   uint8_t* __restrict _t0c1{&_t0[0]};
@@ -2320,7 +2386,7 @@ private:
     auto cx{c0_};
     c0_ += c0_ + uint32_t(bit);
     bcount_ = 7 & (bcount_ - 1);
-    // bpos = (bpos + 1) & 7;
+    // bpos_ = (bpos_ + 1) & 7;
     _add2order += Mixer_t::N_LAYERS;
 
     if (0 != (1 & bcount_)) {
@@ -2524,10 +2590,10 @@ private:
         _txt->Update();
 
         if (const auto pos{_buf.Pos()}; 0 == (pos & (256 * 1024 - 1))) {
-          if (((16 == DP_SHIFT) && (pos == (25 * 256 * 1024))) ||  // 22 or 25 based on enwik9 (little influence)
-              ((15 == DP_SHIFT) && (pos == (4 * 256 * 1024))) ||   // 2 or 4 based on enwik9 (little influence)
-              (14 == DP_SHIFT)) {
-            ++DP_SHIFT;
+          if (((16 == dp_shift_) && (pos == (25 * 256 * 1024))) ||  // 22 or 25 based on enwik9 (little influence)
+              ((15 == dp_shift_) && (pos == (4 * 256 * 1024))) ||   // 2 or 4 based on enwik9 (little influence)
+              (14 == dp_shift_)) {
+            ++dp_shift_;
             _mixer.ScaleUp();
           }
         }
@@ -2561,16 +2627,14 @@ Predict_t::~Predict_t() noexcept = default;
 // Encoder - Arithmetic coding
 class Encoder_t final : public iEncoder_t {
 public:
-  explicit Encoder_t(Buffer_t& __restrict buf, bool encode, File_t& file) : _stream{file}, _predict{std::make_unique<Predict_t>(buf)} {
+  explicit Encoder_t(Buffer_t& __restrict buf, bool encode, File_t& file) noexcept
+      : _stream{file},  //
+        _predict{std::make_unique<Predict_t>(buf)} {
     if (!encode) {
       _x = _stream.get32();
     }
 
-    for (uint32_t i{12}; i--;) {
-      for (uint32_t j{256}; j--;) {
-        smt_[i][j] = 0x07FFFF;
-      }
-    }
+    std::fill(&smt_[0][0], &smt_[0][0] + sizeof(smt_) / sizeof(smt_[0][0]), 0x07FFFF);
 
     for (uint32_t i{6}; i--;) {
       int32_t* j{&smt_[0xF & (0x578046 >> (i * 4))][0]};
@@ -2742,7 +2806,7 @@ iEncoder_t::~iEncoder_t() noexcept = default;
 
 class Monitor_t final : public iMonitor_t {
 public:
-  explicit Monitor_t(const File_t& in, const File_t& out, const int64_t workLength, const int64_t layoutLength)
+  explicit Monitor_t(const File_t& in, const File_t& out, const int64_t workLength, const int64_t layoutLength) noexcept
       : _in{in},  //
         _out{out},
         _workLength{workLength},
@@ -2798,8 +2862,8 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
   _stretch = new Stretch_t();
 #elif 0
   if ((6 == argc) && !strnicmp(argv[5], "--XX", 4)) {
-    extern uint32_t XX;
-    XX = std::strtoul(4 + argv[5], nullptr, 10);
+    extern int32_t XX;
+    XX = std::strtol(4 + argv[5], nullptr, 10);
     argc--;
     fprintf(stdout, "\nXX : %02" PRId32 "\n", XX);
   }
@@ -2816,10 +2880,13 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
   const char* outFileName{nullptr};
 
   static const std::string verbose_str{"--verbose"};
+  static const std::string version_str{"--version"};
 
   for (auto n{1}; n < argc; ++n) {
     if (!verbose_str.compare(argv[n])) {
       verbose_ = true;
+    } else if (!version_str.compare(argv[n])) {
+      return EXIT_SUCCESS;
     } else if ((1 == strnlen(argv[n], 3)) && ('c' == argv[n][0])) {
       compress = true;
     } else if ((1 == strnlen(argv[n], 3)) && ('d' == argv[n][0])) {
@@ -2838,14 +2905,14 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
   }
 
   if (!((argc >= 4) && (argc <= 6)) || (nullptr == inFileName) || (nullptr == outFileName)) {
-    static constexpr std::array<uint32_t, 11> use{{74, 102, 157, 270, 494, 943, 1841, 3636, 7227, 13383, 24669}};  // TODO verify this
+    static constexpr std::array<uint32_t, 11> use{{87, 116, 174, 291, 523, 988, 1918, 3777, 7497, 13909, 25708}};  // TODO verify this
     fprintf(stderr,
-            "\nUsage: Moruga <command> <infile> <outfile>\n"
+            "\n\nUsage: Moruga <command> <infile> <outfile>\n"
             "\n<Commands>\n"
-            "  c\t\tCompress a file\n"
-            "  d\t\tDecompress a file\n"
-            "  -0 to -10\tUse %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 " or %" PRIu32
-            " MiB memory\n\t\tDefault %" PRIu32 ", %" PRIu32 " MiB memory",
+            "  c\t\tTo compress a file\n"
+            "  d\t\tTo decompress a file\n"
+            "  -0 to -10\tUses %" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 " or %" PRIu32
+            " MiB memory\n\t\tDefault is option %" PRIu32 ", uses %" PRIu32 " MiB of memory\n",
             use[0], use[1], use[2], use[3], use[4], use[5], use[6], use[7], use[8], use[9], use[10], DEFAULT_OPTION, use[DEFAULT_OPTION]);
     return EXIT_FAILURE;
   }
@@ -3034,10 +3101,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement = INT64_C(138194578) - outfile.Size();
+      const auto improvement{INT64_C(137772360) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
-      const auto improvement = INT64_C(17478573) - outfile.Size();
+      const auto improvement{INT64_C(17422112) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     }
 #endif

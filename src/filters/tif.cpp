@@ -450,7 +450,7 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-TIF_filter::TIF_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)
+TIF_filter::TIF_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di) noexcept
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}

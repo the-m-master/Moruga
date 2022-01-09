@@ -26,7 +26,7 @@ class iEncoder_t;
 
 class GZP_filter final : public iFilter_t {
 public:
-  explicit GZP_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const int64_t original_length);
+  explicit GZP_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const int64_t original_length) noexcept;
   virtual ~GZP_filter() noexcept override;
 
   GZP_filter() = delete;

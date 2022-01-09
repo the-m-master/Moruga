@@ -125,7 +125,7 @@ auto Header_t::ScanGZP(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-GZP_filter::GZP_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const int64_t original_length)
+GZP_filter::GZP_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const int64_t original_length) noexcept
     : _original_length{original_length},  //
       _stream{stream},
       _coder{coder},

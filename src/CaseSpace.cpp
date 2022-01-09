@@ -84,13 +84,11 @@ static constexpr int32_t TABLE_SIZE{1031};
 static constexpr int32_t TABLE_SIZE{521};
 #endif
 
-#pragma pack(push, 1)
 struct HashTable_t {
   uint32_t code_value;
   uint32_t prefix_code : 24;
   uint32_t append_character : 8;
 };
-#pragma pack(pop)
 static_assert(8 == sizeof(HashTable_t), "Alignment failure in HashTable_t");
 
 static constexpr auto MAX_VALUE{(UINT32_C(1) << BITS) - UINT32_C(1)};
@@ -102,7 +100,7 @@ static constexpr auto MIN_WORD_SIZE{UINT32_C(32)};
 
 class LempelZivWelch_t final {
 public:
-  explicit LempelZivWelch_t() {
+  explicit LempelZivWelch_t() noexcept {
     reset();
   }
 
@@ -254,7 +252,7 @@ ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
 
 }  // namespace CaseSpace
 
-CaseSpace_t::CaseSpace_t(File_t& in, File_t& out)
+CaseSpace_t::CaseSpace_t(File_t& in, File_t& out) noexcept
     : _in{in},  //
       _out{out},
       _lzw{std::make_unique<LempelZivWelch_t>()} {

@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class EXE_filter final : public iFilter_t {
 public:
-  explicit EXE_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di);
+  explicit EXE_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)noexcept;
   virtual ~EXE_filter() noexcept override;
 
   EXE_filter() = delete;

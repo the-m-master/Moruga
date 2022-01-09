@@ -26,7 +26,7 @@
 
 class Buffer_t final {
 public:
-  explicit Buffer_t(const uint64_t max_size)
+  explicit Buffer_t(const uint64_t max_size) noexcept
       : _mask{uint32_t(((max_size > mem_limit) ? mem_limit : max_size) - UINT64_C(1))},  //
         _buffer{static_cast<uint8_t*>(std::calloc(size_t(_mask) + UINT64_C(1), sizeof(uint8_t)))} {
     assert(ISPOWEROF2(max_size));

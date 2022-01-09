@@ -85,7 +85,7 @@ auto Header_t::ScanPNG(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-PNG_filter::PNG_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf)
+PNG_filter::PNG_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf) noexcept
     : _buf{buf},  //
       _stream{stream},
       _coder{coder},

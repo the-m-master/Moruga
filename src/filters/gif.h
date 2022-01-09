@@ -30,7 +30,7 @@ class iEncoder_t;
 
 class Gif_t final {
 public:
-  explicit Gif_t(File_t& in, File_t& out);
+  explicit Gif_t(File_t& in, File_t& out) noexcept;
   virtual ~Gif_t() noexcept;
 
   int64_t Decode() noexcept;

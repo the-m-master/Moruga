@@ -26,7 +26,7 @@
 #include "filter.h"
 #include "iEncoder.h"
 
-Gif_t::Gif_t(File_t& in, File_t& out) : _in{in}, _out{out} {}
+Gif_t::Gif_t(File_t& in, File_t& out) noexcept : _in{in}, _out{out} {}
 
 Gif_t::~Gif_t() noexcept = default;
 

@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class BMP_filter final : public iFilter_t {
 public:
-  explicit BMP_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di);
+  explicit BMP_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di) noexcept;
   virtual ~BMP_filter() noexcept override;
 
   BMP_filter() = delete;

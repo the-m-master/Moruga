@@ -345,7 +345,7 @@ auto Header_t::ScanELF(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-ELF_filter::ELF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di)
+ELF_filter::ELF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}

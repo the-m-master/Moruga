@@ -26,7 +26,7 @@ class iEncoder_t;
 
 class LZX_filter final : public iFilter_t {
 public:
-  explicit LZX_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di);
+  explicit LZX_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept;
   virtual ~LZX_filter() noexcept override;
 
   LZX_filter() = delete;

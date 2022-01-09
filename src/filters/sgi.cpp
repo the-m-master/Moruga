@@ -84,7 +84,10 @@ auto Header_t::ScanSGI(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-SGI_filter::SGI_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) : _stream{stream}, _coder{coder}, _di{di} {
+SGI_filter::SGI_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept
+    : _stream{stream},  //
+      _coder{coder},
+      _di{di} {
   _length = _di.image_width * _di.image_height * _di.bytes_per_pixel;
   _base = static_cast<uint32_t*>(calloc(1, _length));
   _dst = reinterpret_cast<uint8_t*>(_base);

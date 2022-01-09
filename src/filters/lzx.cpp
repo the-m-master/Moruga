@@ -81,7 +81,10 @@ auto Header_t::ScanLZX(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-LZX_filter::LZX_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) : _stream{stream}, _coder{coder}, _di{di} {}
+LZX_filter::LZX_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept
+    : _stream{stream},  //
+      _coder{coder},
+      _di{di} {}
 
 LZX_filter::~LZX_filter() noexcept = default;
 

@@ -111,7 +111,7 @@ auto Header_t::ScanPKZ(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-PKZ_filter::PKZ_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf)
+PKZ_filter::PKZ_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf) noexcept
     : _buf{buf},  //
       _stream{stream},
       _coder{coder},

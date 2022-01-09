@@ -45,7 +45,7 @@ enum class Filter {
 
 class iFilter_t {
 public:
-  explicit iFilter_t() = default;
+  explicit iFilter_t() noexcept = default;
   virtual ~iFilter_t() noexcept;
   iFilter_t(const iFilter_t&) = delete;
   iFilter_t(iFilter_t&&) = delete;
@@ -92,7 +92,7 @@ struct DataInfo_t {
 
 class Header_t final {
 public:
-  explicit Header_t(const Buffer_t& __restrict buf, DataInfo_t& __restrict di, const bool encode);
+  explicit Header_t(const Buffer_t& __restrict buf, DataInfo_t& __restrict di, const bool encode) noexcept;
   virtual ~Header_t() noexcept;
 
   Header_t() = delete;
@@ -146,7 +146,7 @@ private:
 
 class Filter_t final {
 public:
-  explicit Filter_t(const Buffer_t& __restrict buf, const int64_t original_length, File_t& stream, iEncoder_t* encoder);
+  explicit Filter_t(const Buffer_t& __restrict buf, const int64_t original_length, File_t& stream, iEncoder_t* encoder) noexcept;
   virtual ~Filter_t() noexcept;
 
   Filter_t() = delete;

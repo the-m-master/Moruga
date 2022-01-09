@@ -71,7 +71,7 @@ auto Header_t::ScanWAV(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-WAV_filter::WAV_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di)
+WAV_filter::WAV_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}

@@ -113,7 +113,7 @@ auto Header_t::ScanPBM(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-PBM_filter::PBM_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di)
+PBM_filter::PBM_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}

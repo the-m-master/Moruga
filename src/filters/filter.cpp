@@ -35,7 +35,10 @@
 
 iFilter_t::~iFilter_t() noexcept = default;
 
-Header_t::Header_t(const Buffer_t& __restrict buf, DataInfo_t& __restrict di, const bool encode) : _buf{buf}, _di{di}, _encode{encode} {}
+Header_t::Header_t(const Buffer_t& __restrict buf, DataInfo_t& __restrict di, const bool encode) noexcept
+    : _buf{buf},  //
+      _di{di},
+      _encode{encode} {}
 
 Header_t::~Header_t() noexcept = default;
 
@@ -59,7 +62,7 @@ auto Header_t::Scan(int32_t ch) noexcept -> Filter {
   return type;
 }
 
-Filter_t::Filter_t(const Buffer_t& __restrict buf, const int64_t original_length, File_t& stream, iEncoder_t* const encoder)
+Filter_t::Filter_t(const Buffer_t& __restrict buf, const int64_t original_length, File_t& stream, iEncoder_t* const encoder) noexcept
     : _buf{buf},  //
       _original_length{original_length},
       _stream{stream},

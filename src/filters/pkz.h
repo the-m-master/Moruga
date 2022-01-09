@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class PKZ_filter final : public iFilter_t {
 public:
-  explicit PKZ_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf);
+  explicit PKZ_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf) noexcept;
   virtual ~PKZ_filter() noexcept override;
 
   PKZ_filter() = delete;

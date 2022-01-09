@@ -114,7 +114,7 @@ auto Header_t::ScanBMP(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-BMP_filter::BMP_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)
+BMP_filter::BMP_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)noexcept
     : _stream{stream},  //
       _coder{coder},
       _di{di} {}

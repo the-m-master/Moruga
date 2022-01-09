@@ -287,7 +287,7 @@ static void MonitorWorker(const volatile TraceProgress_t* const tracer) noexcept
   }
 }
 
-Progress_t::Progress_t(const std::string& workType, bool encode, const iMonitor_t& monitor)
+Progress_t::Progress_t(const std::string& workType, bool encode, const iMonitor_t& monitor) noexcept
     : _tracer{.isRunning = true,
               .workType{workType[0], workType[1], workType[2], '\0'},
               .encode = encode,

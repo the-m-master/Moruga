@@ -40,7 +40,7 @@ struct TraceProgress_t {
 
 class Progress_t final {
 public:
-  explicit Progress_t(const std::string& workType, bool encode, const iMonitor_t& monitor);
+  explicit Progress_t(const std::string& workType, bool encode, const iMonitor_t& monitor) noexcept;
   virtual ~Progress_t() noexcept;
 
   [[nodiscard]] static auto PeakMemoryUse() noexcept -> uint32_t;  // in KiB

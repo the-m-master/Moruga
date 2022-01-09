@@ -59,12 +59,12 @@ static std::string getTempFileLocation() noexcept {
 class File_t final {
 public:
 #if defined(__linux__) || defined(__CYGWIN__)
-  explicit File_t() : File_t(nullptr, _mode) {}
+  explicit File_t() noexcept : File_t(nullptr, _mode) {}
 #else
-  explicit File_t() : File_t(getTempFileLocation().c_str(), _mode) {}
+  explicit File_t() noexcept : File_t(getTempFileLocation().c_str(), _mode) {}
 #endif
 
-  explicit File_t(const char* const path, const std::string& mode) : _stream{path ? fopen(path, mode.c_str()) : std::tmpfile()} {
+  explicit File_t(const char* const path, const std::string& mode) noexcept : _stream{path ? fopen(path, mode.c_str()) : std::tmpfile()} {
     if (!_stream) {
       fprintf(stderr, "Cannot open file '%s'\n", path);
       exit(EXIT_FAILURE);

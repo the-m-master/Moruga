@@ -30,13 +30,13 @@ class LempelZivWelch_t;
 
 class CaseSpace_t final : public iMonitor_t {
 public:
-  explicit CaseSpace_t(File_t& in, File_t& out);
+  explicit CaseSpace_t(File_t& in, File_t& out) noexcept;
   virtual ~CaseSpace_t() noexcept override;
 
 #pragma pack(push, 1)
   struct Dictionary_t final {
     explicit Dictionary_t() = delete;
-    explicit Dictionary_t(std::string w, uint32_t f) : word{std::move(w)}, frequency{f} {}
+    explicit Dictionary_t(std::string w, uint32_t f) noexcept : word{std::move(w)}, frequency{f} {}
 
     std::string word;
     uint32_t frequency;

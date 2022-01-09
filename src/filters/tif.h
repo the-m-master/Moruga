@@ -27,7 +27,7 @@ class iEncoder_t;
 
 class TIF_filter final : public iFilter_t {
 public:
-  explicit TIF_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di);
+  explicit TIF_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di) noexcept;
   virtual ~TIF_filter() noexcept override;
 
   TIF_filter() = delete;

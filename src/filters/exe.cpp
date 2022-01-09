@@ -248,7 +248,7 @@ auto Header_t::ScanEXE(int32_t /*ch*/) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-EXE_filter::EXE_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)
+EXE_filter::EXE_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di) noexcept
     : _stream{stream},  //
       _coder{coder},
       _location{di.location} {}

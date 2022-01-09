@@ -108,7 +108,7 @@ ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
 
 class Dictionary final : public iMonitor_t {
 public:
-  Dictionary() = default;
+  Dictionary() noexcept = default;
   ~Dictionary() noexcept override;
 
   Dictionary(const Dictionary&) = delete;
@@ -170,13 +170,13 @@ public:
     _dic_length = uint32_t(dictionary.size());
 
     // Sort all by frequency
-    std::stable_sort(dictionary.begin(), dictionary.end(), [](const auto& a, const auto& b) -> bool {  //
+    std::stable_sort(dictionary.begin(), dictionary.end(), [](const auto& a, const auto& b) noexcept -> bool {  //
       return (a.frequency == b.frequency) ? (a.word.compare(b.word) < 0) : (a.frequency > b.frequency);
     });
 
     _dic_length = (std::min)(_dic_length, LIMIT);
 
-    constexpr auto name_compare{[](const auto& a, const auto& b) -> bool {  //
+    constexpr auto name_compare{[](const auto& a, const auto& b) noexcept -> bool {  //
       return a.word.compare(b.word) < 0;
     }};
 
@@ -313,7 +313,7 @@ Dictionary::~Dictionary() noexcept = default;
 
 class TxtPrep final : public iMonitor_t {
 public:
-  explicit TxtPrep(File_t& in, File_t& out, const int64_t* const charFreq, const std::string& quote)
+  explicit TxtPrep(File_t& in, File_t& out, const int64_t* const charFreq, const std::string& quote) noexcept
       : _in{in},  //
         _out{out},
         _qlength{uint32_t(quote.length())} {
