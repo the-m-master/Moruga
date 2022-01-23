@@ -101,7 +101,7 @@ CXXFLAGS := -std=c++20 -fdata-sections -ffunction-sections
 # c\c++ compiler flags
 #===============================================================================
 
-CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native
+CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native -pthread
 
 ifeq ($(MODE),debug)
   CCFLAGS += -g3 -O0
@@ -137,8 +137,7 @@ ifeq ($(TOOLCHAIN),llvm)
              -Wno-unknown-attributes \
              -Wno-used-but-marked-unused
 else
-  CCFLAGS += -pthread \
-             -Wall \
+  CCFLAGS += -Wall \
              -Wcast-align \
              -Wcast-qual \
              -Wchar-subscripts \

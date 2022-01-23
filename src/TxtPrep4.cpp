@@ -319,7 +319,7 @@ public:
         _qlength{uint32_t(quote.length())} {
     assert(_qlength < 256);            // Must fit in a byte of 8 bit
     assert(_qlength < _quote.size());  // Should fit
-    memcpy(&_quote[0], quote.c_str(), _qlength);
+    memcpy(_quote.data(), quote.c_str(), _qlength);
     to_numbers_ = false;
     if (nullptr != charFreq) {
       int64_t chrAZ{0};
@@ -357,7 +357,7 @@ public:
       Putc(_quote[n]);
     }
 
-    _dictionary.Create(_in, _out, &_quote[0], _qlength);
+    _dictionary.Create(_in, _out, _quote.data(), _qlength);
 
     const auto data_pos{_out.Position()};
 
@@ -430,7 +430,7 @@ public:
           } while (0x80 & b);
           if (0 == costs) {
             std::array<char, 64> tmp{xxltostr(value)};
-            for (const char* __restrict__ str{&tmp[0]}; *str;) {
+            for (const char* __restrict__ str{tmp.data()}; *str;) {
               Putc(*str++);
             }
           } else {
@@ -600,9 +600,9 @@ private:
     if (value > ULLONG_MAX) {
       const uint64_t leading{uint64_t(value / P10_UINT64)};
       const uint64_t trailing{uint64_t(value % P10_UINT64)};
-      snprintf(&str[0], str.size(), "%" PRIu64 "%.19" PRIu64, leading, trailing);
+      snprintf(str.data(), str.size(), "%" PRIu64 "%.19" PRIu64, leading, trailing);
     } else {
-      snprintf(&str[0], str.size(), "%" PRIu64, uint64_t(value));
+      snprintf(str.data(), str.size(), "%" PRIu64, uint64_t(value));
     }
     return str;
   }
@@ -620,7 +620,7 @@ private:
   auto EncodeValue() noexcept -> bool {
     uint128_t value{strtoxxl(_value.c_str())};
     std::array<char, 64> tmp{xxltostr(value)};
-    if (!_value.compare(&tmp[0])) {  // Avoid leading zeros
+    if (!_value.compare(tmp.data())) {  // Avoid leading zeros
       Putc(ESCAPE_CHAR);
       const int32_t costs{CostsValue(value)};
       assert(costs >= 0x04);  // Bottom limit

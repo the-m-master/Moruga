@@ -72,8 +72,7 @@ static auto memoryUseKiB() noexcept -> uint32_t {
 #else
 
 static auto getConsoleScreenBufferInfo(void** handler = nullptr) noexcept -> const CONSOLE_SCREEN_BUFFER_INFO* {
-  void* const handle{GetStdHandle(STD_OUTPUT_HANDLE)};
-  if (nullptr != handle) {
+  if (auto* const handle{GetStdHandle(STD_OUTPUT_HANDLE)}; nullptr != handle) {
     static CONSOLE_SCREEN_BUFFER_INFO csbi{{0, 0}, {0, 0}, 0, {0, 0, 0, 0}, {0, 0}};
     if (0 != GetConsoleScreenBufferInfo(handle, &csbi)) {
       if (nullptr != handler) {
@@ -85,33 +84,35 @@ static auto getConsoleScreenBufferInfo(void** handler = nullptr) noexcept -> con
   return nullptr;  // Failure
 }
 
-static auto consoleRowCol(int32_t& columns) noexcept -> bool {
+static auto consoleRowCol() noexcept -> std::pair<bool, int32_t> {
   const char* const columns_str{getenv("COLUMNS")};
   if (columns_str) {
-    columns = std::clamp(std::abs(std::stoi(columns_str, nullptr, 10)), 80, 512);
-  } else {
-    const auto* const csbi{getConsoleScreenBufferInfo()};
-    if (nullptr == csbi) {
-      return false;  // Failure
-    }
-    columns = csbi->srWindow.Right - csbi->srWindow.Left + 1;
+    return {true, std::stoi(columns_str, nullptr, 10)};
   }
-  return true;
+  const auto* const csbi{getConsoleScreenBufferInfo()};
+  if (nullptr == csbi) {
+    return {false, 0};  // Failure
+  }
+  return {true, csbi->srWindow.Right - csbi->srWindow.Left + 1};
 }
 
 static auto consoleCol() noexcept -> int32_t {
-  int32_t columns{80};
-  if (!consoleRowCol(columns)) {
+  if (const auto result{consoleRowCol()}; result.first) {
+    return result.second;
+  }
+  try {
     static std::array<char, 4> result{{'8', '0', 0, 0}};
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("tput cols", "r"), pclose);
-    if (nullptr != pipe) {
-      const char* ptr{fgets(&result[0], result.size(), pipe.get())};
-      if (nullptr != ptr) {
-        columns = std::clamp(std::abs(std::stoi(&result[0], nullptr, 10)), 80, 512);
+    if (std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("tput cols 2>&1", "r"), pclose); nullptr != pipe) {
+      if (const auto* const ptr{fgets(result.data(), result.size(), pipe.get())}; nullptr != ptr) {
+        return std::stoi(result.data(), nullptr, 10);
       }
     }
+  } catch (...) {
+    // Ignore potential failures from 'popen'.
+    // This might happen when the pipe is redirected some how...
+    // or 'tput' does not exist...
   }
-  return columns;
+  return 0;  // Failure
 }
 
 static auto memoryUseKiB() noexcept -> uint32_t {
@@ -149,8 +150,8 @@ static void FiltersToString(std::string& filters, uint32_t count, const std::str
     filters += text;
     if (count > 1) {
       std::array<char, 16> tmp;
-      snprintf(&tmp[0], tmp.size(), ":%u", count);
-      filters.append(&tmp[0]);
+      snprintf(tmp.data(), tmp.size(), ":%u", count);
+      filters.append(tmp.data());
     }
   }
 }
@@ -170,26 +171,30 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
 
     const int64_t workPosition{tracer->encode ? inBytes : outBytes};
 
-    auto speed{uint32_t((workPosition * POW10_6) / (deltaTime * INT64_C(1024)))};
-    char speedC{'K'};                     // KiB
-    if (speed > 9999) {                   //
-      speedC = 'M';                       // MiB
-      speed = ((speed / 512) + 1) / 2;    //
-      if (speed > 9999) {                 //
-        speedC = 'G';                     // GiB
-        speed = ((speed / 512) + 1) / 2;  //
+    auto speed{(workPosition * POW10_6) / deltaTime};
+    std::string speed_dim{"B/s"};
+    if (speed > 9999) {
+      speed_dim = "KiB/s";
+      speed = ((speed / 512) + 1) / 2;
+      if (speed > 9999) {
+        speed_dim = "MiB/s";
+        speed = ((speed / 512) + 1) / 2;
+        if (speed > 9999) {
+          speed_dim = "GiB/s";
+          speed = ((speed / 512) + 1) / 2;
+        }
       }
     }
 
-    auto memUse{memoryUseKiB()};
-    peakMemoryUse_ = (std::max)(peakMemoryUse_, memUse);
-    char memC{'K'};                         // KiB
-    if (memUse > 9999) {                    //
-      memC = 'M';                           // MiB
-      memUse = ((memUse / 512) + 1) / 2;    //
-      if (memUse > 9999) {                  //
-        memC = 'G';                         // GiB
-        memUse = ((memUse / 512) + 1) / 2;  //
+    auto mem_use{memoryUseKiB()};
+    peakMemoryUse_ = (std::max)(peakMemoryUse_, mem_use);
+    std::string mem_dim{"KiB"};
+    if (mem_use > 9999) {
+      mem_dim = "MiB";
+      mem_use = ((mem_use / 512) + 1) / 2;
+      if (mem_use > 9999) {
+        mem_dim = "GiB";
+        mem_use = ((mem_use / 512) + 1) / 2;
       }
     }
 
@@ -210,9 +215,9 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
     }
     if ((buzy >= 0) && (buzy < barLength)) {
       static constexpr std::array<char, 4> animation{{'\\', '|', '/', '-'}};
-      static uint8_t art{0};
+      static uint32_t art{0};
       progress[size_t(buzy)] = animation[art++];
-      if (art >= sizeof(animation)) {
+      if (art >= animation.size()) {
         art = 0;
       }
     }
@@ -220,13 +225,13 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
     length = (std::max)(0, length - int32_t(progress.length()));
     const std::string filler(size_t(length), ' ');
 
-    fprintf(stdout, "%s in/out %*" PRId64 "/%*" PRId64 "%s %4u %ciB %4u %ciB/s %02d:%02d [%s] %3" PRId64 "%%",
+    fprintf(stdout, "%s in/out %*" PRId64 "/%*" PRId64 "%s %4u %s %4" PRId64 " %-5s %02d:%02d [%s] %3" PRId64 "%%",
             tracer->workType,           //
             tracer->digits, inBytes,    //
             -tracer->digits, outBytes,  //
             filler.c_str(),             //
-            memUse, memC,               //
-            speed, speedC,              //
+            mem_use, mem_dim.c_str(),   //
+            speed, speed_dim.c_str(),   //
             mm, ss,                     //
             progress.c_str(),           //
             ((workPosition * POW10_2) / workLength));
@@ -250,15 +255,14 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
 
       static constexpr std::array<char, 5> cursor_up_one_line{{"\033[1A"}};
 #if defined(__linux__)
-      fputs(&cursor_up_one_line[0], stdout);
+      fputs(cursor_up_one_line.data(), stdout);
 #else
       const char* const term{getenv("TERM")};
       if (nullptr != term) {
-        fputs(&cursor_up_one_line[0], stdout);
+        fputs(cursor_up_one_line.data(), stdout);
       } else {
         void* handle{nullptr};
-        const auto* const csbi{getConsoleScreenBufferInfo(&handle)};
-        if (nullptr != csbi) {
+        if (const auto* const csbi{getConsoleScreenBufferInfo(&handle)}; nullptr != csbi) {
           COORD coord{.X = csbi->dwCursorPosition.X, .Y = SHORT(csbi->dwCursorPosition.Y - 1)};
           if (coord.Y < csbi->srWindow.Top) {
             coord.Y = csbi->srWindow.Top;

@@ -194,15 +194,15 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
       break;
     }
 
-    memmove(&zrec[0], &zrec[BLOCK_SIZE], BLOCK_SIZE);
-    memmove(&zin[0], &zin[BLOCK_SIZE], BLOCK_SIZE);
+    memmove(zrec.data(), &zrec[BLOCK_SIZE], BLOCK_SIZE);
+    memmove(zin.data(), &zin[BLOCK_SIZE], BLOCK_SIZE);
     in.Read(&zin[BLOCK_SIZE], blsize);  // Read block from input file
 
     // Decompress/inflate block
     main_stream.next_in = &zin[BLOCK_SIZE];
     main_stream.avail_in = blsize;
     do {
-      main_stream.next_out = &zout[0];
+      main_stream.next_out = zout.data();
       main_stream.avail_out = BLOCK_SIZE;
       main_ret = inflate(&main_stream, Z_FINISH);
       if (Z_STREAM_END == main_ret) {
@@ -216,7 +216,7 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
           continue;
         }
         nTrials++;
-        rec_strm[uint32_t(j)].next_in = &zout[0];
+        rec_strm[uint32_t(j)].next_in = zout.data();
         rec_strm[uint32_t(j)].avail_in = BLOCK_SIZE - main_stream.avail_out;
         rec_strm[uint32_t(j)].next_out = &zrec[recpos[uint32_t(j)]];
         rec_strm[uint32_t(j)].avail_out = (BLOCK_SIZE * 2) - recpos[uint32_t(j)];
@@ -295,14 +295,14 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
   }
   for (uint32_t i{0}; i < len; i += BLOCK_SIZE) {
     const uint32_t blsize{(std::min)(uint32_t(len - i), BLOCK_SIZE)};
-    in.Read(&zin[0], blsize);
-    main_stream.next_in = &zin[0];
+    in.Read(zin.data(), blsize);
+    main_stream.next_in = zin.data();
     main_stream.avail_in = blsize;
     do {
-      main_stream.next_out = &zout[0];
+      main_stream.next_out = zout.data();
       main_stream.avail_out = BLOCK_SIZE;
       main_ret = inflate(&main_stream, Z_FINISH);
-      out.Write(&zout[0], BLOCK_SIZE - main_stream.avail_out);
+      out.Write(zout.data(), BLOCK_SIZE - main_stream.avail_out);
     } while ((0 == main_stream.avail_out) && (Z_BUF_ERROR == main_ret));
     if ((Z_BUF_ERROR != main_ret) && (Z_STREAM_END != main_ret)) {
       break;
@@ -326,7 +326,7 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
   std::array<int32_t, LIMIT> diffPos;
   diffPos[0] = -1;
   for (uint32_t i{0}; i <= diffCount; i++) {
-    int32_t v{int32_t(in.get32())};
+    auto v{int32_t(in.get32())};
     if (i == diffCount) {
       len = uint32_t(v + diffPos[i]);
     } else {
@@ -350,11 +350,11 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
   uint32_t recpos{0};
   for (uint32_t i{0}; i < size; i += BLOCK_SIZE) {
     const uint32_t blsize{(std::min)(uint32_t(size - i), BLOCK_SIZE)};
-    in.Read(&zin[0], blsize);
-    rec_strm.next_in = &zin[0];
+    in.Read(zin.data(), blsize);
+    rec_strm.next_in = zin.data();
     rec_strm.avail_in = blsize;
     do {
-      rec_strm.next_out = &zout[0];
+      rec_strm.next_out = zout.data();
       rec_strm.avail_out = BLOCK_SIZE;
       ret = deflate(&rec_strm, i + blsize == size ? Z_FINISH : Z_NO_FLUSH);
       if ((Z_BUF_ERROR != ret) && (Z_STREAM_END != ret) && (Z_OK != ret)) {
@@ -372,7 +372,7 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
           }
         }
       } else {
-        out.Write(&zout[0], have);
+        out.Write(zout.data(), have);
       }
       recpos += have;
     } while (0 == rec_strm.avail_out);

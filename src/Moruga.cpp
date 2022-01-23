@@ -319,24 +319,24 @@ template <typename T>
   return int16_t(pr);
 }
 
-static std::string getDimension(size_t size) noexcept {
-  std::string dim{"Byte"};
+static auto getDimension(size_t size) noexcept -> std::string {
+  std::string size_dim{"Byte"};
   if (size > 9999) {
+    size_dim = "KiB";
     size = ((size / 512) + 1) / 2;
-    dim = "KiB";
     if (size > 9999) {
+      size_dim = "MiB";
       size = ((size / 512) + 1) / 2;
-      dim = "MiB";
       if (size > 9999) {
+        size_dim = "GiB";
         size = ((size / 512) + 1) / 2;
-        dim = "GiB";
       }
     }
   }
 
   std::array<char, 16> tmp;
-  snprintf(&tmp[0], tmp.size(), "%4" PRId64 " %s", size, dim.c_str());
-  return &tmp[0];
+  snprintf(tmp.data(), tmp.size(), "%4" PRId64 " %s", size, size_dim.c_str());
+  return tmp.data();
 }
 
 static int32_t dp_shift_{14};
@@ -947,9 +947,9 @@ private:
   int16_t* __restrict _prev{&_pi[N_LAYERS]};  // Previous Inputs (alternating between _pi[0] and _pi[N_LAYERS])
 };
 
-class HashTable final {
+class HashTable_t final {
 public:
-  explicit HashTable(const uint64_t max_size) noexcept
+  explicit HashTable_t(const uint64_t max_size) noexcept
       : N{(max_size > mem_limit) ? mem_limit : max_size},  //
         NB{uint32_t((N / B) - 1)},
         _ptr{static_cast<uint8_t*>(_aligned_malloc(N, 64))},
@@ -957,43 +957,19 @@ public:
     assert(ISPOWEROF2(N));
     assert(_ptr);
     if (verbose_) {
-      fprintf(stdout, "%s for HashTable\n", getDimension(N).c_str());
+      fprintf(stdout, "%s for HashTable_t\n", getDimension(N).c_str());
     }
     memset(_ptr, 0, N);
   }
 
-  virtual ~HashTable() noexcept;
+  virtual ~HashTable_t() noexcept;
 
-  HashTable(const HashTable&) = delete;
-  HashTable(HashTable&&) = delete;
-  auto operator=(const HashTable&) -> HashTable& = delete;
-  auto operator=(HashTable&&) -> HashTable& = delete;
+  HashTable_t(const HashTable_t&) = delete;
+  HashTable_t(HashTable_t&&) = delete;
+  auto operator=(const HashTable_t&) -> HashTable_t& = delete;
+  auto operator=(HashTable_t&&) -> HashTable_t& = delete;
 
-  [[nodiscard]] auto get(const uint32_t i) const noexcept -> uint8_t* {
-    const auto chk{uint8_t(i >> 24)};  // 8 bits
-    const auto idx{uint64_t(i & NB) * B};
-
-    auto* p{&_hashtable[idx]};
-    if (chk == *(p - 1)) {  // idx+0 ?
-      return p;
-    }
-    auto* const q{&_hashtable[idx ^ B]};
-    if (chk == *(q - 1)) {  // idx^4 ?
-      return q;
-    }
-
-    if (*p > *q) {
-      p = q;
-    }
-
-    *(p - 1) = chk;
-    *(p + 0) = 0;
-    *(p + 1) = 0;
-    *(p + 2) = 0;
-    return p;
-  }
-
-  [[nodiscard]] auto get1x(const uint8_t o, const uint32_t i) const noexcept -> uint8_t* {
+  [[nodiscard]] auto get1x(const uint32_t o, const uint32_t i) const noexcept -> uint8_t* {
     const auto chk{uint8_t(o | (i >> 27))};  // 3 + 5 bits
     const auto idx{uint64_t(i & NB) * B};
 
@@ -1017,7 +993,7 @@ public:
     return p;
   }
 
-  [[nodiscard]] auto get3a(const uint8_t o, const uint32_t i) const noexcept -> uint8_t* {
+  [[nodiscard]] auto get3a(const uint32_t o, const uint32_t i) const noexcept -> uint8_t* {
     const auto chk{uint8_t(o | (i >> 27))};  // 3 + 5 bits
     const auto idx{uint64_t(i & NB) * B};
 
@@ -1051,7 +1027,7 @@ public:
     return p;
   }
 
-  [[nodiscard]] auto get3b(const uint8_t o, const uint32_t i) const noexcept -> uint8_t* {
+  [[nodiscard]] auto get3b(const uint32_t o, const uint32_t i) const noexcept -> uint8_t* {
     const auto chk{uint8_t(o | (i >> 27))};  // 3 + 5 bits
     const auto idx{uint64_t(i & NB) * B};
 
@@ -1085,17 +1061,52 @@ public:
     return p;
   }
 
+  [[nodiscard]] auto operator[](uint32_t i) noexcept -> uint8_t* {
+    const uint16_t chk{uint16_t(((i >> 16) ^ i) & 0xFFFF)};
+    i = (i * B) & NB;
+    uint8_t* p{nullptr};
+    uint16_t* cp{nullptr};
+    uint32_t j{0};
+    for (; j < B; ++j) {
+      p = &_hashtable[(i + j) * B];
+      cp = reinterpret_cast<uint16_t*>(p);
+      if (0 == p[2]) {  // prio/state byte is zero -> empty slot
+        *cp = chk;      // occupy
+        break;
+      }
+      if (*cp == chk) {
+        break;  // found
+      }
+    }
+    if (0 == j) {
+      return p + 2;  // we are already at the front -> nothing to do
+    }
+    if (j == B) {  // element was not found
+      --j;         // candidate to overwrite is the last one
+      memset(&_m2f[0], 0, _m2f.size());
+      memcpy(&_m2f[0], &chk, sizeof(chk));
+      if (_hashtable[(i + j) * B + 2] > _hashtable[(i + j - 1) * B + 2]) {
+        --j;
+      }
+    } else {  // element was found, or empty slot occupied
+      memcpy(&_m2f[0], cp, B);
+    }
+    memmove(&_hashtable[(i + 1) * B], &_hashtable[i * B], j * B);
+    memcpy(&_hashtable[i * B], &_m2f[0], _m2f.size());
+    return &_hashtable[i * B + 2];
+  }
+
 private:
   static constexpr auto B{4};
   static constexpr auto mem_limit{UINT64_C(0x400000000)};  // 16 GiB
 
   const uint64_t N;
   const uint32_t NB;
-  int32_t : 32;  // Padding
+  std::array<uint8_t, B> _m2f;  // element to move to front
   uint8_t* const _ptr;
   uint8_t* const _hashtable;
 };
-HashTable::~HashTable() noexcept {
+HashTable_t::~HashTable_t() noexcept {
   _aligned_free(_ptr);
 }
 
@@ -1239,22 +1250,13 @@ private:
   int32_t : 32;  // Padding
 };
 
-template <const int32_t RATE>
+template <const int32_t SCALE>
 class RunContextMap_t final {
-  static_assert(RATE > 0, "Speed of run context map must be positive");
-
 public:
-  explicit RunContextMap_t(const int32_t max_size) noexcept
-      : _t{reinterpret_cast<std::array<uint8_t, 2>*>(std::calloc(1u << max_size, sizeof(uint16_t)))},
-        _mask{(1u << max_size) - 1}  //
-  {
-    if (verbose_) {
-      fprintf(stdout, "%s for RunContextMap_t\n", getDimension((1u << max_size) * sizeof(uint16_t)).c_str());
-    }
+  explicit RunContextMap_t(const int32_t max_size) noexcept : _hashtable{(1u << max_size) * 4} {
+    _cp = _hashtable[0];
   }
-  virtual ~RunContextMap_t() noexcept {
-    std::free(_t);
-  }
+  virtual ~RunContextMap_t() noexcept = default;
 
   RunContextMap_t() = delete;
   RunContextMap_t(const RunContextMap_t&) = delete;
@@ -1263,30 +1265,44 @@ public:
   auto operator=(RunContextMap_t&&) -> RunContextMap_t& = delete;
 
   void Set(const uint32_t cx) noexcept {  // update count
-    if (auto* const __restrict cp{&_t[_ctx][0]}; (0 == cp[0]) || ((0xFF & c4_) != cp[1])) {
-      cp[0] = 1;           // Reset counts
-      cp[1] = 0xFF & c4_;  // Set expected byte
-    } else if (cp[0] < 255) {
-      ++cp[0];
+    if ((0 == _cp[0]) || ((0xFF & c4_) != _cp[1])) {
+      _cp[0] = 1;           // Reset counts
+      _cp[1] = 0xFF & c4_;  // Set expected byte
+    } else if (_cp[0] < 255) {
+      ++_cp[0];
     }
-    _ctx = cx & _mask;
+    _cp = _hashtable[cx];
   }
 
-  [[nodiscard]] auto Predict(const bool bit) noexcept -> int16_t {  // predict next bit
-    if (const uint8_t expected_byte{_t[_ctx][1]}; (expected_byte | 0x100u) >> (1 + bcount_) == c0_) {
-      const uint32_t expected_bit{1u & (expected_byte >> bcount_)};
-      const uint32_t counts{_t[_ctx][0]};
-      const uint32_t ctx{(counts << 1) | expected_bit};  // 8+1=9 bits
-      return _ctp.Update(bit, ctx);
+  [[nodiscard]] auto Predict() noexcept -> int16_t {  // predict next bit
+    if (const uint8_t expected_byte{_cp[1]}; (expected_byte | 0x100u) >> (1 + bcount_) == c0_) {
+      const int32_t expected_bit{1 & (expected_byte >> bcount_)};
+      const uint32_t counts{_cp[0]};
+      return int16_t(((expected_bit * 2) - 1) * ilog[counts] * SCALE);
     }
     return 0;  // No or misprediction
   }
 
 private:
-  std::array<uint8_t, 2>* const __restrict _t;
-  StateMap_t<0x200, RATE> _ctp;  // Counts to prediction
-  const uint32_t _mask;          //
-  uint32_t _ctx{0};              // Context of last prediction
+  static constexpr std::array<uint8_t, 256> ilog{{0,   16,  25,  32,  37,  41,  45,  48,  51,  53,  55,  57,  59,  61,  63,  64,     //   0- 15
+                                                  65,  67,  68,  69,  70,  71,  72,  73,  74,  75,  76,  77,  78,  79,  79,  80,     //  16- 31
+                                                  81,  81,  82,  83,  83,  84,  85,  85,  86,  86,  87,  87,  88,  88,  89,  89,     //  32- 47
+                                                  90,  90,  91,  91,  92,  92,  93,  93,  93,  94,  94,  95,  95,  95,  96,  96,     //  48- 63
+                                                  96,  97,  97,  97,  98,  98,  98,  99,  99,  99,  100, 100, 100, 101, 101, 101,    //  64- 79
+                                                  101, 102, 102, 102, 103, 103, 103, 103, 104, 104, 104, 104, 105, 105, 105, 105,    //  80- 95
+                                                  106, 106, 106, 106, 107, 107, 107, 107, 107, 108, 108, 108, 108, 109, 109, 109,    //  96-111
+                                                  109, 109, 110, 110, 110, 110, 110, 111, 111, 111, 111, 111, 111, 112, 112, 112,    // 112-127
+                                                  112, 112, 113, 113, 113, 113, 113, 113, 114, 114, 114, 114, 114, 114, 115, 115,    // 128-143
+                                                  115, 115, 115, 115, 116, 116, 116, 116, 116, 116, 116, 117, 117, 117, 117, 117,    // 144-159
+                                                  117, 117, 118, 118, 118, 118, 118, 118, 118, 119, 119, 119, 119, 119, 119, 119,    // 160-175
+                                                  119, 120, 120, 120, 120, 120, 120, 120, 121, 121, 121, 121, 121, 121, 121, 121,    // 176-191
+                                                  121, 122, 122, 122, 122, 122, 122, 122, 122, 123, 123, 123, 123, 123, 123, 123,    // 192-207
+                                                  123, 123, 124, 124, 124, 124, 124, 124, 124, 124, 124, 125, 125, 125, 125, 125,    // 208-223
+                                                  125, 125, 125, 125, 125, 126, 126, 126, 126, 126, 126, 126, 126, 126, 126, 127,    // 224-239
+                                                  127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 128, 128, 128, 128, 128, 128}};  // 240-255
+
+  HashTable_t _hashtable;
+  uint8_t* _cp;
 };
 
 class DynamicMarkovModel_t final {
@@ -1587,7 +1603,7 @@ public:
 
     const auto py{_ltp1.Update(bit, ctx0)};
     pr[2] = ctx0 ? py : 0;
-    pr[3] = _rc.Predict(bit);
+    pr[3] = _rc.Predict();
 
     const auto last_pr{Squash(Mixer_t::tx_[0])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
@@ -1610,7 +1626,7 @@ private:
   int32_t : 32;                   // Padding
   StateMap_t<0x8000, 5> _ltp0{};  // Length to prediction          | Rate of 5 is based on enwik9
   StateMap_t<0x4000, 8> _ltp1{};  // (curved) Length to prediction | Rate of 8 is based on enwik9
-  RunContextMap_t<5> _rc{14};     // match_length | c1_            | Rate of 5 is based on enwik9
+  RunContextMap_t<16> _rc{14};    // match_length | c1_            |
   Blend_t<4, 1> _blend{0x40000};  //                               | Rate of 1 is based on enwik9
 };
 LempelZivPredict_t::~LempelZivPredict_t() noexcept {
@@ -1703,9 +1719,9 @@ public:
     pr[0xA] = pm2[1];
     pr[0xB] = pm2[2];
 
-    pr[0xC] = _rc0.Predict(bit);
-    pr[0xD] = _rc1.Predict(bit);
-    pr[0xE] = _rc2.Predict(bit);
+    pr[0xC] = _rc0.Predict();
+    pr[0xD] = _rc1.Predict();
+    pr[0xE] = _rc2.Predict();
 
     const auto last_pr{Squash(Mixer_t::tx_[8])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
@@ -1723,9 +1739,9 @@ private:
   ContextMap_t<0x001, 0xC, 0xA, 0xD> _cm0{};    //     c0_                     | Rate of 12/10/13 are based on enwik9 | not part of SparseMatchModel, just an improvement
   ContextMap_t<0x100, 0xC, 0x6, 0xE> _cm1{};    // x5_|c0_                     | Rate of 12/ 6/14 are based on enwik9 | not part of SparseMatchModel, just an improvement
   ContextMap_t<0x4000, 0xE, 0xD, 0x7> _cm2{};   // tt_|c0_                     | Rate of 14/13/ 7 are based on enwik9 | not part of SparseMatchModel, just an improvement
-  RunContextMap_t<6> _rc0{17 + level_};         // w5_                         | Rate of 6 is based on enwik9         | not part of SparseMatchModel, just an improvement
-  RunContextMap_t<7> _rc1{17 + level_};         // x5_                         | Rate of 7 is based on enwik9         | not part of SparseMatchModel, just an improvement
-  RunContextMap_t<5> _rc2{18 + level_};         // tt_                         | Rate of 5 is based on enwik9         | not part of SparseMatchModel, just an improvement
+  RunContextMap_t<20> _rc0{16 + level_};        // w5_                         |                                      | not part of SparseMatchModel, just an improvement
+  RunContextMap_t<20> _rc1{16 + level_};        // x5_                         |                                      | not part of SparseMatchModel, just an improvement
+  RunContextMap_t<20> _rc2{16 + level_};        // tt_                         |                                      | not part of SparseMatchModel, just an improvement
   StateMap_t<0x8000, 5> _ltp{};                 // length|expected_bit|c1      | Rate of 5 is based on enwik9
   StateMap_t<0x80000, 9> _sm1{};                // expected_byte|bcount|buf(1) | Rate of 9 is based on enwik9
   Blend_t<3 + (3 * 3) + 3, 3> _blend{0x10000};  //                             | Rate of 3 is based on enwik9
@@ -2033,7 +2049,7 @@ private:
 class Predict_t final {
 public:
   explicit Predict_t(Buffer_t& __restrict buf) noexcept : _buf{buf} {
-    cp_[0] = cp_[1] = cp_[2] = cp_[3] = cp_[4] = &_t0[0];
+    cp_[0] = cp_[1] = cp_[2] = cp_[3] = cp_[4] = _t0.data();
 
     for (uint32_t i{0}; i < 8192; ++i) {
       uint8_t v;
@@ -2140,25 +2156,21 @@ public:
   }
 
   void SetDataPos(const int64_t data_pos) noexcept {
-    if (nullptr != _txt) {
-      _txt->SetDataPos(data_pos);
-    }
+    _txt.SetDataPos(data_pos);
   }
 
   void SetStart(const bool state) noexcept {
-    if (nullptr != _txt) {
-      _txt->SetStart(state);
-    }
+    _txt.SetStart(state);
   }
 
 private:
   Buffer_t& __restrict _buf;
   Mixer_t _mixer{};
   uint32_t _add2order{0};
-  std::unique_ptr<DynamicMarkovModel_t> _dmc{std::make_unique<DynamicMarkovModel_t>(MEM())};
-  std::unique_ptr<LempelZivPredict_t> _lzp{std::make_unique<LempelZivPredict_t>(_buf, MEM() / 4)};
-  std::unique_ptr<SparseMatchModel_t> _smm{std::make_unique<SparseMatchModel_t>(_buf)};
-  std::unique_ptr<Txt_t> _txt{std::make_unique<Txt_t>()};
+  DynamicMarkovModel_t _dmc{MEM()};
+  LempelZivPredict_t _lzp{_buf, MEM() / 4};
+  SparseMatchModel_t _smm{_buf};
+  Txt_t _txt{};
   APM_t _ax1{0x10000, 18};
   APM_t _ax2{0x800, 40};
   APM _a1{0x100};
@@ -2171,12 +2183,12 @@ private:
   uint16_t _pt{0x7FF};
   uint16_t _pr{0x7FF};  // Prediction 0..4095
   int32_t : 16;         // Padding
-  std::unique_ptr<HashTable> _t4a{std::make_unique<HashTable>(MEM() * 2)};
-  std::unique_ptr<HashTable> _t4b{std::make_unique<HashTable>(MEM() * 2)};
+  HashTable_t _t4a{MEM() * 2};
+  HashTable_t _t4b{MEM() * 2};
   Blend_t<4, 5> _blend{0x20000};  // Rate of 5 is based on enwik9
   std::array<std::array<uint8_t, 8192>, 8> _calcfails;
   std::array<uint8_t, 0x10000> _t0{};
-  uint8_t* __restrict _t0c1{&_t0[0]};
+  uint8_t* __restrict _t0c1{_t0.data()};
   uint32_t _ctx1{0};
   uint32_t _ctx2{0};
   uint32_t _ctx3{0};
@@ -2198,7 +2210,7 @@ private:
   [[nodiscard]] auto Predict_not32(const bool bit) noexcept -> uint16_t {
     auto y2o{(bit << 20) - bit};
 
-    const auto len{_lzp->Predict(bit)};       // len --> 0..9
+    const auto len{_lzp.Predict(bit)};        // len --> 0..9
     _mixer.Context(_add2order + (64 * len));  // len --> 0..576 --> 10800+576+(9*8)
     _ctx6[0] += (y2o - _ctx6[0]) >> 6;        // (6) 6 is based on enwik9 (little influence)
     _ctx6 = &smt_[_bc4cp0][_t0c1[c0_]];       // smt[0,1,2 or 3][...]
@@ -2236,7 +2248,7 @@ private:
   [[nodiscard]] auto Predict_not32s(const bool bit) noexcept -> uint16_t {
     auto y2o{(bit << 20) - bit};
 
-    const auto len{_lzp->Predict(bit)};       // len --> 0..9
+    const auto len{_lzp.Predict(bit)};        // len --> 0..9
     _mixer.Context(_add2order + (64 * len));  // len --> 0..576 --> 10800+576+(9*8)
     _ctx6[0] += (y2o - _ctx6[0]) >> 6;        // (6) 6 is based on enwik9 (little influence)
     _ctx6 = &smt_[_bc4cp0][_t0c1[1]];         // smt[0,1,2 or 3][...] with c0_=1
@@ -2282,7 +2294,7 @@ private:
   [[nodiscard]] auto Predict_was32(const bool bit) noexcept -> uint16_t {
     auto y2o{(bit << 20) - bit};
 
-    const auto len{_lzp->Predict(bit)};       // len --> 0..9
+    const auto len{_lzp.Predict(bit)};        // len --> 0..9
     _mixer.Context(_add2order + (64 * len));  // len --> 0..576 --> 10800+576+(9*8)
     _ctx6[0] += (y2o - _ctx6[0]) >> 7;        // (8) 7 is based on enwik9 (little influence)
     _ctx6 = &smt_[1][_t0c1[c0_]];
@@ -2319,7 +2331,7 @@ private:
   [[nodiscard]] auto Predict_was32s(const bool bit) noexcept -> uint16_t {
     auto y2o{(bit << 20) - bit};
 
-    const auto len{_lzp->Predict(bit)};       // len --> 0..9
+    const auto len{_lzp.Predict(bit)};        // len --> 0..9
     _mixer.Context(_add2order + (64 * len));  // len --> 0..576 --> 10800+576+(9*8)
     _ctx6[0] += (y2o - _ctx6[0]) >> 13;       // (12) 13 is based on enwik9 (little influence)
     _ctx6 = &smt_[1][_t0c1[1]];               // c0_=1
@@ -2431,23 +2443,23 @@ private:
       } break;
 
       case 5: {
-        auto zq{2 + (c0_ & 0x03) * 2};            // c0_ contains 2 bits
-        cp_[0] = _t4b->get1x(0x00, zq + hh_[0]);  // 000 (0)
-        cp_[1] = _t4a->get1x(0x80, zq + hh_[1]);  // 100 (4)
-        cp_[4] = _t4b->get1x(0x00, zq + hh_[4]);  // 000 (0)
+        auto zq{2 + (c0_ & 0x03) * 2};           // c0_ contains 2 bits
+        cp_[0] = _t4b.get1x(0x00, zq + hh_[0]);  // 000 (0)
+        cp_[1] = _t4a.get1x(0x80, zq + hh_[1]);  // 100 (4)
+        cp_[4] = _t4b.get1x(0x00, zq + hh_[4]);  // 000 (0)
         zq *= 2;
-        cp_[2] = _t4a->get3a(0x00, zq + hh_[2]);  // 000 (0)
-        cp_[3] = _t4b->get3a(0x80, zq + hh_[3]);  // 100 (4)
+        cp_[2] = _t4a.get3a(0x00, zq + hh_[2]);  // 000 (0)
+        cp_[3] = _t4b.get3a(0x80, zq + hh_[3]);  // 100 (4)
       } break;
 
       case 1: {
-        auto zq{2 + (c0_ & 0x3F) * 2};            // c0_ contains 6 bits
-        cp_[0] = _t4b->get1x(0xC0, zq + hh_[0]);  // 110 (6)
-        cp_[1] = _t4a->get1x(0x40, zq + hh_[1]);  // 010 (2)
-        cp_[4] = _t4b->get1x(0xC0, zq + hh_[4]);  // 110 (6)
+        auto zq{2 + (c0_ & 0x3F) * 2};           // c0_ contains 6 bits
+        cp_[0] = _t4b.get1x(0xC0, zq + hh_[0]);  // 110 (6)
+        cp_[1] = _t4a.get1x(0x40, zq + hh_[1]);  // 010 (2)
+        cp_[4] = _t4b.get1x(0xC0, zq + hh_[4]);  // 110 (6)
         zq *= 2;
-        cp_[2] = _t4a->get3b(0xC0, zq + hh_[2]);  // 110 (6)
-        cp_[3] = _t4b->get3b(0x40, zq + hh_[3]);  // 010 (2)
+        cp_[2] = _t4a.get3b(0xC0, zq + hh_[2]);  // 110 (6)
+        cp_[3] = _t4b.get3b(0x40, zq + hh_[3]);  // 010 (2)
       } break;
 
       case 3: {
@@ -2458,11 +2470,11 @@ private:
         hh_[2] = finalize64(hash(zq, c4_, c8_ & 0x000080FF), 32);
         hh_[3] = finalize64(hash(zq, c4_, c8_ & 0x00FFFFFF), 32);
         hh_[4] ^= blur;
-        cp_[0] = _t4b->get1x(0xA0, hh_[0]);  // 101 (5)
-        cp_[1] = _t4a->get1x(0x20, hh_[1]);  // 001 (1)
-        cp_[2] = _t4a->get3b(0xA0, hh_[2]);  // 101 (5)
-        cp_[3] = _t4b->get3b(0x20, hh_[3]);  // 001 (1)
-        cp_[4] = _t4b->get1x(0xA0, hh_[4]);  // 101 (5)
+        cp_[0] = _t4b.get1x(0xA0, hh_[0]);  // 101 (5)
+        cp_[1] = _t4a.get1x(0x20, hh_[1]);  // 001 (1)
+        cp_[2] = _t4a.get3b(0xA0, hh_[2]);  // 101 (5)
+        cp_[3] = _t4b.get3b(0x20, hh_[3]);  // 001 (1)
+        cp_[4] = _t4b.get1x(0xA0, hh_[4]);  // 101 (5)
       } break;
 
       case 7:
@@ -2579,15 +2591,15 @@ private:
         hh_[2] = finalize64(hash(c4_, c8_ & 0x0000C0FF), 32);
         hh_[3] = finalize64(hash(c4_, c8_ & 0x00FEFFFF, wrt_mxr_[c8_ >> 24]), 32);
         hh_[4] = finalize64(combine64(_word, wrt_mxr_[c]), 32);
-        cp_[0] = _t4b->get1x(0xE0, hh_[0]);  // 111 (7)
-        cp_[1] = _t4a->get1x(0x60, hh_[1]);  // 011 (3)
-        cp_[2] = _t4a->get3a(0xE0, hh_[2]);  // 111 (7)
-        cp_[3] = _t4b->get3a(0x60, hh_[3]);  // 011 (3)
-        cp_[4] = _t4b->get1x(0xE0, hh_[4]);  // 111 (7)
+        cp_[0] = _t4b.get1x(0xE0, hh_[0]);  // 111 (7)
+        cp_[1] = _t4a.get1x(0x60, hh_[1]);  // 011 (3)
+        cp_[2] = _t4a.get3a(0xE0, hh_[2]);  // 111 (7)
+        cp_[3] = _t4b.get3a(0x60, hh_[3]);  // 011 (3)
+        cp_[4] = _t4b.get1x(0xE0, hh_[4]);  // 111 (7)
 
-        _lzp->Update();
-        _smm->Update();
-        _txt->Update();
+        _lzp.Update();
+        _smm.Update();
+        _txt.Update();
 
         if (const auto pos{_buf.Pos()}; 0 == (pos & (256 * 1024 - 1))) {
           if (((16 == dp_shift_) && (pos == (25 * 256 * 1024))) ||  // 22 or 25 based on enwik9 (little influence)
@@ -2602,8 +2614,8 @@ private:
       } break;
     }
 
-    _dmc->Predict(bit);
-    _smm->Predict(bit);
+    _dmc.Predict(bit);
+    _smm.Predict(bit);
 
     uint16_t pr;
 
@@ -2613,7 +2625,7 @@ private:
       pr = (7 == bcount_) ? Predict_not32s(bit) : Predict_not32(bit);
     }
 
-    if (const auto no_model{_txt->Predict(bit)}; no_model.first) {
+    if (const auto no_model{_txt.Predict(bit)}; no_model.first) {
       assert((0x000 == no_model.second) || (0xFFF == no_model.second));  // Predicts only 0 or 1 with certainty of 100%
       _pt = pr = no_model.second;
     } else {

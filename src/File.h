@@ -20,6 +20,7 @@
 #define _FILE_HDR_
 
 #include <sys/stat.h>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -43,15 +44,15 @@
  * @return temporary file location
  */
 static std::string getTempFileLocation() noexcept {
-  char filename[MAX_PATH];
-  memset(filename, 0, sizeof(filename));
-  char temppath[MAX_PATH];
-  const uint32_t i{GetTempPathA(sizeof(temppath), temppath)};
-  if (i < sizeof(temppath)) {
+  std::array<char, MAX_PATH> filename;
+  filename.fill(0);
+  std::array<char, MAX_PATH> temppath;
+  const uint32_t i{GetTempPathA(temppath.size(), temppath.data())};
+  if (i < temppath.size()) {
     static constexpr char prefix[]{"Moruga"};
-    GetTempFileNameA(temppath, prefix, 0, filename);
+    GetTempFileNameA(temppath.data(), prefix, 0, filename.data());
   }
-  return filename;
+  return filename.data();
 }
 #endif  // !defined(__CYGWIN__)
 #endif  // defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)

@@ -84,13 +84,6 @@ static constexpr int32_t TABLE_SIZE{1031};
 static constexpr int32_t TABLE_SIZE{521};
 #endif
 
-struct HashTable_t {
-  uint32_t code_value;
-  uint32_t prefix_code : 24;
-  uint32_t append_character : 8;
-};
-static_assert(8 == sizeof(HashTable_t), "Alignment failure in HashTable_t");
-
 static constexpr auto MAX_VALUE{(UINT32_C(1) << BITS) - UINT32_C(1)};
 static constexpr auto MAX_CODE{MAX_VALUE - UINT32_C(1)};
 static constexpr auto UNUSED{UINT32_C(~0)};
@@ -123,7 +116,7 @@ public:
 
     const auto key{find_match(_string_code, ch)};
 
-    if (HashTable_t & ht{_hashTable[key]}; UNUSED != ht.code_value) {
+    if (HashTable_t& ht{_hashTable[key]}; UNUSED != ht.code_value) {
       _string_code = int32_t(ht.code_value);
 
       if (const auto length{_word.length()}; (length >= MIN_WORD_SIZE) && (length < 256)) {
@@ -238,9 +231,14 @@ private:
 #else
   std::unordered_map<std::string, uint32_t> _esteem{};
 #endif
+  struct HashTable_t {
+    uint32_t code_value;
+    uint32_t prefix_code : 24;
+    uint32_t append_character : 8;
+  };
+  static_assert(8 == sizeof(HashTable_t), "Alignment failure in HashTable_t");
   std::array<HashTable_t, TABLE_SIZE> _hashTable;
 };
-
 LempelZivWelch_t::~LempelZivWelch_t() noexcept = default;
 
 namespace CaseSpace {
@@ -262,7 +260,7 @@ CaseSpace_t::CaseSpace_t(File_t& in, File_t& out) noexcept
 CaseSpace_t::~CaseSpace_t() noexcept = default;
 
 auto CaseSpace_t::charFrequency() const noexcept -> const int64_t* {
-  return &_char_freq[0];
+  return _char_freq.data();
 }
 
 auto CaseSpace_t::getQuote() const noexcept -> const std::string& {

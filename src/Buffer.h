@@ -22,7 +22,7 @@
 #include <cassert>
 #include "File.h"
 
-#define ISPOWEROF2(x) (!((x) & ((x)-1)))
+#define ISPOWEROF2(x) (((x) > 0) && (!((x) & ((x)-1))))
 
 class Buffer_t final {
 public:
