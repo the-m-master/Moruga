@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _WAV_HDR_
 #define _WAV_HDR_
@@ -52,4 +54,4 @@ private:
   std::array<int8_t, 36> _delta{};
 };
 
-#endif /* _WAV_HDR_ */
+#endif  // _WAV_HDR_

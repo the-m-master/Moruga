@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "sgi.h"
 #include <climits>
@@ -71,7 +73,7 @@ auto Header_t::ScanSGI(int32_t /*ch*/) noexcept -> Filter {
       _di.image_height = ysize;
       _di.bytes_per_pixel = zsize;
       _di.filter_end = INT_MAX;
-      _di.offset_to_start = int32_t(_di.image_height * _di.bytes_per_pixel * sizeof(uint32_t) * 2);  // Skip row start/size
+      _di.offset_to_start = static_cast<int32_t>(_di.image_height * _di.bytes_per_pixel * sizeof(uint32_t) * 2);  // Skip row start/size
 
 #if 0
       fprintf(stdout, "SGI %ux%ux%u   \n", xsize, ysize, _di.bytes_per_pixel);
@@ -100,20 +102,20 @@ SGI_filter::~SGI_filter() noexcept {
 
 auto SGI_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   for (;;) {
-    const auto length{uint32_t(intptr_t(_dst) - intptr_t(_base))};
+    const auto length{static_cast<uint32_t>(reinterpret_cast<intptr_t>(_dst) - reinterpret_cast<intptr_t>(_base))};
     if (length >= _length) {
       break;
     }
 
-    uint8_t pixel{(0 == length) ? uint8_t(ch) : uint8_t(_stream.getc())};
+    uint8_t pixel{(0 == length) ? static_cast<uint8_t>(ch) : static_cast<uint8_t>(_stream.getc())};
     int32_t count{pixel & 0x7F};
     if (count > 0) {
       if (pixel & 0x80) {
         while (count-- > 0) {  // Copy literals
-          *_dst++ = uint8_t(_stream.getc());
+          *_dst++ = static_cast<uint8_t>(_stream.getc());
         }
       } else {
-        pixel = uint8_t(_stream.getc());
+        pixel = static_cast<uint8_t>(_stream.getc());
         while (count-- > 0) {  // Multiply pixel
           *_dst++ = pixel;
         }
@@ -123,7 +125,7 @@ auto SGI_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
 
 #if 0
   File_t txt("sgi.raw", "wb+");
-  txt.Write(_base, size_t(intptr_t(_dst) - intptr_t(_base)));
+  txt.Write(_base, static_cast<size_t>(reinterpret_cast<intptr_t>(_dst) - reinterpret_cast<intptr_t>(_base)));
 #endif
 
   _dst = reinterpret_cast<uint8_t*>(_base);
@@ -142,7 +144,7 @@ auto SGI_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
   if (_length > 0) {
     --_length;
     _prev_rgba += ch;  // Delta decode all channels
-    *_dst++ = uint8_t(_prev_rgba);
+    *_dst++ = static_cast<uint8_t>(_prev_rgba);
     --pos;
   }
   if (0 == _length) {
@@ -158,7 +160,7 @@ auto SGI_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
           ++src;
         }
         src -= 2;
-        auto count{int32_t(src - sptr)};
+        auto count{static_cast<int32_t>(src - sptr)};
         while (count > 0) {  // Copy literals
           int32_t todo{(count > 126) ? 126 : count};
           count -= todo;
@@ -172,7 +174,7 @@ auto SGI_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
         while ((src < end) && (*src == cc)) {
           ++src;
         }
-        count = int32_t(src - sptr);
+        count = static_cast<int32_t>(src - sptr);
         while (count > 0) {  // Multiply pixel
           const int32_t todo{(count > 126) ? 126 : count};
           count -= todo;

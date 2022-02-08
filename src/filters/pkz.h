@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _PKZ_HDR_
 #define _PKZ_HDR_
@@ -43,10 +45,10 @@ private:
   // clang-format off
 
   // 16-bits little endian (Intel) number at buf(i-1)..buf(i)
-  [[nodiscard]] constexpr auto i2(const uint32_t i) const noexcept -> uint16_t { return uint16_t(_buf(i) | (_buf(i - 1) << 8)); }
+  [[nodiscard]] constexpr auto i2(const uint32_t i) const noexcept -> uint16_t { return static_cast<uint16_t>(_buf(i) | (_buf(i - 1) << 8)); }
 
   // 32-bits big endian (Motorola) number at buf(i-3)..buf(i)
-  [[nodiscard]] constexpr auto m4(const uint32_t i) const noexcept -> uint32_t { return uint32_t(_buf(i - 3) | (_buf(i - 2) << 8) | (_buf(i - 1) << 16) | (_buf(i) << 24)); }
+  [[nodiscard]] constexpr auto m4(const uint32_t i) const noexcept -> uint32_t { return static_cast<uint32_t>(_buf(i - 3) | (_buf(i - 2) << 8) | (_buf(i - 1) << 16) | (_buf(i) << 24)); }
 
   // clang-format on
 
@@ -59,4 +61,4 @@ private:
   File_t* _data{nullptr};
 };
 
-#endif /* _PKZ_HDR_ */
+#endif  // _PKZ_HDR_

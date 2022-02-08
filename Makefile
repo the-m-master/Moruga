@@ -145,6 +145,7 @@ else
              -Wdisabled-optimization \
              -Wduplicated-branches \
              -Wduplicated-cond \
+             -Weffc++ \
              -Wextra \
              -Wfloat-equal \
              -Wformat \
@@ -278,15 +279,13 @@ all:
 #===============================================================================
 $(BUILD_DIR)/$(BIN_FILE): $(OBJECTS)
 	$(CXX) $(LDFLAGS) $(CCFLAGS) $(_LIB_DIRS) $(OBJECTS) $(_LIBS) -o $(BUILD_DIR)/$(BIN_FILE)
-ifeq ($(MODE),debug)
-	$(OBJDUMP) -S $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
-endif
+#	$(OBJDUMP) -S $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
 
 #===============================================================================
 # Build all cpp files
 #===============================================================================
 $(BUILD_DIR)/%.o: %.cpp
-	$(CXX) -c $< $(CCFLAGS) $(CXXFLAGS) $(_INCLUDE_DIRS) $(_DEFINES) -o $@
+	$(CXX) -c $< $(CXXFLAGS) $(CCFLAGS) $(_INCLUDE_DIRS) $(_DEFINES) -o $@
 #	$(TIDY) -quiet $< -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -Weverything
 
 #===============================================================================

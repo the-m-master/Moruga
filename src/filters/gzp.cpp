@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "gzp.h"
 #include <cassert>
@@ -138,10 +140,10 @@ auto GZP_filter::Handle_GZ_flags(int32_t ch) noexcept -> bool {
   // The file contains extra fields
   // ------------------------------------------------------------------------
   if (_di.flags & (1 << 2)) {
-    _extra_field_length = (_extra_field_length * 10u) + uint32_t(ch);
+    _extra_field_length = (_extra_field_length * 10u) + static_cast<uint32_t>(ch);
     if (1 == _state) {
       _state = 0;
-      _di.flags = uint8_t(_di.flags & ~(1u << 2));
+      _di.flags = static_cast<uint8_t>(_di.flags & ~(1u << 2));
     } else {
       _state = 1;
     }
@@ -157,7 +159,7 @@ auto GZP_filter::Handle_GZ_flags(int32_t ch) noexcept -> bool {
   // ------------------------------------------------------------------------
   if (_di.flags & (1 << 3)) {
     if (0 == ch) {
-      _di.flags = uint8_t(_di.flags & ~(1u << 3));
+      _di.flags = static_cast<uint8_t>(_di.flags & ~(1u << 3));
     } else {
       return false;
     }
@@ -168,7 +170,7 @@ auto GZP_filter::Handle_GZ_flags(int32_t ch) noexcept -> bool {
   // ------------------------------------------------------------------------
   if (_di.flags & (1 << 4)) {
     if (0 == ch) {
-      _di.flags = uint8_t(_di.flags & ~(1u << 4));
+      _di.flags = static_cast<uint8_t>(_di.flags & ~(1u << 4));
     } else {
       return false;
     }
@@ -211,7 +213,7 @@ auto GZP_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
       --_length;
       _block_length = (_block_length << 8) | ch;
       if (0 == _length) {
-        if ((_DEADBEEF != uint32_t(_block_length)) && (_block_length > 0)) {
+        if ((_DEADBEEF != static_cast<uint32_t>(_block_length)) && (_block_length > 0)) {
           _data = new File_t;
           pos -= _block_length;
         } else {

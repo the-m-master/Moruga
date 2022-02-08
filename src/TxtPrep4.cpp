@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "TxtPrep4.h"
 #include <algorithm>
@@ -40,28 +42,28 @@
 //#define DEBUG_WRITE_ANALYSIS_BMP
 //#define DEBUG_WRITE_DICTIONARY
 
-#if !defined(_MSC_VER)       // VS2019 has trouble handling this code
-#define USE_BYTELL_HASH_MAP  // Enable the fastest hash table by Malte Skarupke
+#if !defined(_MSC_VER)         // VS2019 has trouble handling this code
+#  define USE_BYTELL_HASH_MAP  // Enable the fastest hash table by Malte Skarupke
 #endif
 
 #if defined(USE_BYTELL_HASH_MAP)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Waggregate-return"
-#pragma GCC diagnostic ignored "-Wc++98-c++11-compat-binary-literal"
-#pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
-#pragma GCC diagnostic ignored "-Wconversion"
-#pragma GCC diagnostic ignored "-Weffc++"
-#pragma GCC diagnostic ignored "-Wpadded"
-#pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#include "ska/bytell_hash_map.hpp"
-#pragma GCC diagnostic pop
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Waggregate-return"
+#  pragma GCC diagnostic ignored "-Wc++98-c++11-compat-binary-literal"
+#  pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
+#  pragma GCC diagnostic ignored "-Wconversion"
+#  pragma GCC diagnostic ignored "-Weffc++"
+#  pragma GCC diagnostic ignored "-Wpadded"
+#  pragma GCC diagnostic ignored "-Wshadow"
+#  pragma GCC diagnostic ignored "-Wsign-conversion"
+#  include "ska/bytell_hash_map.hpp"
+#  pragma GCC diagnostic pop
 #else
-#include <unordered_map>
+#  include <unordered_map>
 #endif
 
 #if defined(DEBUG_WRITE_ANALYSIS_BMP)
-#include "Analysis.h"
+#  include "Analysis.h"
 #endif
 
 // Word count can be verified by using (on Linux or MSYS2):
@@ -97,13 +99,11 @@ static_assert(HIGH < LIMIT, "Bit range error, HIGH must be less then LIMIT");
 static bool to_numbers_{false};
 
 namespace TxtPrep4 {
-
-template <typename T>
-ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
-  return ('>' == ch) || Utilities::is_lower(ch) || (ch > 127) ||                     // Default for text files
-         (to_numbers_ && ((' ' == ch) || ('.' == ch) || Utilities::is_number(ch)));  // In case of a file with a lot of values
-}
-
+  template <typename T>
+  ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
+    return ('>' == ch) || Utilities::is_lower(ch) || (ch > 127) ||                     // Default for text files
+           (to_numbers_ && ((' ' == ch) || ('.' == ch) || Utilities::is_number(ch)));  // In case of a file with a lot of values
+  }
 }  // namespace TxtPrep4
 
 class Dictionary final : public iMonitor_t {
@@ -118,7 +118,7 @@ public:
 
   void AppendChar(const int32_t ch) noexcept {
     if (const auto wlength{_word.length()}; TxtPrep4::is_word_char(ch) && (wlength < MAX_WORD_SIZE)) {
-      _word.push_back(char(ch));
+      _word.push_back(static_cast<char>(ch));
     } else {
       if (wlength >= MIN_WORD_SIZE) {
         AppendWord();
@@ -167,7 +167,7 @@ public:
 #if defined(USE_BYTELL_HASH_MAP)
     _word_map.shrink_to_fit();  // Release memory
 #endif
-    _dic_length = uint32_t(dictionary.size());
+    _dic_length = static_cast<uint32_t>(dictionary.size());
 
     // Sort all by frequency
     std::stable_sort(dictionary.begin(), dictionary.end(), [](const auto& a, const auto& b) noexcept -> bool {  //
@@ -218,7 +218,7 @@ public:
   }
 
   void Read(const File_t& stream) noexcept {
-    _dic_length = uint32_t(stream.getVLI());
+    _dic_length = static_cast<uint32_t>(stream.getVLI());
     assert(_dic_length <= LIMIT);
 
     _byte_map.reserve(_dic_length);
@@ -227,7 +227,7 @@ public:
     for (uint32_t n{0}; n < _dic_length; ++n) {
       int32_t ch;
       while ((SEPARATE_CHAR != (ch = stream.getc()))) {
-        word.push_back(char(ch));
+        word.push_back(static_cast<char>(ch));
       }
       const auto bytes{frequency2bytes(n)};
       _byte_map[bytes] = word;
@@ -297,11 +297,11 @@ private:
   }
 
 #if defined(USE_BYTELL_HASH_MAP)
-  ska::bytell_hash_map<std::string, uint32_t> _word_map;  // Does encode enwik9 25% faster!
-  ska::bytell_hash_map<uint32_t, std::string> _byte_map;
+  ska::bytell_hash_map<std::string, uint32_t> _word_map{};  // Does encode enwik9 25% faster!
+  ska::bytell_hash_map<uint32_t, std::string> _byte_map{};
 #else
-  std::unordered_map<std::string, uint32_t> _word_map;
-  std::unordered_map<uint32_t, std::string> _byte_map;
+  std::unordered_map<std::string, uint32_t> _word_map{};
+  std::unordered_map<uint32_t, std::string> _byte_map{};
 #endif
   int64_t _original_length{0};
   int64_t _input_length{0};
@@ -316,7 +316,7 @@ public:
   explicit TxtPrep(File_t& in, File_t& out, const int64_t* const charFreq, const std::string& quote) noexcept
       : _in{in},  //
         _out{out},
-        _qlength{uint32_t(quote.length())} {
+        _qlength{static_cast<uint32_t>(quote.length())} {
     assert(_qlength < 256);            // Must fit in a byte of 8 bit
     assert(_qlength < _quote.size());  // Should fit
     memcpy(_quote.data(), quote.c_str(), _qlength);
@@ -352,7 +352,7 @@ public:
   auto Encode() noexcept -> int64_t {
     _original_length = _in.Size();
     _out.putVLI(_original_length);
-    Putc(uint8_t(_qlength));
+    Putc(static_cast<uint8_t>(_qlength));
     for (uint32_t n{0}; n < _qlength; ++n) {
       Putc(_quote[n]);
     }
@@ -361,9 +361,9 @@ public:
 
     const auto data_pos{_out.Position()};
 
-    Progress_t progress("TXT", true, *this);
-
     _in.Rewind();
+
+    Progress_t progress("TXT", true, *this);
 
     uint32_t qoffset{0};
 
@@ -396,15 +396,15 @@ public:
 
     EncodeWordValue();
 
-    return data_pos + uint32_t(sizeof(int64_t));  // Add original length used in CaseSpace
+    return data_pos + static_cast<uint32_t>(sizeof(int64_t));  // Add original length used in CaseSpace
   }
 
   auto Decode() noexcept -> int64_t {
     _original_length = _in.getVLI();
     assert(_original_length > 0);
-    _qlength = uint32_t(_in.getc());
+    _qlength = static_cast<uint32_t>(_in.getc());
     for (uint32_t n{_qlength}; n--;) {  // Reverse read
-      _quote[n] = int8_t(_in.getc());
+      _quote[n] = static_cast<int8_t>(_in.getc());
     }
 
     Progress_t progress("TXT", false, *this);
@@ -416,21 +416,25 @@ public:
       assert(EOF != ch);
       if (ESCAPE_CHAR == ch) {
         ch = _in.getc();
+        assert(EOF != ch);
         if (!to_numbers_ && (0xF0 == (0xF0 & ch)) && ((0x0F & ch) >= 4)) {
           const auto safe_position{_in.Position()};
           int32_t costs{0x0F & ch};
           uint128_t value{0};
           int32_t k{0};
-          int32_t b;
+          int32_t b{0};
           do {
-            b = _in.getc();
-            value |= uint128_t(0x3F & b) << k;
+            if (EOF == (b = _in.getc())) {
+              assert(false);
+              break;  // Should never happen...
+            }
+            value |= static_cast<uint128_t>(0x3F & b) << k;
             k += 6;
             --costs;
-          } while (0x80 & b);
+          } while ((k < 127) && (0x80 == (0xC0 & b)));
           if (0 == costs) {
             std::array<char, 64> tmp{xxltostr(value)};
-            for (const char* __restrict__ str{tmp.data()}; *str;) {
+            for (const char* __restrict str{tmp.data()}; *str;) {
               Putc(*str++);
             }
           } else {
@@ -446,23 +450,26 @@ public:
         }
         continue;
       } else if (0x80 & ch) {
-        uint32_t bytes{uint8_t(ch)};
+        uint32_t bytes{static_cast<uint8_t>(ch)};
         if (0 != (0x40 & ch)) {
           ch = _in.getc();
-          bytes = (bytes << 8) | uint8_t(ch);
+          assert(EOF != ch);
+          bytes = (bytes << 8) | static_cast<uint8_t>(ch);
           if (0 != (0x40 & ch)) {
             ch = _in.getc();
-            bytes = (bytes << 8) | uint8_t(ch);
+            assert(EOF != ch);
+            bytes = (bytes << 8) | static_cast<uint8_t>(ch);
             if (0 != (0x40 & ch)) {
               ch = _in.getc();
-              bytes = (bytes << 8) | uint8_t(ch);
+              assert(EOF != ch);
+              bytes = (bytes << 8) | static_cast<uint8_t>(ch);
             }
           }
         }
 
         const std::string& word{_dictionary.bytes2word(bytes)};
         assert(word.length() > 0);
-        for (const char* __restrict__ str{word.c_str()}; *str;) {
+        for (const char* __restrict str{word.c_str()}; *str;) {
           Putc(*str++);
         }
       } else {
@@ -480,25 +487,27 @@ private:
   }
 
   void EncodeCodeWord(const uint32_t bytes) noexcept {
-    uint8_t tmp{uint8_t(bytes >> 24)};
-    if (0 != tmp) {
-      Putc(tmp);
+    static constexpr auto HGH_SECTION{UINT32_C(0x00FFFFFF)};
+    static constexpr auto MID_SECTION{UINT32_C(0x0000FFFF)};
+    static constexpr auto LOW_SECTION{UINT32_C(0x000000FF)};
+
+    if (bytes > HGH_SECTION) {
+      Putc(static_cast<uint8_t>(bytes >> 24));
+      Putc(static_cast<uint8_t>(bytes >> 16));
+      Putc(static_cast<uint8_t>(bytes >> 8));
+    } else if (bytes > MID_SECTION) {
+      Putc(static_cast<uint8_t>(bytes >> 16));
+      Putc(static_cast<uint8_t>(bytes >> 8));
+    } else if (bytes > LOW_SECTION) {
+      Putc(static_cast<uint8_t>(bytes >> 8));
     }
-    tmp = uint8_t(bytes >> 16);
-    if (0 != tmp) {
-      Putc(tmp);
-    }
-    tmp = uint8_t(bytes >> 8);
-    if (0 != tmp) {
-      Putc(tmp);
-    }
-    Putc(int32_t(bytes));
+    Putc(static_cast<uint8_t>(bytes));
   }
 
-  void Literal(const char* __restrict__ literal, uint32_t length) noexcept {
+  void Literal(const char* __restrict literal, uint32_t length) noexcept {
     if (length > 0) {
       while (length-- > 0) {
-        int32_t ch{*literal++};
+        const int32_t ch{*literal++};
         if (0x80 & ch) {
           Putc(ESCAPE_CHAR);
         }
@@ -508,8 +517,8 @@ private:
   }
 
   void EncodeWord() noexcept {
-    auto wlength{uint32_t(_word.length())};
-    const char* __restrict__ word{_word.c_str()};
+    auto wlength{static_cast<uint32_t>(_word.length())};
+    const char* __restrict word{_word.c_str()};
 
     if (wlength >= MIN_WORD_SIZE) {
       if (const auto whole_word{_dictionary.word2frequency(_word)}; whole_word.first) {
@@ -574,7 +583,7 @@ private:
     EncodeWord();
     _word.clear();
 
-    const auto vlength{uint32_t(_value.length())};
+    const auto vlength{static_cast<uint32_t>(_value.length())};
     if (vlength > 0) {
       if ((vlength <= MIN_NUMBER_SIZE) || !EncodeValue()) {
         Literal(_value.c_str(), vlength);
@@ -583,7 +592,7 @@ private:
     }
   }
 
-  auto CostsValue(uint128_t value) noexcept -> int32_t {
+  [[nodiscard]] auto CostsValue(uint128_t value) const noexcept -> int32_t {
     int32_t i{1};
     while (value > 0x3F) {
       value >>= 6;
@@ -592,26 +601,25 @@ private:
     return i;
   }
 
-  //                         ULLONG_MAX 18446744073709551615ULL
-  static constexpr uint128_t P10_UINT64{10000000000000000000_xxl};  // 19 zeroes
-
   [[nodiscard]] auto xxltostr(const uint128_t value) const noexcept -> std::array<char, 64> {
-    std::array<char, 64> str;
+    std::array<char, 64> str{};
     if (value > ULLONG_MAX) {
-      const uint64_t leading{uint64_t(value / P10_UINT64)};
-      const uint64_t trailing{uint64_t(value % P10_UINT64)};
+      //                         ULLONG_MAX 18446744073709551615ULL
+      static constexpr uint128_t P10_UINT64{10000000000000000000_xxl};  // 19 zeroes
+      const uint64_t leading{static_cast<uint64_t>(value / P10_UINT64)};
+      const uint64_t trailing{static_cast<uint64_t>(value % P10_UINT64)};
       snprintf(str.data(), str.size(), "%" PRIu64 "%.19" PRIu64, leading, trailing);
     } else {
-      snprintf(str.data(), str.size(), "%" PRIu64, uint64_t(value));
+      snprintf(str.data(), str.size(), "%" PRIu64, static_cast<uint64_t>(value));
     }
     return str;
   }
 
-  [[nodiscard]] auto strtoxxl(const char* __restrict__ src) const noexcept -> uint128_t {
+  [[nodiscard]] auto strtoxxl(const char* __restrict src) const noexcept -> uint128_t {
     uint128_t value{0};
     while (*src) {
       value *= 10;
-      value += uint128_t(*src - '0');
+      value += static_cast<uint128_t>(*src - '0');
       ++src;
     }
     return value;
@@ -624,13 +632,13 @@ private:
       Putc(ESCAPE_CHAR);
       const int32_t costs{CostsValue(value)};
       assert(costs >= 0x04);  // Bottom limit
-      assert(costs <= 0x0F);  // Physical limit
+      assert(costs <= 0x0C);  // Practical limit (Physical limit 0x0F)
       Putc(0xF0 | costs);
       while (value > 0x3F) {
-        Putc((0x80 | int32_t(0x3F & value)));
+        Putc(0x80 | static_cast<int32_t>(0x3F & value));
         value >>= 6;
       }
-      Putc(int32_t(value));
+      Putc(static_cast<int32_t>(value));
       return true;  // Success
     }
     return false;  // Failure...
@@ -640,7 +648,7 @@ private:
     if (!to_numbers_) {
       const auto vlength{_value.length()};
       if (Utilities::is_number(ch) && ((vlength > 0) || ((0 == vlength) && ('0' != ch)))) {  // Avoid leading zero's
-        _value.push_back(char(ch));
+        _value.push_back(static_cast<char>(ch));
         if (vlength >= MAX_NUMBER_SIZE) {  // The maximum value is 340282366920938463463374607431768211455...
           EncodeWordValue();
         }
@@ -652,7 +660,7 @@ private:
     }
 
     if (TxtPrep4::is_word_char(ch) && (_word.length() < MAX_WORD_SIZE)) {
-      _word.push_back(char(ch));
+      _word.push_back(static_cast<char>(ch));
     } else {
       EncodeWordValue();
 
@@ -676,7 +684,7 @@ private:
     return _original_length;
   }
 
-  Dictionary _dictionary;
+  Dictionary _dictionary{};
   File_t& _in;
   File_t& _out;
   int64_t _original_length{0};

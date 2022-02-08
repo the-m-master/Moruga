@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _BMP_HDR_
 #define _BMP_HDR_
@@ -49,4 +51,4 @@ private:
   uint32_t _width{0};
 };
 
-#endif /* _BMP_HDR_ */
+#endif  // _BMP_HDR_

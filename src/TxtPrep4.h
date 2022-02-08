@@ -15,9 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
-#ifndef TEXT_PREPARATION4_HDR
-#define TEXT_PREPARATION4_HDR
+#ifndef _TEXT_PREPARATION4_HDR_
+#define _TEXT_PREPARATION4_HDR_
 
 #include <cstdint>
 class File_t;
@@ -38,4 +40,4 @@ auto encode_txt(File_t& in, File_t& out) noexcept -> int64_t;
  */
 auto decode_txt(File_t& in, File_t& out) noexcept -> int64_t;
 
-#endif /* TEXT_PREPARATION4_HDR */
+#endif  //_TEXT_PREPARATION4_HDR_

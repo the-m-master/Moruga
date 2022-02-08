@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "tif.h"
 #include <cstdint>
@@ -44,8 +46,8 @@ public:
     memset(&_dictionary, 0xFF, sizeof(_dictionary));
     _table.fill(0xFF);
     for (uint32_t i{0}; i < 256; i++) {
-      _table[-findEntry(-1, i) - 1] = int16_t(i);
-      _dictionary[i].suffix = int16_t(i);
+      _table[-findEntry(-1, i) - 1] = static_cast<int16_t>(i);
+      _dictionary[i].suffix = static_cast<int16_t>(i);
     }
     _index = 258;  // 2 extra codes, one for resetting the dictionary and one for signalling EOF
   }
@@ -55,14 +57,11 @@ public:
   }
 
   auto findEntry(int32_t prefix, int32_t suffix) noexcept -> int32_t {
-#if 1
-    // Golden ratio of 2^32 (not a prime)
-    static constexpr auto PHI32{int32_t(0x9E3779B9u)};  // 2654435769
-
-    int32_t i{(PHI32 * prefix * suffix) >> (32 - 13)};
-#else
+#  if 1
+    int32_t i{(Utilities::PHI32 * prefix * suffix) >> (32 - 13)};
+#  else
     int32_t i = finalize64(hash(prefix, suffix), 13);
-#endif
+#  endif
     int32_t offset = (i > 0) ? hashSize - i : 1;
     for (;;) {
       if (_table[i] < 0) {  // free slot?
@@ -82,20 +81,20 @@ public:
     if (prefix == -1 || prefix >= _index || _index > 4095 || offset >= 0) {
       return;
     }
-    _dictionary[_index].prefix = int16_t(prefix);
-    _dictionary[_index].suffix = int16_t(suffix);
-    _table[-offset - 1] = int16_t(_index);
+    _dictionary[_index].prefix = static_cast<int16_t>(prefix);
+    _dictionary[_index].suffix = static_cast<int16_t>(suffix);
+    _table[-offset - 1] = static_cast<int16_t>(_index);
     _index += _index < 4096;
   }
 
   auto dumpEntry(File_t& f, int32_t code) noexcept -> int32_t {
     int32_t n = 4095;
     while (code > 256 && n >= 0) {
-      _buffer[n] = uint8_t(_dictionary[code].suffix);
+      _buffer[n] = static_cast<uint8_t>(_dictionary[code].suffix);
       n--;
       code = _dictionary[code].prefix;
     }
-    _buffer[n] = uint8_t(code);
+    _buffer[n] = static_cast<uint8_t>(code);
     f.Write(&_buffer[n], 4096 - n);
     return code;
   }
@@ -219,7 +218,7 @@ static void writeCode(File_t& f, const bool compare, int32_t* buffer, uint64_t* 
   while ((*bitsUsed) > 7) {
     const uint8_t b = *buffer >> (*bitsUsed -= 8);
     (*pos)++;
-#if 1
+#  if 1
     if (compare) {
       if (b != f.getc()) {
         *diffFound = *pos;
@@ -227,13 +226,13 @@ static void writeCode(File_t& f, const bool compare, int32_t* buffer, uint64_t* 
     } else {
       f.putc(b);
     }
-#else
+#  else
     if (mode == FDECOMPRESS) {
       f->putChar(b);
     } else if (mode == FCOMPARE && b != f->getchar()) {
       *diffFound = *pos;
     }
-#endif
+#  endif
   }
 }
 
@@ -271,20 +270,20 @@ static auto encodeLzw(File_t& in, File_t& out, const bool compare, uint64_t& dif
   writeCode(out, compare, &buffer, &pos, &bitsUsed, bitsPerCode, LZWDictionary::eof_code, &diffFound);
   if (bitsUsed > 0) {  // flush buffer
     pos++;
-#if 1
+#  if 1
     if (compare) {
-      if (uint8_t(buffer) != out.getc()) {
+      if (static_cast<uint8_t>(buffer) != out.getc()) {
         diffFound = pos;
       }
     } else {
-      out.putc(uint8_t(buffer));
+      out.putc(static_cast<uint8_t>(buffer));
     }
-#else
+#  else
     if (mode == FDECOMPRESS) {
-    } else if (mode == FCOMPARE && uint8_t(_buffer) != out->getchar()) {
+    } else if (mode == FCOMPARE && static_cast<uint8_t>(_buffer) != out->getchar()) {
       diffFound = pos;
     }
-#endif
+#  endif
   }
   return pos;
 }
@@ -359,7 +358,7 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
             rgb = tagVal;
             ++ntags;
           } else if ((STRIP_OFFSETS == tag) && (4 == tagFmt)) {
-            ots = int32_t(tagVal);
+            ots = static_cast<int32_t>(tagVal);
             ++ntags;
           } else if (BYTES_PER_PIXEL == tag) {
             _di.bytes_per_pixel = tagVal;
@@ -374,8 +373,8 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
           (2 == rgb) &&                          //
           ((3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
         //        _di.lzw_encoded = 5 == cmp;
-        _di.filter_end = int32_t(width * height * _di.bytes_per_pixel);
-        ots -= int32_t(offset);
+        _di.filter_end = static_cast<int32_t>(width * height * _di.bytes_per_pixel);
+        ots -= static_cast<int32_t>(offset);
         _di.offset_to_start = (ots < 0) ? 0 : ots;
 #if 0
         fprintf(stderr, "iTIF %ux%ux%u  \n", width, height, _di.bytes_per_pixel);
@@ -420,7 +419,7 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
             rgb = tagVal;
             ++ntags;
           } else if ((STRIP_OFFSETS == tag) && (4 == tagFmt)) {
-            ots = int32_t(tagVal);
+            ots = static_cast<int32_t>(tagVal);
             ++ntags;
           } else if (BYTES_PER_PIXEL == tag) {
             _di.bytes_per_pixel = tagVal;
@@ -435,8 +434,8 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
           (2 == rgb) &&                          //
           ((3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
         //        _di.lzw_encoded = 5 == cmp;
-        _di.filter_end = int32_t(width * height * _di.bytes_per_pixel);
-        ots -= int32_t(offset);
+        _di.filter_end = static_cast<int32_t>(width * height * _di.bytes_per_pixel);
+        ots -= static_cast<int32_t>(offset);
         _di.offset_to_start = (ots < 0) ? 0 : ots;
 #if 0
         fprintf(stderr, "mTIF %ux%ux%u  \n", width, height, _di.bytes_per_pixel);
@@ -461,7 +460,7 @@ auto TIF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if (_di.lzw_encoded) {
     // TODO
   } else {
-    _rgba[_length++] = int8_t(ch);
+    _rgba[_length++] = static_cast<int8_t>(ch);
 
     if (_length >= _di.bytes_per_pixel) {
       _length = 0;
@@ -486,7 +485,7 @@ auto TIF_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // dec
   if (_di.lzw_encoded) {
     // TODO
   } else {
-    _rgba[_length++] = int8_t(ch);
+    _rgba[_length++] = static_cast<int8_t>(ch);
 
     if (_length >= _di.bytes_per_pixel) {
       _length = 0;

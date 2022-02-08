@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _LZX_HDR_
 #define _LZX_HDR_
@@ -44,4 +46,4 @@ private:
   DataInfo_t& _di;
 };
 
-#endif /* _LZX_HDR_ */
+#endif  // _LZX_HDR_

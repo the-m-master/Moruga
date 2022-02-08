@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "pdf.h"
 #include <cassert>
@@ -64,7 +66,7 @@ static constexpr uint128_t endobj_mask    {0x000000FFFFFFFFFFFFFF_xxl};
 // clang-format on
 
 auto Header_t::ScanPDF(int32_t ch) noexcept -> Filter {
-  _di.tag = (_di.tag << 8) | uint128_t(ch);
+  _di.tag = (_di.tag << 8) | static_cast<uint128_t>(ch);
   if (((stream0A == (stream0A_mask & _di.tag)) || (stream0D0A == (stream0D0A_mask & _di.tag))) &&  //
       (endstream0A != (endstream_mask & _di.tag)) && (endstream0D != (endstream_mask & _di.tag))) {
     _di.tag = 0;
@@ -90,7 +92,7 @@ auto PDF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   int64_t block_length{0};
   int32_t c;
   while (EOF != (c = _stream.getc())) {
-    _di.tag = (_di.tag << 8) | uint128_t(c);
+    _di.tag = (_di.tag << 8) | static_cast<uint128_t>(c);
     if ((endobj0A == (endobj_mask & _di.tag)) ||                                                     //
         (endobj0D == (endobj_mask & _di.tag)) ||                                                     //
         ((stream0A == (stream0A_mask & _di.tag)) && (endstream0A != (endstream_mask & _di.tag))) ||  //
@@ -138,7 +140,7 @@ auto PDF_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     --_length;
     _block_length = (_block_length << 8) | ch;
     if (0 == _length) {
-      if ((_DEADBEEF != uint32_t(_block_length)) && (_block_length > 0)) {
+      if ((_DEADBEEF != static_cast<uint32_t>(_block_length)) && (_block_length > 0)) {
         _data = new File_t;
         pos -= _block_length;
       } else {

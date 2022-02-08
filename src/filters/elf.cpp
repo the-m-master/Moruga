@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "elf.h"
 #include <cassert>
@@ -322,12 +324,12 @@ auto Header_t::ScanELF(int32_t /*ch*/) noexcept -> Filter {
         uint32_t i{_buf.Pos() - offset};
         if (ELFCLASS64 == clss) {
           const Elf64_entry_t* entry = reinterpret_cast<Elf64_entry_t*>(&_buf[i]);
-          _di.location = int32_t(entry->shoff + (entry->shstrndx * sizeof(Elf64_section_t)));
+          _di.location = static_cast<int32_t>(entry->shoff + (entry->shstrndx * sizeof(Elf64_section_t)));
           entry_32 = nullptr;
           entry_64 = entry;
         } else {
           const Elf32_entry_t* entry = reinterpret_cast<Elf32_entry_t*>(&_buf[i]);
-          _di.location = int32_t(entry->shoff + (entry->shstrndx * sizeof(Elf32_section_t)));
+          _di.location = static_cast<int32_t>(entry->shoff + (entry->shstrndx * sizeof(Elf32_section_t)));
           entry_32 = entry;
           entry_64 = nullptr;
         }
@@ -381,17 +383,17 @@ auto ELF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
       Elf64_section_t section;
       _stream.Read(&section, sizeof(section));
       if ((1 == section.name) && (3 == section.type)) {
-        const auto length{int32_t(section.offset + section.size)};
+        const auto length{static_cast<int32_t>(section.offset + section.size)};
         _di.filter_end = length;
       } else {
 #if 0
         int64_t section_offset{origin + section.offset - offset - 1};
-        char* section_names = static_cast<char*>(calloc(1, size_t(section.size)));
+        char* section_names = static_cast<char*>(calloc(1, static_cast<size_t>(section.size)));
         _stream.Seek(section_offset);
-        _stream.Read(section_names, size_t(section.size));
+        _stream.Read(section_names, static_cast<size_t>(section.size));
 
         for (uint32_t idx{0}; idx < entry_64->shnum; idx++) {
-          section_offset = origin + int64_t(entry_64->shoff) - offset - 1 + int64_t(idx * sizeof(section));
+          section_offset = origin + static_cast<int64_t>(entry_64->shoff) - offset - 1 + static_cast<int64_t>(idx * sizeof(section));
           _stream.Seek(section_offset);
           _stream.Read(&section, sizeof(section));
           if (section.size > 0) {
@@ -411,7 +413,7 @@ auto ELF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
       Elf32_section_t section;
       _stream.Read(&section, sizeof(section));
       if ((1 == section.name) && (3 == section.type)) {
-        const auto length{int32_t(section.offset + section.size)};
+        const auto length{static_cast<int32_t>(section.offset + section.size)};
         _di.filter_end = length;
       } else {
         _di.filter_end = 0;
@@ -432,7 +434,7 @@ auto ELF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   detect(ch);
 
   if (_transform) {
-    _addr[_length++] = uint8_t(ch);
+    _addr[_length++] = static_cast<uint8_t>(ch);
     if (_length >= 5) {
       _length = 0;
       _transform = false;
@@ -447,19 +449,19 @@ auto ELF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
         int32_t* __restrict const mru{(0xE8 == _addr[0]) ? &_call_mru[0] : &_jump_mru[0]};
         const auto index{update_mru(mru, addr)};
 
-        if (int32_t(_call_mru.size() - 1) != index) {
+        if (static_cast<int32_t>(_call_mru.size() - 1) != index) {
           _addr[1] = 0xFF;
           _addr[2] = 0xFF;
-          _addr[3] = uint8_t(index);
+          _addr[3] = static_cast<uint8_t>(index);
           _addr[4] = mru_escape;
         } else {
           addr += _location;
           addr <<= 7;
           addr >>= 7;
-          _addr[1] = uint8_t(addr >> 16);
-          _addr[2] = uint8_t(addr >> 8);
-          _addr[3] = uint8_t(addr);
-          _addr[4] = uint8_t(addr >> 24);
+          _addr[1] = static_cast<uint8_t>(addr >> 16);
+          _addr[2] = static_cast<uint8_t>(addr >> 8);
+          _addr[3] = static_cast<uint8_t>(addr);
+          _addr[4] = static_cast<uint8_t>(addr >> 24);
         }
       }
 
@@ -486,7 +488,7 @@ auto ELF_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     if (4 == _length) {
       _length = 0;
       pos -= 4;
-      if (_DEADBEEF == uint32_t(_location)) {
+      if (_DEADBEEF == static_cast<uint32_t>(_location)) {
         _di.filter_end = 0;
       } else {
         _di.filter_end = _location;
@@ -501,7 +503,7 @@ auto ELF_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
   detect(ch);
 
   if (_transform) {
-    _addr[_length++] = uint8_t(ch);
+    _addr[_length++] = static_cast<uint8_t>(ch);
     if (_length >= 5) {
       _length = 0;
       _transform = false;
@@ -532,10 +534,10 @@ auto ELF_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
         if (valid) {
           update_mru(mru, addr);
 
-          _addr[1] = uint8_t(addr);
-          _addr[2] = uint8_t(addr >> 8);
-          _addr[3] = uint8_t(addr >> 16);
-          _addr[4] = uint8_t(addr >> 24);
+          _addr[1] = static_cast<uint8_t>(addr);
+          _addr[2] = static_cast<uint8_t>(addr >> 8);
+          _addr[3] = static_cast<uint8_t>(addr >> 16);
+          _addr[4] = static_cast<uint8_t>(addr >> 24);
         }
       }
 

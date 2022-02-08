@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _FILE_HDR_
 #define _FILE_HDR_
@@ -28,11 +30,11 @@
 #include "Utilities.h"
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
-#include <windows.h>
+#  include <windows.h>
 
-#if !defined(__CYGWIN__)
-#define getc_unlocked(_stream) _fgetc_nolock(_stream)
-#define putc_unlocked(_c, _stream) _fputc_nolock(_c, _stream)
+#  if !defined(__CYGWIN__)
+#    define getc_unlocked(_stream) _fgetc_nolock(_stream)
+#    define putc_unlocked(_c, _stream) _fputc_nolock(_c, _stream)
 
 /**
  * On Windows when using tmpfile() the temporary file may be created in the root
@@ -44,18 +46,17 @@
  * @return temporary file location
  */
 static std::string getTempFileLocation() noexcept {
-  std::array<char, MAX_PATH> filename;
-  filename.fill(0);
-  std::array<char, MAX_PATH> temppath;
-  const uint32_t i{GetTempPathA(temppath.size(), temppath.data())};
+  std::array<char, MAX_PATH> filename{};
+  std::array<char, MAX_PATH> temppath{};
+  const uint32_t i{GetTempPathA(DWORD(temppath.size()), temppath.data())};
   if (i < temppath.size()) {
     static constexpr char prefix[]{"Moruga"};
     GetTempFileNameA(temppath.data(), prefix, 0, filename.data());
   }
   return filename.data();
 }
-#endif  // !defined(__CYGWIN__)
-#endif  // defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
+#  endif  // !defined(__CYGWIN__)
+#endif    // defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 
 class File_t final {
 public:
@@ -130,11 +131,11 @@ public:
     return _ftelli64(_stream);
 #else
     if (fpos_t pos; !fgetpos(_stream, &pos)) {
-#if defined(__linux__)
+#  if defined(__linux__)
       return pos.__pos;
-#else
+#  else
       return pos;
-#endif
+#  endif
     }
     return INT64_C(-1);
 #endif
@@ -173,37 +174,39 @@ public:
   }
 
   [[nodiscard]] auto get32() const noexcept -> uint32_t {
-    return uint32_t(getc() << 24) |  //
-           uint32_t(getc() << 16) |  //
-           uint32_t(getc() << 8) |   //
-           uint32_t(getc());
+    return static_cast<uint32_t>(getc() << 24) |  //
+           static_cast<uint32_t>(getc() << 16) |  //
+           static_cast<uint32_t>(getc() << 8) |   //
+           static_cast<uint32_t>(getc());
   }
 
   void put32(const uint32_t x) const noexcept {
-    putc(int32_t(x >> 24));
-    putc(int32_t(x >> 16));
-    putc(int32_t(x >> 8));
-    putc(int32_t(x));
+    putc(static_cast<int32_t>(x >> 24));
+    putc(static_cast<int32_t>(x >> 16));
+    putc(static_cast<int32_t>(x >> 8));
+    putc(static_cast<int32_t>(x));
   }
 
   [[nodiscard]] auto getVLI() const noexcept -> int64_t {
-    int64_t i{0};
+    int64_t value{0};
     int32_t k{0};
-    int32_t b;
+    int32_t b{0};
     do {
-      b = getc();
-      i |= int64_t(0x3F & b) << k;
+      if (EOF == (b = getc())) {
+        break;  // Should never happen...
+      }
+      value |= static_cast<int64_t>(0x3F & b) << k;
       k += 6;
-    } while (0x80 & b);
-    return i;
+    } while ((k < 127) && (0x80 == (0xC0 & b)));
+    return value;
   }
 
   void putVLI(int64_t i) const noexcept {
     while (i > 0x3F) {
-      putc(int32_t(0x80 | (0x3F & i)));
+      putc(static_cast<int32_t>(0x80 | (0x3F & i)));
       i >>= 6;
     }
-    putc(int32_t(i));
+    putc(static_cast<int32_t>(i));
   }
 
   auto Read(void* const data, const size_t size) const noexcept -> size_t {
@@ -215,9 +218,9 @@ public:
   }
 
 private:
-  static constexpr char _mode[]{"wb+TD"};
+  static constexpr char _mode[6]{"wb+TD"};
 
   FILE* _stream;
 };
 
-#endif /* _FILE_HDR_ */
+#endif  // _FILE_HDR_

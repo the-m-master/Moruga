@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _TGA_HDR_
 #define _TGA_HDR_
@@ -49,4 +51,4 @@ private:
   int32_t : 32;  // Padding
 };
 
-#endif /* _TGA_HDR_ */
+#endif  // _TGA_HDR_

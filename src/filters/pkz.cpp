@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "pkz.h"
 #include <cassert>
@@ -94,9 +96,9 @@ auto Header_t::ScanPKZ(int32_t /*ch*/) noexcept -> Filter {
   if ((0 == _di.pkzippos) && ('PK\x3\x4' == m4(32)) && (8 == i2(32 - 8))) {
     const int32_t nlen{i2(32 - 26) + i2(32 - 28)};
     if ((nlen > 0) && (nlen < 256)) {
-      _di.pkzippos = _buf.Pos() + uint32_t(nlen) - (_encode ? 3 : 2);
-      _di.pkziplen = int32_t(i4(32 - 18));
-      const int32_t usize{int32_t(i4(32 - 22))};
+      _di.pkzippos = _buf.Pos() + static_cast<uint32_t>(nlen) - (_encode ? 3 : 2);
+      _di.pkziplen = static_cast<int32_t>(i4(32 - 18));
+      const int32_t usize{static_cast<int32_t>(i4(32 - 22))};
       if ((usize > 0) && (_di.pkziplen > 0) && (usize < _di.pkziplen)) {  // Normally compressed size is less then uncompressed size
         _di.pkzippos = 0;
         _di.pkziplen = 0;
@@ -153,7 +155,7 @@ auto PKZ_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     --_length;
     _block_length = (_block_length << 8) | ch;
     if (0 == _length) {
-      if ((_DEADBEEF != uint32_t(_block_length)) && (_block_length > 0)) {
+      if ((_DEADBEEF != static_cast<uint32_t>(_block_length)) && (_block_length > 0)) {
         _data = new File_t;
         pos -= _block_length;
       } else {

@@ -13,9 +13,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
-#ifndef ZIPLIB_HDR
-#define ZIPLIB_HDR
+#ifndef _ZIPLIB_HDR_
+#define _ZIPLIB_HDR_
 
 #include <cstdint>
 
@@ -26,4 +28,4 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
 
 auto decodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t safe_pos, const int64_t block_length) noexcept -> int64_t;
 
-#endif /* ZIPLIB_HDR */
+#endif  //_ZIPLIB_HDR_

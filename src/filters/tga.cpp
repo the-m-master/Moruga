@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "tga.h"
 #include <cstdint>
@@ -57,8 +59,8 @@ auto Header_t::ScanTGA(int32_t /*ch*/) noexcept -> Filter {
         const auto width{i2(offset - 12)};
         const auto height{i2(offset - 14)};
         if ((width > 0) && (width < 0x4000) && (height > 0) && (height < 0x4000)) {
-          _di.bytes_per_pixel = uint32_t(bits_per_pixel) / 8;
-          _di.filter_end = int32_t(_di.bytes_per_pixel * width * height);
+          _di.bytes_per_pixel = static_cast<uint32_t>(bits_per_pixel) / 8;
+          _di.filter_end = static_cast<int32_t>(_di.bytes_per_pixel * width * height);
           _di.image_width = 0;
           _di.offset_to_start = 0;
 #if 0
@@ -92,7 +94,7 @@ TGA_filter::~TGA_filter() noexcept {
 }
 
 auto TGA_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
-  _rgba[_length++] = int8_t(ch);
+  _rgba[_length++] = static_cast<int8_t>(ch);
 
   if (_length >= _di.bytes_per_pixel) {
     _length = 0;
@@ -106,8 +108,8 @@ auto TGA_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
       const auto g{_rgba[1]};
       const auto r{_rgba[2]};
       const auto x{g};
-      const auto y{int8_t(g - r)};
-      const auto z{int8_t(g - b)};
+      const auto y{static_cast<int8_t>(g - r)};
+      const auto z{static_cast<int8_t>(g - b)};
       _coder->Compress(x - _prev_rgba[0]);
       _coder->Compress(y - _prev_rgba[1]);
       _coder->Compress(z - _prev_rgba[2]);
@@ -125,7 +127,7 @@ auto TGA_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
 }
 
 auto TGA_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // decoding
-  _rgba[_length++] = int8_t(ch);
+  _rgba[_length++] = static_cast<int8_t>(ch);
 
   if (_length >= _di.bytes_per_pixel) {
     _length = 0;
@@ -138,9 +140,9 @@ auto TGA_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // dec
       const auto b{_rgba[0]};
       const auto g{_rgba[1]};
       const auto r{_rgba[2]};
-      const auto x{int8_t(b - r)};
+      const auto x{static_cast<int8_t>(b - r)};
       const auto y{b};
-      const auto z{int8_t(b - g)};
+      const auto z{static_cast<int8_t>(b - g)};
       _prev_rgba[0] += x;
       _prev_rgba[1] += y;
       _prev_rgba[2] += z;

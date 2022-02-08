@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _PNG_HDR_
 #define _PNG_HDR_
@@ -43,7 +45,7 @@ private:
   // clang-format off
 
   // 32-bits big endian (Motorola) number at buf(i-3)..buf(i)
-  [[nodiscard]] constexpr auto m4(const uint32_t i) const noexcept -> uint32_t { return uint32_t(_buf(i - 3) | (_buf(i - 2) << 8) | (_buf(i - 1) << 16) | (_buf(i) << 24)); }
+  [[nodiscard]] constexpr auto m4(const uint32_t i) const noexcept -> uint32_t { return static_cast<uint32_t>(_buf(i - 3) | (_buf(i - 2) << 8) | (_buf(i - 1) << 16) | (_buf(i) << 24)); }
 
   // clang-format on
 
@@ -56,4 +58,4 @@ private:
   File_t* _data{nullptr};
 };
 
-#endif /* _PNG_HDR_ */
+#endif  // _PNG_HDR_

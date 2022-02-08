@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "exe.h"
 #include <cassert>
@@ -25,8 +27,8 @@
 #include "iEncoder.h"
 
 #if defined(__linux__)
-#define IMAGE_SIZEOF_SHORT_NAME 8
-#define IMAGE_NUMBEROF_DIRECTORY_ENTRIES 16
+#  define IMAGE_SIZEOF_SHORT_NAME 8
+#  define IMAGE_NUMBEROF_DIRECTORY_ENTRIES 16
 #endif
 
 struct IMAGE_FILE_HEADER_t {
@@ -212,24 +214,24 @@ auto Header_t::ScanEXE(int32_t /*ch*/) noexcept -> Filter {
         i += sizeof(IMAGE_NT_HEADERS64_t);
 
         number_of_sections = _ntHeader->FileHeader.NumberOfSections;
-        sizeof_headers = int32_t(_ntHeader->OptionalHeader.SizeOfHeaders);
+        sizeof_headers = static_cast<int32_t>(_ntHeader->OptionalHeader.SizeOfHeaders);
       } else {
         const IMAGE_NT_HEADERS32_t* _ntHeader = reinterpret_cast<IMAGE_NT_HEADERS32_t*>(&_buf[i]);
         i += sizeof(IMAGE_NT_HEADERS32_t);
 
         number_of_sections = _ntHeader->FileHeader.NumberOfSections;
-        sizeof_headers = int32_t(_ntHeader->OptionalHeader.SizeOfHeaders);
+        sizeof_headers = static_cast<int32_t>(_ntHeader->OptionalHeader.SizeOfHeaders);
       }
 
       if (number_of_sections < 32) {
         int32_t size{sizeof_headers};
         for (uint32_t n{0}; n < number_of_sections; ++n) {
-          size += int32_t(reinterpret_cast<IMAGE_SECTION_HEADER_t*>(&_buf[i])->SizeOfRawData);
+          size += static_cast<int32_t>(reinterpret_cast<IMAGE_SECTION_HEADER_t*>(&_buf[i])->SizeOfRawData);
           i += sizeof(IMAGE_SECTION_HEADER_t);
         }
 
-        const auto offset_to_start{sizeof_headers - int32_t(offset)};
-        const auto filter_end{size - int32_t(offset)};
+        const auto offset_to_start{sizeof_headers - static_cast<int32_t>(offset)};
+        const auto filter_end{size - static_cast<int32_t>(offset)};
 
         if ((size > 0) && (offset_to_start >= 0) && (filter_end > 0)) {
           _di.location = offset;
@@ -270,7 +272,7 @@ auto EXE_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   detect(ch);
 
   if (_transform) {
-    _addr[_length++] = uint8_t(ch);
+    _addr[_length++] = static_cast<uint8_t>(ch);
     if (_length >= 5) {
       _length = 0;
       _transform = false;
@@ -286,10 +288,10 @@ auto EXE_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
 
         const int32_t addr{(_addr[1] | (_addr[2] << 8) | (_addr[3] << 16) | (_addr[4] << 24)) + _location};
 
-        _addr[1] = uint8_t(addr);
-        _addr[2] = uint8_t(addr >> 16);
-        _addr[3] = uint8_t(addr >> 8);
-        _addr[4] = uint8_t(0 - (1 & (addr >> 24)));
+        _addr[1] = static_cast<uint8_t>(addr);
+        _addr[2] = static_cast<uint8_t>(addr >> 16);
+        _addr[3] = static_cast<uint8_t>(addr >> 8);
+        _addr[4] = static_cast<uint8_t>(0 - (1 & (addr >> 24)));
       }
 
       _coder->Compress(_addr[0]);
@@ -311,7 +313,7 @@ auto EXE_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // dec
   detect(ch);
 
   if (_transform) {
-    _addr[_length++] = uint8_t(ch);
+    _addr[_length++] = static_cast<uint8_t>(ch);
     if (_length >= 5) {
       _length = 0;
       _transform = false;
@@ -327,10 +329,10 @@ auto EXE_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // dec
 
         const int32_t addr{(_addr[1] | (_addr[2] << 16) | (_addr[3] << 8) | (_addr[4] << 24)) - _location};
 
-        _addr[1] = uint8_t(addr);
-        _addr[2] = uint8_t(addr >> 8);
-        _addr[3] = uint8_t(addr >> 16);
-        _addr[4] = uint8_t(0 - (1 & (addr >> 24)));
+        _addr[1] = static_cast<uint8_t>(addr);
+        _addr[2] = static_cast<uint8_t>(addr >> 8);
+        _addr[3] = static_cast<uint8_t>(addr >> 16);
+        _addr[4] = static_cast<uint8_t>(0 - (1 & (addr >> 24)));
       }
 
       _stream.putc(_addr[0]);

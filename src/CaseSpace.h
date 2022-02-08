@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _CASE_SPACE_HDR_
 #define _CASE_SPACE_HDR_
@@ -49,19 +51,19 @@ public:
   [[nodiscard]] auto charFrequency() const noexcept -> const int64_t*;
   [[nodiscard]] auto getQuote() const noexcept -> const std::string&;
 
-private:
-  CaseSpace_t(const CaseSpace_t&) = delete;
-  CaseSpace_t(CaseSpace_t&&) = delete;
-  CaseSpace_t& operator=(const CaseSpace_t&) = delete;
-  CaseSpace_t& operator=(CaseSpace_t&&) = delete;
-
-  enum WordType {
+  enum struct WordType {
     ALL_SMALL = 60,             // 0x3C <
     ALL_BIG = 94,               // 0x5E ^
     FIRST_BIG_REST_SMALL = 64,  // 0x40 @
     ESCAPE_CHAR = 12,           // 0x0C
     CRLF_MARKER = 28            // 0x1C
   };
+
+private:
+  CaseSpace_t(const CaseSpace_t&) = delete;
+  CaseSpace_t(CaseSpace_t&&) = delete;
+  CaseSpace_t& operator=(const CaseSpace_t&) = delete;
+  CaseSpace_t& operator=(CaseSpace_t&&) = delete;
 
   void Encode(int32_t ch) noexcept;
   void EncodeWord() noexcept;
@@ -76,11 +78,11 @@ private:
   File_t& _out;
   int64_t _original_length{};
   std::array<int64_t, 256> _char_freq{};
-  WordType _wtype{ALL_SMALL};
+  WordType _wtype{WordType::ALL_SMALL};
   int32_t : 32;  // Padding
   std::unique_ptr<LempelZivWelch_t> _lzw;
   std::string _word{};
   std::string _quote{};
 };
 
-#endif /* _CASE_SPACE_HDR_ */
+#endif  // _CASE_SPACE_HDR_

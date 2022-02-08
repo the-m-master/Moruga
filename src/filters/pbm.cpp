@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "pbm.h"
 #include <cstdint>
@@ -83,7 +85,7 @@ auto Header_t::ScanPBM(int32_t /*ch*/) noexcept -> Filter {
         if (P4 == sig) {
           _di.bytes_per_pixel = 1;
           _di.offset_to_start = 0;  // start now!
-          _di.filter_end = int32_t((width * height) / 8);
+          _di.filter_end = static_cast<int32_t>((width * height) / 8);
           return Filter::PBM;
         }
 
@@ -101,9 +103,9 @@ auto Header_t::ScanPBM(int32_t /*ch*/) noexcept -> Filter {
             _di.offset_to_start = 0;  // start now!
           } else {
             _di.bytes_per_pixel = 3;
-            _di.offset_to_start = int32_t((idx + 1) % _di.bytes_per_pixel);  // Sync with RGB
+            _di.offset_to_start = static_cast<int32_t>((idx + 1) % _di.bytes_per_pixel);  // Sync with RGB
           }
-          _di.filter_end = int32_t(width * height * _di.bytes_per_pixel);
+          _di.filter_end = static_cast<int32_t>(width * height * _di.bytes_per_pixel);
           return Filter::PBM;
         }
       }
@@ -131,7 +133,7 @@ PBM_filter::~PBM_filter() noexcept {
 }
 
 auto PBM_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
-  _rgba[_length++] = int8_t(ch);
+  _rgba[_length++] = static_cast<int8_t>(ch);
 
   if (_length >= _di.bytes_per_pixel) {
     _length = 0;
@@ -145,8 +147,8 @@ auto PBM_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
       const auto g{_rgba[1]};
       const auto r{_rgba[2]};
       const auto x{g};
-      const auto y{int8_t(g - r)};
-      const auto z{int8_t(g - b)};
+      const auto y{static_cast<int8_t>(g - r)};
+      const auto z{static_cast<int8_t>(g - b)};
       _coder->Compress(x - _prev_rgba[0]);
       _coder->Compress(y - _prev_rgba[1]);
       _coder->Compress(z - _prev_rgba[2]);
@@ -160,7 +162,7 @@ auto PBM_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
 }
 
 auto PBM_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // decoding
-  _rgba[_length++] = int8_t(ch);
+  _rgba[_length++] = static_cast<int8_t>(ch);
 
   if (_length >= _di.bytes_per_pixel) {
     _length = 0;
@@ -173,9 +175,9 @@ auto PBM_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // dec
       const auto b{_rgba[0]};
       const auto g{_rgba[1]};
       const auto r{_rgba[2]};
-      const auto x{int8_t(b - r)};
+      const auto x{static_cast<int8_t>(b - r)};
       const auto y{b};
-      const auto z{int8_t(b - g)};
+      const auto z{static_cast<int8_t>(b - g)};
       _prev_rgba[0] += x;
       _prev_rgba[1] += y;
       _prev_rgba[2] += z;

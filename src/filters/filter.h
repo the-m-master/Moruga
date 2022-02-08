@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _FILTER_HDR_
 #define _FILTER_HDR_
@@ -81,8 +83,8 @@ struct DataInfo_t {
 
   int32_t location{0};
 
-  uint32_t resetIntervalBits;
-  uint8_t windowSizeBits;
+  uint32_t resetIntervalBits{0};
+  uint8_t windowSizeBits{0};
 
   int32_t : 24;  // Padding
   int32_t : 32;  // Padding
@@ -121,19 +123,19 @@ private:
   // clang-format off
 
   // 16-bits little endian (Intel) number at buf(i-1)..buf(i)
-  [[nodiscard]] constexpr auto i2(const uint32_t i) const noexcept -> uint16_t { return uint16_t(_buf(i) | (_buf(i - 1) << 8)); }
+  [[nodiscard]] constexpr auto i2(const uint32_t i) const noexcept -> uint16_t { return static_cast<uint16_t>(_buf(i) | (_buf(i - 1) << 8)); }
 
   // 16-bits big endian (Motorola) number at buf(i-1)..buf(i)
-  [[nodiscard]] constexpr auto m2(const uint32_t i) const noexcept -> uint16_t { return uint16_t(_buf(i - 1) | (_buf(i) << 8)); }
+  [[nodiscard]] constexpr auto m2(const uint32_t i) const noexcept -> uint16_t { return static_cast<uint16_t>(_buf(i - 1) | (_buf(i) << 8)); }
 
   // 32-bits little endian (Intel) number at buf(i-3)..buf(i)
-  [[nodiscard]] constexpr auto i4(const uint32_t i) const noexcept -> uint32_t { return uint32_t(_buf(i) | (_buf(i - 1) << 8) | (_buf(i - 2) << 16) | (_buf(i - 3) << 24)); }
+  [[nodiscard]] constexpr auto i4(const uint32_t i) const noexcept -> uint32_t { return static_cast<uint32_t>(_buf(i) | (_buf(i - 1) << 8) | (_buf(i - 2) << 16) | (_buf(i - 3) << 24)); }
 
   // 32-bits big endian (Motorola) number at buf(i-3)..buf(i)
-  [[nodiscard]] constexpr auto m4(const uint32_t i) const noexcept -> uint32_t { return uint32_t(_buf(i - 3) | (_buf(i - 2) << 8) | (_buf(i - 1) << 16) | (_buf(i) << 24)); }
+  [[nodiscard]] constexpr auto m4(const uint32_t i) const noexcept -> uint32_t { return static_cast<uint32_t>(_buf(i - 3) | (_buf(i - 2) << 8) | (_buf(i - 1) << 16) | (_buf(i) << 24)); }
 
   // 64-bits little endian (Intel) number at buf(i-7)..buf(i)
-  [[nodiscard]] constexpr auto i8(const uint32_t i) const noexcept -> uint64_t { return uint64_t(i4(i)) | (uint64_t(i4(i - 4)) << 32); }
+  [[nodiscard]] constexpr auto i8(const uint32_t i) const noexcept -> uint64_t { return static_cast<uint64_t>(i4(i)) | (static_cast<uint64_t>(i4(i - 4)) << 32); }
 
   // clang-format on
 
@@ -166,10 +168,10 @@ private:
   File_t& _stream;
   iEncoder_t* const _encoder;
   iFilter_t* _filter{nullptr};
-  Header_t* _header;
+  Header_t* _header{nullptr};
   int32_t : 32;  // Padding
   int32_t : 32;  // Padding
-  DataInfo_t _di;
+  DataInfo_t _di{};
 };
 
-#endif /* _FILTER_HDR_ */
+#endif  // _FILTER_HDR_

@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _TIFF_HDR_
 #define _TIFF_HDR_
@@ -50,4 +52,4 @@ private:
   int32_t : 32;  // Padding
 };
 
-#endif /* _TIFF_HDR_ */
+#endif  // _TIFF_HDR_

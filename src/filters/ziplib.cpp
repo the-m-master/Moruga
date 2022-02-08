@@ -13,6 +13,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "ziplib.h"
 #include <zconf.h>
@@ -74,8 +76,8 @@ class zLibMTF final {
 public:
   explicit zLibMTF() {
     for (uint32_t i{0}; i < ZLIB_NUM_COMBINATIONS; i++) {
-      _previous[i] = int32_t(i - 1);
-      _next[i] = int32_t(i + 1);
+      _previous[i] = static_cast<int32_t>(i - 1);
+      _next[i] = static_cast<int32_t>(i + 1);
     }
     _next[ZLIB_NUM_COMBINATIONS - 1] = -1;
   }
@@ -91,7 +93,7 @@ public:
 
   auto GetNext() noexcept -> int32_t {
     if (_index >= 0) {
-      _index = _next[uint32_t(_index)];
+      _index = _next[static_cast<uint32_t>(_index)];
       return _index;
     }
     return _index;  //-1
@@ -101,18 +103,18 @@ public:
     if ((_index = i) == _root) {
       return;
     }
-    int32_t p = _previous[uint32_t(_index)];
-    int32_t n = _next[uint32_t(_index)];
+    int32_t p = _previous[static_cast<uint32_t>(_index)];
+    int32_t n = _next[static_cast<uint32_t>(_index)];
     if (p >= 0) {
-      _next[uint32_t(p)] = _next[uint32_t(_index)];
+      _next[static_cast<uint32_t>(p)] = _next[static_cast<uint32_t>(_index)];
     }
     if (n >= 0) {
-      _previous[uint32_t(n)] = _previous[uint32_t(_index)];
+      _previous[static_cast<uint32_t>(n)] = _previous[static_cast<uint32_t>(_index)];
     }
-    _previous[uint32_t(_root)] = _index;
-    _next[uint32_t(_index)] = _root;
+    _previous[static_cast<uint32_t>(_root)] = _index;
+    _next[static_cast<uint32_t>(_index)] = _root;
     _root = _index;
-    _previous[uint32_t(_root)] = -1;
+    _previous[static_cast<uint32_t>(_root)] = -1;
   }
 
 private:
@@ -168,7 +170,7 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
     }
     const uint32_t memlevel{(i % 9) + 1};
     memset(&rec_strm[i], 0, sizeof(rec_strm[i]));
-    int32_t ret = deflateInit2(&rec_strm[i], int32_t(clevel), Z_DEFLATED, window - MAX_WBITS, int32_t(memlevel), Z_DEFAULT_STRATEGY);
+    int32_t ret = deflateInit2(&rec_strm[i], static_cast<int32_t>(clevel), Z_DEFLATED, window - MAX_WBITS, static_cast<int32_t>(memlevel), Z_DEFAULT_STRATEGY);
     diffCount[i] = (Z_OK == ret) ? 0 : LIMIT;
     recpos[i] = BLOCK_SIZE * 2;
     diffPos[i * LIMIT] = -1;
@@ -178,7 +180,7 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
   int32_t main_ret{Z_STREAM_END};
   zLibMTF mtf{};
   for (int64_t i{0}; i < len; i += BLOCK_SIZE) {
-    const uint32_t blsize{(std::min)(uint32_t(len - i), BLOCK_SIZE)};
+    const uint32_t blsize{(std::min)(static_cast<uint32_t>(len - i), BLOCK_SIZE)};
     nTrials = 0;
     for (uint32_t j{0}; j < ZLIB_NUM_COMBINATIONS; j++) {
       if (diffCount[j] == LIMIT) {
@@ -206,35 +208,35 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
       main_stream.avail_out = BLOCK_SIZE;
       main_ret = inflate(&main_stream, Z_FINISH);
       if (Z_STREAM_END == main_ret) {
-        len = int64_t(main_stream.total_in);  // True for PKZip, but not for GZ length of file is not known
+        len = static_cast<int64_t>(main_stream.total_in);  // True for PKZip, but not for GZ length of file is not known
       }
 
       nTrials = 0;
       // Recompress/deflate block with all possible parameters
       for (int32_t j{mtf.GetFirst()}; j >= 0; j = mtf.GetNext()) {
-        if (LIMIT == diffCount[uint32_t(j)]) {
+        if (LIMIT == diffCount[static_cast<uint32_t>(j)]) {
           continue;
         }
         nTrials++;
-        rec_strm[uint32_t(j)].next_in = zout.data();
-        rec_strm[uint32_t(j)].avail_in = BLOCK_SIZE - main_stream.avail_out;
-        rec_strm[uint32_t(j)].next_out = &zrec[recpos[uint32_t(j)]];
-        rec_strm[uint32_t(j)].avail_out = (BLOCK_SIZE * 2) - recpos[uint32_t(j)];
-        const int32_t flush{(len >= int64_t(main_stream.total_in)) ? Z_FINISH : Z_NO_FLUSH};
-        const int32_t ret{deflate(&rec_strm[uint32_t(j)], flush)};
+        rec_strm[static_cast<uint32_t>(j)].next_in = zout.data();
+        rec_strm[static_cast<uint32_t>(j)].avail_in = BLOCK_SIZE - main_stream.avail_out;
+        rec_strm[static_cast<uint32_t>(j)].next_out = &zrec[recpos[static_cast<uint32_t>(j)]];
+        rec_strm[static_cast<uint32_t>(j)].avail_out = (BLOCK_SIZE * 2) - recpos[static_cast<uint32_t>(j)];
+        const int32_t flush{(len >= static_cast<int64_t>(main_stream.total_in)) ? Z_FINISH : Z_NO_FLUSH};
+        const int32_t ret{deflate(&rec_strm[static_cast<uint32_t>(j)], flush)};
         if ((Z_BUF_ERROR != ret) && (Z_STREAM_END != ret) && (Z_OK != ret)) {
-          diffCount[uint32_t(j)] = LIMIT;
+          diffCount[static_cast<uint32_t>(j)] = LIMIT;
           continue;
         }
 
         // Compare
-        const uint32_t end{(2 * BLOCK_SIZE) - rec_strm[uint32_t(j)].avail_out};
-        const uint32_t tail{(std::max)((Z_STREAM_END == main_ret) ? uint32_t(len - int64_t(rec_strm[uint32_t(j)].total_out)) : 0u, 0u)};
-        for (uint32_t k{recpos[uint32_t(j)]}; k < (end + tail); k++) {
+        const uint32_t end{(2 * BLOCK_SIZE) - rec_strm[static_cast<uint32_t>(j)].avail_out};
+        const uint32_t tail{(std::max)((Z_STREAM_END == main_ret) ? static_cast<uint32_t>(len - static_cast<int64_t>(rec_strm[static_cast<uint32_t>(j)].total_out)) : 0u, 0u)};
+        for (uint32_t k{recpos[static_cast<uint32_t>(j)]}; k < (end + tail); k++) {
           if (((k < end) && ((i + k - BLOCK_SIZE) < len) && (zrec[k] != zin[k])) || (k >= end)) {
-            if (++diffCount[uint32_t(j)] < LIMIT) {
-              const uint32_t p{uint32_t(j) * LIMIT + diffCount[uint32_t(j)]};
-              diffPos[p] = int32_t(i + k - BLOCK_SIZE);
+            if (++diffCount[static_cast<uint32_t>(j)] < LIMIT) {
+              const uint32_t p{static_cast<uint32_t>(j) * LIMIT + diffCount[static_cast<uint32_t>(j)]};
+              diffPos[p] = static_cast<int32_t>(i + k - BLOCK_SIZE);
               assert(k < zin.size());
               diffByte[p] = zin[k];
             }
@@ -242,12 +244,12 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
         }
 
         // Early break on perfect match
-        if ((Z_STREAM_END == main_ret) && (0 == diffCount[uint32_t(j)])) {
+        if ((Z_STREAM_END == main_ret) && (0 == diffCount[static_cast<uint32_t>(j)])) {
           index = j;
           found = true;
           break;
         }
-        recpos[uint32_t(j)] = 2 * BLOCK_SIZE - rec_strm[uint32_t(j)].avail_out;
+        recpos[static_cast<uint32_t>(j)] = 2 * BLOCK_SIZE - rec_strm[static_cast<uint32_t>(j)].avail_out;
       }
     } while ((0 == main_stream.avail_out) && (Z_BUF_ERROR == main_ret) && (nTrials > 0));
 
@@ -257,13 +259,13 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
   }
   uint32_t minCount{found ? 0 : LIMIT};
   for (int32_t i{ZLIB_NUM_COMBINATIONS - 1}; i >= 0; i--) {
-    const uint32_t clevel{(uint32_t(i) / 9) + 1};
+    const uint32_t clevel{(static_cast<uint32_t>(i) / 9) + 1};
     if ((clevel >= minclevel) && (clevel <= maxclevel)) {
-      deflateEnd(&rec_strm[uint32_t(i)]);
+      deflateEnd(&rec_strm[static_cast<uint32_t>(i)]);
     }
-    if (!found && (diffCount[uint32_t(i)] < minCount)) {
+    if (!found && (diffCount[static_cast<uint32_t>(i)] < minCount)) {
       index = i;
-      minCount = diffCount[uint32_t(i)];
+      minCount = diffCount[static_cast<uint32_t>(i)];
     }
   }
   inflateEnd(&main_stream);
@@ -276,16 +278,16 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
   //---------------------------------------------------------------------------
   // Step 3 - write parameters, differences and precompressed (inflated) data
   //---------------------------------------------------------------------------
-  out.putc(int32_t(diffCount[uint32_t(index)]));
+  out.putc(static_cast<int32_t>(diffCount[static_cast<uint32_t>(index)]));
   out.putc(window);
   out.putc(index);
-  for (uint32_t i{0}; i <= diffCount[uint32_t(index)]; i++) {
-    const auto v{(i == diffCount[uint32_t(index)]) ? uint32_t(len - diffPos[uint32_t(index) * LIMIT + i]) :  //
-                     uint32_t(diffPos[uint32_t(index) * LIMIT + i + 1] - diffPos[uint32_t(index) * LIMIT + i] - 1)};
+  for (uint32_t i{0}; i <= diffCount[static_cast<uint32_t>(index)]; i++) {
+    const auto v{(i == diffCount[static_cast<uint32_t>(index)]) ? static_cast<uint32_t>(len - diffPos[static_cast<uint32_t>(index) * LIMIT + i]) :  //
+                     static_cast<uint32_t>(diffPos[static_cast<uint32_t>(index) * LIMIT + i + 1] - diffPos[static_cast<uint32_t>(index) * LIMIT + i] - 1)};
     out.put32(v);
   }
-  for (uint32_t i{0}; i < diffCount[uint32_t(index)]; i++) {
-    out.putc(diffByte[uint32_t(index) * LIMIT + i + 1]);
+  for (uint32_t i{0}; i < diffCount[static_cast<uint32_t>(index)]; i++) {
+    out.putc(diffByte[static_cast<uint32_t>(index) * LIMIT + i + 1]);
   }
 
   in.Seek(safe_pos);
@@ -294,7 +296,7 @@ static auto decode_zlib(File_t& in, File_t& out, int64_t& len) noexcept -> bool 
     return false;
   }
   for (uint32_t i{0}; i < len; i += BLOCK_SIZE) {
-    const uint32_t blsize{(std::min)(uint32_t(len - i), BLOCK_SIZE)};
+    const uint32_t blsize{(std::min)(static_cast<uint32_t>(len - i), BLOCK_SIZE)};
     in.Read(zin.data(), blsize);
     main_stream.next_in = zin.data();
     main_stream.avail_in = blsize;
@@ -316,8 +318,8 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
   uint64_t diffFound{0};
   std::array<uint8_t, BLOCK_SIZE> zin;
   std::array<uint8_t, BLOCK_SIZE> zout;
-  const uint32_t diffCount = (std::min)(uint32_t(in.getc()), LIMIT - 1);
-  uint32_t window{uint32_t(in.getc() - MAX_WBITS)};
+  const uint32_t diffCount = (std::min)(static_cast<uint32_t>(in.getc()), LIMIT - 1);
+  uint32_t window{static_cast<uint32_t>(in.getc() - MAX_WBITS)};
   const int32_t index{in.getc()};
   const int32_t memlevel{(index % 9) + 1};
   const int32_t clevel{(index / 9) + 1};
@@ -326,9 +328,9 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
   std::array<int32_t, LIMIT> diffPos;
   diffPos[0] = -1;
   for (uint32_t i{0}; i <= diffCount; i++) {
-    auto v{int32_t(in.get32())};
+    auto v{static_cast<int32_t>(in.get32())};
     if (i == diffCount) {
-      len = uint32_t(v + diffPos[i]);
+      len = static_cast<uint32_t>(v + diffPos[i]);
     } else {
       diffPos[i + 1] = v + diffPos[i] + 1;
     }
@@ -336,20 +338,20 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
   std::array<uint8_t, LIMIT> diffByte;
   diffByte[0] = 0;
   for (uint32_t i{0}; i < diffCount; i++) {
-    diffByte[i + 1] = uint8_t(in.getc());
+    diffByte[i + 1] = static_cast<uint8_t>(in.getc());
   }
   size -= 7 + 5 * diffCount;
 
   z_stream rec_strm;
   memset(&rec_strm, 0, sizeof(rec_strm));
-  int32_t ret = deflateInit2(&rec_strm, clevel, Z_DEFLATED, int32_t(window), memlevel, Z_DEFAULT_STRATEGY);
+  int32_t ret = deflateInit2(&rec_strm, clevel, Z_DEFLATED, static_cast<int32_t>(window), memlevel, Z_DEFAULT_STRATEGY);
   if (Z_OK != ret) {
     return false;
   }
   uint32_t diffIndex{1};
   uint32_t recpos{0};
   for (uint32_t i{0}; i < size; i += BLOCK_SIZE) {
-    const uint32_t blsize{(std::min)(uint32_t(size - i), BLOCK_SIZE)};
+    const uint32_t blsize{(std::min)(static_cast<uint32_t>(size - i), BLOCK_SIZE)};
     in.Read(zin.data(), blsize);
     rec_strm.next_in = zin.data();
     rec_strm.avail_in = blsize;
@@ -361,8 +363,8 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
         break;
       }
       const uint32_t have{(std::min)(BLOCK_SIZE - rec_strm.avail_out, len - recpos)};
-      while ((diffIndex <= diffCount) && (uint32_t(diffPos[diffIndex]) >= recpos) && (uint32_t(diffPos[diffIndex]) < (recpos + have))) {
-        zout[uint32_t(diffPos[diffIndex]) - recpos] = diffByte[diffIndex];
+      while ((diffIndex <= diffCount) && (static_cast<uint32_t>(diffPos[diffIndex]) >= recpos) && (static_cast<uint32_t>(diffPos[diffIndex]) < (recpos + have))) {
+        zout[static_cast<uint32_t>(diffPos[diffIndex]) - recpos] = diffByte[diffIndex];
         diffIndex++;
       }
       if (compare) {

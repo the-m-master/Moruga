@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "wav.h"
 #include <cstdint>
@@ -46,14 +48,14 @@ auto Header_t::ScanWAV(int32_t /*ch*/) noexcept -> Filter {
   static constexpr uint32_t offset{44};
 
   if (('RIFF' == m4(offset - 0)) && ('WAVE' == m4(offset - 8))) {
-    const auto length{int32_t(i4(offset - 4))};
+    const auto length{static_cast<int32_t>(i4(offset - 4))};
     const auto nChannels{i2(offset - 22)};
     const auto bitsProSample{i2(offset - 34)};
     if ((length > 0) && (nChannels >= 1) && (nChannels <= 8)) {
       if ((8 == bitsProSample) || (16 == bitsProSample) || (24 == bitsProSample) || (32 == bitsProSample)) {
-        _di.cycles = uint32_t((nChannels * bitsProSample) / 8);
+        _di.cycles = static_cast<uint32_t>((nChannels * bitsProSample) / 8);
         if ('data' == m4(offset - 36)) {
-          _di.filter_end = int32_t(i4(offset - 40));
+          _di.filter_end = static_cast<int32_t>(i4(offset - 40));
           _di.seekdata = false;
         } else {
           _di.filter_end = length;
@@ -79,7 +81,7 @@ WAV_filter::WAV_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) 
 WAV_filter::~WAV_filter() noexcept = default;
 
 void WAV_filter::seekData(const int32_t c) noexcept {
-  _data = (_data << 8) | uint32_t(c);
+  _data = (_data << 8) | static_cast<uint32_t>(c);
   if (_getLength) {
     --_getLength;
     if (0 == _getLength) {
@@ -105,7 +107,7 @@ auto WAV_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
     seekData(ch);
     _coder->Compress(ch);
   } else {
-    const auto org{int8_t(ch)};
+    const auto org{static_cast<int8_t>(ch)};
     _coder->Compress(org - _delta[_cycle]);
     _delta[_cycle] = org;
     _cycle++;
@@ -121,7 +123,7 @@ auto WAV_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // dec
     seekData(ch);
     _stream.putc(ch);
   } else {
-    const auto org{int8_t(int8_t(ch) + _delta[_cycle])};
+    const auto org{static_cast<int8_t>(int8_t(ch) + _delta[_cycle])};
     _stream.putc(org);
     _delta[_cycle] = org;
     _cycle++;

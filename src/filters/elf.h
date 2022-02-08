@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _ELF_HDR_
 #define _ELF_HDR_
@@ -60,4 +62,4 @@ private:
   std::array<int32_t, 256> _jump_mru{};  // Most recently used E9 or 0F 8x
 };
 
-#endif /* _ELF_HDR_ */
+#endif  // _ELF_HDR_

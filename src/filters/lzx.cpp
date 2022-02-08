@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "lzx.h"
 #include <climits>
@@ -71,7 +73,7 @@ auto Header_t::ScanLZX(int32_t /*ch*/) noexcept -> Filter {
     const uint32_t windowSizeBits{i4(offset - 12)};    // 2
     if ((resetIntervalBits <= 16) && (windowSizeBits <= 16)) {
       _di.resetIntervalBits = (1u << 15) << resetIntervalBits;
-      _di.windowSizeBits = uint8_t(15 + windowSizeBits);
+      _di.windowSizeBits = static_cast<uint8_t>(15 + windowSizeBits);
       _di.offset_to_start = 0;   // start now!
       _di.filter_end = INT_MAX;  // end never..
       return Filter::LZX;

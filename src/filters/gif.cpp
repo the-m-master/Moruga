@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "gif.h"
 #include <array>
@@ -23,6 +25,7 @@
 #include <memory>
 #include "Buffer.h"
 #include "File.h"
+#include "Utilities.h"
 #include "filter.h"
 #include "iEncoder.h"
 
@@ -53,7 +56,7 @@ auto Gif_t::Decode() noexcept -> int64_t {
     _bsizes.push_back(char(block_length));
     fseek(_in, block_length, SEEK_CUR);
   }
-  auto blen = int32_t(_bsizes.size());
+  auto blen = static_cast<int32_t>(_bsizes.size());
   _out.putc(blen >> 24);
   _out.putc(blen >> 16);
   _out.putc(blen >> 8);
@@ -114,11 +117,11 @@ auto Gif_t::Decode() noexcept -> int64_t {
             size_t size{1};
 
             while (j >= (1 << _codeSize)) {
-              _output[4096 - size++] = uint8_t(_dict[uint32_t(j)]);
-              j = _dict[uint32_t(j)] >> 8;
+              _output[4096 - size++] = static_cast<uint8_t>(_dict[static_cast<uint32_t>(j)]);
+              j = _dict[static_cast<uint32_t>(j)] >> 8;
             }
 
-            _output[4096 - size] = uint8_t(j);
+            _output[4096 - size] = static_cast<uint8_t>(j);
 
             if (1 == phase) {
               _out.Write(&_output[4096 - size], size);
@@ -142,11 +145,11 @@ auto Gif_t::Decode() noexcept -> int64_t {
               if (maxcode <= 4095) {
                 const int32_t key{(last << 8) + j};
                 const int32_t index{FindMatch(key)};
-                _dict[uint32_t(maxcode)] = key;
-                _table[uint32_t((index < 0) ? (-index - 1) : _offset)] = maxcode;
+                _dict[static_cast<uint32_t>(maxcode)] = key;
+                _table[static_cast<uint32_t>((index < 0) ? (-index - 1) : _offset)] = maxcode;
                 if ((0 == phase) && (index > 0)) {
                   header_size += 4;
-                  const uint32_t p{uint32_t(_diffPos - size - (_code == maxcode))};
+                  const uint32_t p{static_cast<uint32_t>(_diffPos - size - (_code == maxcode))};
                   _out.put32(p);
                   _diffPos = size + (_code == maxcode);
                 }
@@ -194,7 +197,7 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
     _bsizes.push_back(char(_in.getc()));
   }
   _bsize_index = 0;
-  _bsize = 0xFF & _bsizes[size_t(_bsize_index++)];
+  _bsize = 0xFF & _bsizes[static_cast<size_t>(_bsize_index++)];
 
   int32_t curDiff{0};
   std::array<int32_t, 4096> diffPos;
@@ -203,7 +206,7 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
 
   _table.fill(-1);
 
-  for (uint32_t n{0}; n < uint32_t(header_size); ++n) {
+  for (uint32_t n{0}; n < static_cast<uint32_t>(header_size); ++n) {
     diffPos[n] = _in.getc();
     diffPos[n] = (diffPos[n] << 8) + _in.getc();
     diffPos[n] = (diffPos[n] << 8) + _in.getc();
@@ -213,7 +216,7 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
     }
   }
 
-  size -= int64_t(5 + header_size * 4);
+  size -= static_cast<int64_t>(5 + header_size * 4);
   int32_t last{_in.getc()};
   int64_t total{size + 1};
   _outsize = 1;
@@ -242,7 +245,7 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
     const int32_t index{(last < 0) ? input : FindMatch(key)};
     _code = index;
 
-    if ((curDiff < header_size) && (int32_t(total - size) > diffPos[uint32_t(curDiff)])) {
+    if ((curDiff < header_size) && (static_cast<int32_t>(total - size) > diffPos[static_cast<uint32_t>(curDiff)])) {
       curDiff++;
       _code = -1;
     }
@@ -263,8 +266,8 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
       } else {
         ++maxcode;
         if (maxcode <= 4095) {
-          _dict[uint32_t(maxcode)] = key;
-          _table[uint32_t((index < 0) ? (-index - 1) : _offset)] = maxcode;
+          _dict[static_cast<uint32_t>(maxcode)] = key;
+          _table[static_cast<uint32_t>((index < 0) ? (-index - 1) : _offset)] = maxcode;
         }
 
         if ((maxcode >= (1 << _bits)) && (_bits < 12)) {
@@ -286,7 +289,7 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
 
   if (_shift > 0) {
     ++_block_size;
-    _output[uint32_t(_block_size)] = uint8_t(_buffer);
+    _output[static_cast<uint32_t>(_block_size)] = static_cast<uint8_t>(_buffer);
     if (_block_size == _bsize) {
       if (WriteBlock(_bsize, compare)) {
         return 0;  // Failure
@@ -313,46 +316,43 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
 }
 
 auto Gif_t::FindMatch(const int32_t k) noexcept -> int32_t {
-  // Golden ratio of 2^32 (not a prime)
-  static constexpr auto PHI32{UINT32_C(0x9E3779B9)};  // 2654435769
-
-  auto offset{(PHI32 * uint32_t(k)) >> (32 - 13)};
+  auto offset{(Utilities::PHI32 * static_cast<uint32_t>(k)) >> (32 - 13)};
   const auto stride{(0 == offset) ? 1 : (LZW_TABLE_SIZE - offset)};
   for (;;) {
     assert(offset < LZW_TABLE_SIZE);
     auto index{_table[offset]};
     if (index < 0) {
-      index = -int32_t(offset) - 1;
+      index = -static_cast<int32_t>(offset) - 1;
       return index;
     }
 
-    if (_dict[uint32_t(index)] == k) {
+    if (_dict[static_cast<uint32_t>(index)] == k) {
       return index;
     }
 
     offset -= stride;
-    if (int32_t(offset) < 0) {
+    if (static_cast<int32_t>(offset) < 0) {
       offset += LZW_TABLE_SIZE;
     }
   }
 }
 
 auto Gif_t::WriteBlock(int32_t count, const bool compare) noexcept -> bool {
-  _output[0] = uint8_t(count);
+  _output[0] = static_cast<uint8_t>(count);
   if (compare) {
-    for (uint32_t n{0}; n < uint32_t(count) + 1; ++n) {
+    for (uint32_t n{0}; n < static_cast<uint32_t>(count) + 1; ++n) {
       const auto ch{_out.getc()};
       if ((_output[n] != ch) && (0 == _diffFound)) {
-        _diffFound = _outsize + int64_t(n + 1);
+        _diffFound = _outsize + static_cast<int64_t>(n + 1);
         return true;  // Failure
       }
     }
   } else {
-    _out.Write(&_output[0], size_t(count + 1));
+    _out.Write(&_output[0], static_cast<size_t>(count + 1));
   }
-  _outsize += int64_t(count + 1);
+  _outsize += static_cast<int64_t>(count + 1);
   _block_size = 0;
-  _bsize = 0xFF & _bsizes[size_t(_bsize_index++)];
+  _bsize = 0xFF & _bsizes[static_cast<size_t>(_bsize_index++)];
   return false;
 }
 
@@ -361,7 +361,7 @@ auto Gif_t::WriteCode(const int32_t code, const bool compare) noexcept -> bool {
   _shift += _bits;
   while (_shift >= 8) {
     ++_block_size;
-    _output[uint32_t(_block_size)] = uint8_t(_buffer);
+    _output[static_cast<uint32_t>(_block_size)] = static_cast<uint8_t>(_buffer);
     _buffer >>= 8;
     _shift -= 8;
     if (_block_size == _bsize) {
@@ -429,7 +429,7 @@ auto GIF_filter::read_sub_blocks(bool& eof) const noexcept -> int32_t {
       return -1;
     }
 
-    const auto block_size{uint8_t(ch)};
+    const auto block_size{static_cast<uint8_t>(ch)};
     if (0 == block_size) {  // end of sub-blocks
       break;
     }
@@ -448,7 +448,7 @@ GIF_filter::~GIF_filter() noexcept = default;
 
 auto GIF_filter::get_frame(bool& eof) const noexcept -> int32_t {
   Frames_t frame_type{Frames_t(_stream.getc())};
-  if (EOF == int32_t(frame_type)) {
+  if (EOF == static_cast<int32_t>(frame_type)) {
     eof = true;
     return -1;  // Failure
   }
@@ -492,7 +492,7 @@ auto GIF_filter::get_frame(bool& eof) const noexcept -> int32_t {
     }
 
     frame_type = Frames_t(_stream.getc());
-    if (EOF == int32_t(frame_type)) {
+    if (EOF == static_cast<int32_t>(frame_type)) {
       eof = true;
       return -1;  // Failure
     }
@@ -520,7 +520,7 @@ auto GIF_filter::Handle(int32_t /*ch*/) noexcept -> bool {  // encoding
   for (; 1 == (ret = get_frame(eof)); ++frame) {
     fseek(_stream, 8, SEEK_CUR);  // x,y,w,h
 
-    const uint8_t fisrz{uint8_t(_stream.getc())};
+    const uint8_t fisrz{static_cast<uint8_t>(_stream.getc())};
     if (0x80 & fisrz) {
       const auto gct_sz{1 << ((7 & fisrz) + 1)};
       fseek(_stream, 3 * gct_sz, SEEK_CUR);  // Global Colour Table
@@ -546,7 +546,7 @@ auto GIF_filter::Handle(int32_t /*ch*/) noexcept -> bool {  // encoding
           _coder->Compress(IMAGE_DESCRIPTOR);
         }
         _stream.Seek(frame_origin);
-        auto len = int32_t(gif_data_position - frame_origin);
+        auto len = static_cast<int32_t>(gif_data_position - frame_origin);
         _coder->Compress(len >> 24);  // Save GIF header length
         _coder->Compress(len >> 16);
         _coder->Compress(len >> 8);
@@ -557,7 +557,7 @@ auto GIF_filter::Handle(int32_t /*ch*/) noexcept -> bool {  // encoding
         }
 
         gif_raw.Rewind();
-        len = int32_t(decoded_length);
+        len = static_cast<int32_t>(decoded_length);
         _coder->Compress(len >> 24);  // Save GIF raw data length
         _coder->Compress(len >> 16);
         _coder->Compress(len >> 8);
@@ -577,7 +577,7 @@ auto GIF_filter::Handle(int32_t /*ch*/) noexcept -> bool {  // encoding
           _coder->Compress(IMAGE_DESCRIPTOR);
         }
         _stream.Seek(frame_origin);
-        auto len{int32_t(decoded_position - frame_origin)};
+        auto len{static_cast<int32_t>(decoded_position - frame_origin)};
         len = ~len;
         _coder->Compress(len >> 24);
         _coder->Compress(len >> 16);
@@ -631,7 +631,7 @@ auto GIF_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     ++_imageEnd;
     _length = (_length << 8) | ch;
   } else {
-    if (_DEADBEEF == uint32_t(_length)) {  // GIF decoder did fail
+    if (_DEADBEEF == static_cast<uint32_t>(_length)) {  // GIF decoder did fail
       _gif = false;
       _gif_phase = 0;
       _gif_length = 0;

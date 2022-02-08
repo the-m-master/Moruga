@@ -11,3 +11,5 @@ PointerAlignment: Left
 UseTab:          Never
 IncludeBlocks: Merge
 IndentGotoLabels: false
+IndentPPDirectives: AfterHash
+NamespaceIndentation: All

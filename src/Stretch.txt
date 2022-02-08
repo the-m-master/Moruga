@@ -1,3 +1,24 @@
+//===============================================================================
+// Moruga project
+//===============================================================================
+// Copyright (c) 2019-2022 Marwijn Hessel
+//
+// Moruga is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moruga is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; see the file LICENSE.
+// If not, see <https://www.gnu.org/licenses/>
+//
+// https://github.com/the-m-master/Moruga
+//===============================================================================
 -2048,-1864,-1763,-1701,-1656,-1620,-1591,-1565,-1543,-1523,-1505,-1488,-1473,-1459,-1446,-1434,
 -1422,-1411,-1401,-1391,-1382,-1373,-1364,-1356,-1348,-1340,-1332,-1325,-1318,-1312,-1305,-1299,
 -1293,-1287,-1281,-1275,-1269,-1264,-1259,-1254,-1249,-1244,-1239,-1234,-1229,-1225,-1220,-1216,

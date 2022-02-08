@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _GZP_HDR_
 #define _GZP_HDR_
@@ -52,4 +54,4 @@ private:
   File_t* _data{nullptr};
 };
 
-#endif /* _GZP_HDR_ */
+#endif  // _GZP_HDR_

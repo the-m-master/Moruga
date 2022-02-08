@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _EXE_HDR_
 #define _EXE_HDR_
@@ -27,7 +29,7 @@ class iEncoder_t;
 
 class EXE_filter final : public iFilter_t {
 public:
-  explicit EXE_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di)noexcept;
+  explicit EXE_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di) noexcept;
   virtual ~EXE_filter() noexcept override;
 
   EXE_filter() = delete;
@@ -53,4 +55,4 @@ private:
   std::array<uint8_t, 8> _addr{};
 };
 
-#endif /* _EXE_HDR_ */
+#endif  // _EXE_HDR_

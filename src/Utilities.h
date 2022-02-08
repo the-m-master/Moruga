@@ -15,53 +15,58 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
-#ifndef UTILITIES_HDR
-#define UTILITIES_HDR
+#ifndef _UTILITIES_HDR_
+#define _UTILITIES_HDR_
 
 #include <cstdint>
 
 #if !defined(NDEBUG)
-#define ALWAYS_INLINE
+#  define ALWAYS_INLINE
 #else
-#if defined(_MSC_VER)
-#define ALWAYS_INLINE __forceinline
-#define __restrict__ __restrict
-#define strcasecmp stricmp
-#elif defined(__GNUC__)
-#define ALWAYS_INLINE inline __attribute__((always_inline))
-#else
-#define ALWAYS_INLINE inline
-#endif
+#  if defined(_MSC_VER)
+#    define ALWAYS_INLINE __forceinline
+#    define strcasecmp stricmp
+#  elif defined(__GNUC__)
+#    define ALWAYS_INLINE inline __attribute__((always_inline))
+#  else
+#    define ALWAYS_INLINE inline
+#  endif
 #endif
 
 namespace Utilities {
+  // Golden ratio of 2^32 (not a prime)
+  static constexpr auto PHI32{UINT32_C(0x9E3779B9)};  // 2654435769
 
-template <typename T>
-ALWAYS_INLINE constexpr auto is_number(const T ch) noexcept -> bool {
-  return (ch >= '0') && (ch <= '9');
-}
+  // Golden ratio of 2^64 (not a prime)
+  static constexpr auto PHI64{UINT64_C(0x9E3779B97F4A7C15)};  // 11400714819323198485
 
-template <typename T>
-ALWAYS_INLINE constexpr auto is_upper(const T ch) noexcept -> bool {
-  return (ch >= 'A') && (ch <= 'Z');
-}
+  template <typename T>
+  ALWAYS_INLINE constexpr auto is_number(const T ch) noexcept -> bool {
+    return (ch >= '0') && (ch <= '9');
+  }
 
-template <typename T>
-ALWAYS_INLINE constexpr auto is_lower(const T ch) noexcept -> bool {
-  return (ch >= 'a') && (ch <= 'z');
-}
+  template <typename T>
+  ALWAYS_INLINE constexpr auto is_upper(const T ch) noexcept -> bool {
+    return (ch >= 'A') && (ch <= 'Z');
+  }
 
-template <typename T>
-ALWAYS_INLINE constexpr auto to_upper(const T ch) noexcept -> T {
-  return is_lower(ch) ? ch - 'a' + 'A' : ch;
-}
+  template <typename T>
+  ALWAYS_INLINE constexpr auto is_lower(const T ch) noexcept -> bool {
+    return (ch >= 'a') && (ch <= 'z');
+  }
 
-template <typename T>
-ALWAYS_INLINE constexpr auto to_lower(const T ch) noexcept -> T {
-  return is_upper(ch) ? ch - 'A' + 'a' : ch;
-}
+  template <typename T>
+  ALWAYS_INLINE constexpr auto to_upper(const T ch) noexcept -> T {
+    return is_lower(ch) ? ch - 'a' + 'A' : ch;
+  }
 
+  template <typename T>
+  ALWAYS_INLINE constexpr auto to_lower(const T ch) noexcept -> T {
+    return is_upper(ch) ? ch - 'A' + 'a' : ch;
+  }
 }  // namespace Utilities
 
-#endif /* UTILITIES_HDR */
+#endif  //_UTILITIES_HDR_

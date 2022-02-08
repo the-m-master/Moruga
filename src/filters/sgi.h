@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #ifndef _SGI_HDR_
 #define _SGI_HDR_
@@ -49,4 +51,4 @@ private:
   int32_t _prev_rgba{0};
 };
 
-#endif /* _SGI_HDR_ */
+#endif  // _SGI_HDR_

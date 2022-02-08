@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "Progress.h"
 #include <algorithm>
@@ -29,20 +31,20 @@
 #include "iMonitor.h"
 
 #if defined(__linux__)
-#include <bits/types/struct_rusage.h>
-#include <pthread.h>
-#include <sys/ioctl.h>
-#include <sys/resource.h>
-#include <unistd.h>
+#  include <bits/types/struct_rusage.h>
+#  include <pthread.h>
+#  include <sys/ioctl.h>
+#  include <sys/resource.h>
+#  include <unistd.h>
 #elif defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(_MSC_VER)
-#include <windows.h>  // Must be done first! Otherwise #error: "No Target Architecture" in VS2019
+#  include <windows.h>  // Must be done first! Otherwise #error: "No Target Architecture" in VS2019
 //
-#include <psapi.h>
+#  include <psapi.h>
 #endif
 
 iMonitor_t::~iMonitor_t() noexcept = default;
 
-// int32_t(ceil(log(double(layoutLength | 1)) / log(10.0)))
+// static_cast<int32_t>(ceil(log(double(layoutLength | 1)) / log(10.0)))
 static auto digits(int64_t number) noexcept -> int32_t {
   number |= 1;
   int32_t ndigits{0};
@@ -66,7 +68,7 @@ static auto memoryUseKiB() noexcept -> uint32_t {
   struct rusage rUsage;
   memset(&rUsage, 0, sizeof(rUsage));
   getrusage(RUSAGE_SELF, &rUsage);
-  return uint32_t(rUsage.ru_maxrss);  // Maximum resident set size utilised in KiB
+  return static_cast<uint32_t>(rUsage.ru_maxrss);  // Maximum resident set size utilised in KiB
 }
 
 #else
@@ -103,7 +105,7 @@ static auto consoleCol() noexcept -> int32_t {
   try {
     static std::array<char, 4> result{{'8', '0', 0, 0}};
     if (std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("tput cols 2>&1", "r"), pclose); nullptr != pipe) {
-      if (const auto* const ptr{fgets(result.data(), result.size(), pipe.get())}; nullptr != ptr) {
+      if (const auto* const ptr{fgets(result.data(), int(result.size()), pipe.get())}; nullptr != ptr) {
         return std::stoi(result.data(), nullptr, 10);
       }
     }
@@ -118,7 +120,7 @@ static auto consoleCol() noexcept -> int32_t {
 static auto memoryUseKiB() noexcept -> uint32_t {
   PROCESS_MEMORY_COUNTERS rUsage;
   GetProcessMemoryInfo(GetCurrentProcess(), &rUsage, sizeof(rUsage));
-  return uint32_t(rUsage.PeakPagefileUsage / SIZE_T(1024));  // in KiB
+  return static_cast<uint32_t>(rUsage.PeakPagefileUsage / SIZE_T(1024));  // in KiB
 }
 
 #endif
@@ -149,7 +151,7 @@ static void FiltersToString(std::string& filters, uint32_t count, const std::str
     }
     filters += text;
     if (count > 1) {
-      std::array<char, 16> tmp;
+      std::array<char, 16> tmp{};
       snprintf(tmp.data(), tmp.size(), ":%u", count);
       filters.append(tmp.data());
     }
@@ -199,8 +201,8 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
     }
 
     const auto ms{(workPosition > min_time) ? std::clamp(((workLength * deltaTime) / workPosition) - deltaTime, min_time, max_time) : min_time};
-    const auto mm{int32_t(ms / (INT64_C(60) * POW10_6))};
-    const auto ss{int32_t((ms - (mm * INT64_C(60) * POW10_6)) / POW10_6)};
+    const auto mm{static_cast<int32_t>(ms / (INT64_C(60) * POW10_6))};
+    const auto ss{static_cast<int32_t>((ms - (mm * INT64_C(60) * POW10_6)) / POW10_6)};
 
     const auto columns{consoleCol()};
     int32_t length{28 + 3 + tracer->digits + tracer->digits + 4 + 4 + 6 + 3};
@@ -216,14 +218,14 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
     if ((buzy >= 0) && (buzy < barLength)) {
       static constexpr std::array<char, 4> animation{{'\\', '|', '/', '-'}};
       static uint32_t art{0};
-      progress[size_t(buzy)] = animation[art++];
+      progress[static_cast<size_t>(buzy)] = animation[art++];
       if (art >= animation.size()) {
         art = 0;
       }
     }
 
-    length = (std::max)(0, length - int32_t(progress.length()));
-    const std::string filler(size_t(length), ' ');
+    length = (std::max)(0, length - static_cast<int32_t>(progress.length()));
+    const std::string filler(static_cast<size_t>(length), ' ');
 
     fprintf(stdout, "%s in/out %*" PRId64 "/%*" PRId64 "%s %4u %s %4" PRId64 " %-5s %02d:%02d [%s] %3" PRId64 "%%",
             tracer->workType,           //
@@ -280,7 +282,9 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
 
 static void MonitorWorker(const volatile TraceProgress_t* const tracer) noexcept {
   assert(tracer);
+#if !defined(_MSC_VER)
   pthread_setname_np(pthread_self(), __FUNCTION__);
+#endif
 
   for (auto count{1}; tracer->isRunning; ++count) {
     if (count >= 5) {  // Do every 5*50ms = 250ms something...

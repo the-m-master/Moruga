@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file LICENSE.
  * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
  */
 #include "CaseSpace.h"
 #include <algorithm>
@@ -28,24 +30,24 @@
 #include "Utilities.h"
 
 //#define DEBUG_WRITE_DICTIONARY
-#if !defined(_MSC_VER)       // VS2019 has trouble handling this code
-#define USE_BYTELL_HASH_MAP  // Enable the fastest hash table by Malte Skarupke
+#if !defined(_MSC_VER)         // VS2019 has trouble handling this code
+#  define USE_BYTELL_HASH_MAP  // Enable the fastest hash table by Malte Skarupke
 #endif
 
 #if defined(USE_BYTELL_HASH_MAP)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Waggregate-return"
-#pragma GCC diagnostic ignored "-Wc++98-c++11-compat-binary-literal"
-#pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
-#pragma GCC diagnostic ignored "-Wconversion"
-#pragma GCC diagnostic ignored "-Weffc++"
-#pragma GCC diagnostic ignored "-Wpadded"
-#pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#include "ska/bytell_hash_map.hpp"
-#pragma GCC diagnostic pop
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Waggregate-return"
+#  pragma GCC diagnostic ignored "-Wc++98-c++11-compat-binary-literal"
+#  pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
+#  pragma GCC diagnostic ignored "-Wconversion"
+#  pragma GCC diagnostic ignored "-Weffc++"
+#  pragma GCC diagnostic ignored "-Wpadded"
+#  pragma GCC diagnostic ignored "-Wshadow"
+#  pragma GCC diagnostic ignored "-Wsign-conversion"
+#  include "ska/bytell_hash_map.hpp"
+#  pragma GCC diagnostic pop
 #else
-#include <unordered_map>
+#  include <unordered_map>
 #endif
 
 #define BITS 19
@@ -112,12 +114,12 @@ public:
   }
 
   void append(const int32_t ch) noexcept {
-    _word.push_back(char(ch));
+    _word.push_back(static_cast<char>(ch));
 
     const auto key{find_match(_string_code, ch)};
 
-    if (HashTable_t& ht{_hashTable[key]}; UNUSED != ht.code_value) {
-      _string_code = int32_t(ht.code_value);
+    if (HashTable_t & ht{_hashTable[key]}; UNUSED != ht.code_value) {
+      _string_code = static_cast<int32_t>(ht.code_value);
 
       if (const auto length{_word.length()}; (length >= MIN_WORD_SIZE) && (length < 256)) {
         if (auto it{_esteem.find(_word)}; it != _esteem.end()) {
@@ -130,8 +132,8 @@ public:
       _word.clear();
 
       ht.code_value = _next_code++;
-      ht.prefix_code = 0x00FFFFFFu & uint32_t(_string_code);
-      ht.append_character = uint8_t(ch);
+      ht.prefix_code = 0x00FFFFFFu & static_cast<uint32_t>(_string_code);
+      ht.append_character = static_cast<uint8_t>(ch);
 
       _string_code = ch;
 
@@ -199,10 +201,7 @@ public:
 
 private:
   auto find_match(const int32_t prefix_code, const int32_t append_character) noexcept -> uint32_t {
-    // Golden ratio of 2^32 (not a prime)
-    static constexpr auto PHI32{UINT32_C(0x9E3779B9)};  // 2654435769
-
-    uint32_t offset{(PHI32 * uint32_t((prefix_code << 8) | append_character)) >> (32 - BITS)};
+    uint32_t offset{(Utilities::PHI32 * static_cast<uint32_t>((prefix_code << 8) | append_character)) >> (32 - BITS)};
     const uint32_t stride{(0 == offset) ? 1 : (TABLE_SIZE - offset)};
     for (;;) {
       assert(offset < TABLE_SIZE);
@@ -212,12 +211,13 @@ private:
         return offset;
       }
 
-      if ((prefix_code == ht.prefix_code) && (append_character == ht.append_character)) {
+      if ((static_cast<uint32_t>(prefix_code) == ht.prefix_code) &&  //
+          (static_cast<uint32_t>(append_character) == ht.append_character)) {
         return offset;
       }
 
       offset -= stride;
-      if (int32_t(offset) < 0) {
+      if (static_cast<int32_t>(offset) < 0) {
         offset += TABLE_SIZE;
       }
     }
@@ -237,17 +237,15 @@ private:
     uint32_t append_character : 8;
   };
   static_assert(8 == sizeof(HashTable_t), "Alignment failure in HashTable_t");
-  std::array<HashTable_t, TABLE_SIZE> _hashTable;
+  std::array<HashTable_t, TABLE_SIZE> _hashTable{};
 };
 LempelZivWelch_t::~LempelZivWelch_t() noexcept = default;
 
 namespace CaseSpace {
-
-template <typename T>
-ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
-  return Utilities::is_upper(ch) || Utilities::is_lower(ch);
-}
-
+  template <typename T>
+  ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
+    return Utilities::is_upper(ch) || Utilities::is_lower(ch);
+  }
 }  // namespace CaseSpace
 
 CaseSpace_t::CaseSpace_t(File_t& in, File_t& out) noexcept
@@ -297,13 +295,13 @@ void CaseSpace_t::Encode() noexcept {
   bool set{false};
   int32_t ch;
   while (EOF != (ch = _in.getc())) {
-    _char_freq[uint32_t(ch)] += 1;
+    _char_freq[static_cast<uint32_t>(ch)] += 1;
 
     if (set) {
       set = false;
       EncodeWord();
       if ('\n' == ch) {  // 0x0A
-        Encode(CRLF_MARKER);
+        Encode(static_cast<int32_t>(WordType::CRLF_MARKER));
         continue;
       }
       Encode('\r');
@@ -313,12 +311,16 @@ void CaseSpace_t::Encode() noexcept {
     }
 
     if (CaseSpace::is_word_char(ch)) {  // a..z || A..Z
-      _word.push_back(char(ch));
+      _word.push_back(static_cast<char>(ch));
     } else {
       EncodeWord();
 
-      if ((ALL_SMALL == ch) || (ALL_BIG == ch) || (FIRST_BIG_REST_SMALL == ch) || (ESCAPE_CHAR == ch) || (CRLF_MARKER == ch)) {
-        Encode(ESCAPE_CHAR);
+      if ((WordType::ALL_SMALL == static_cast<WordType>(ch)) ||             //
+          (WordType::ALL_BIG == static_cast<WordType>(ch)) ||               //
+          (WordType::FIRST_BIG_REST_SMALL == static_cast<WordType>(ch)) ||  //
+          (WordType::ESCAPE_CHAR == static_cast<WordType>(ch)) ||           //
+          (WordType::CRLF_MARKER == static_cast<WordType>(ch))) {
+        Encode(static_cast<int32_t>(WordType::ESCAPE_CHAR));
       }
       Encode(ch);
     }
@@ -330,7 +332,7 @@ void CaseSpace_t::Encode() noexcept {
 }
 
 void CaseSpace_t::EncodeWord() noexcept {
-  auto wlength{uint32_t(_word.length())};
+  auto wlength{static_cast<uint32_t>(_word.length())};
   if (wlength > 0) {
     uint32_t offset{0};
     while (wlength > 0) {
@@ -340,24 +342,24 @@ void CaseSpace_t::EncodeWord() noexcept {
         while ((length < wlength) && Utilities::is_lower(_word[offset + length])) {
           length++;
         }
-        _wtype = ALL_SMALL;
+        _wtype = WordType::ALL_SMALL;
       } else {
         length++;
         if (Utilities::is_upper(_word[offset + length])) {
           while ((length < wlength) && Utilities::is_upper(_word[offset + length])) {
             length++;
           }
-          _wtype = ALL_BIG;
+          _wtype = WordType::ALL_BIG;
         } else {
           while ((length < wlength) && Utilities::is_lower(_word[offset + length])) {
             length++;
           }
-          _wtype = FIRST_BIG_REST_SMALL;
+          _wtype = WordType::FIRST_BIG_REST_SMALL;
         }
       }
 
-      if ((0 != offset) || (ALL_SMALL != _wtype)) {
-        Encode(_wtype);
+      if ((0 != offset) || (WordType::ALL_SMALL != _wtype)) {
+        Encode(static_cast<int32_t>(_wtype));
       }
 
       wlength -= length;
@@ -379,34 +381,34 @@ auto CaseSpace_t::Decode() noexcept -> int64_t {
 
   int32_t ch;
   while (EOF != (ch = _in.getc())) {
-    switch (WordType(ch)) {
-      case ESCAPE_CHAR:
+    switch (static_cast<WordType>(ch)) {
+      case WordType::ESCAPE_CHAR:
         DecodeWord();
-        _wtype = ALL_SMALL;
+        _wtype = WordType::ALL_SMALL;
         ch = _in.getc();
         _out.putc(ch);
         break;
 
-      case ALL_SMALL:
-      case ALL_BIG:
-      case FIRST_BIG_REST_SMALL:
+      case WordType::ALL_SMALL:
+      case WordType::ALL_BIG:
+      case WordType::FIRST_BIG_REST_SMALL:
         DecodeWord();
-        _wtype = WordType(ch);
+        _wtype = static_cast<WordType>(ch);
         break;
 
-      case CRLF_MARKER:
+      case WordType::CRLF_MARKER:
         DecodeWord();
-        _wtype = ALL_SMALL;
+        _wtype = WordType::ALL_SMALL;
         _out.putc('\r');
         _out.putc('\n');
         break;
 
       default:
         if (CaseSpace::is_word_char(ch)) {  // a..z || A..Z
-          _word.push_back(char(ch));
+          _word.push_back(static_cast<char>(ch));
         } else {
           DecodeWord();
-          _wtype = ALL_SMALL;
+          _wtype = WordType::ALL_SMALL;
           _out.putc(ch);
         }
         break;
@@ -420,15 +422,15 @@ auto CaseSpace_t::Decode() noexcept -> int64_t {
 
 void CaseSpace_t::DecodeWord() noexcept {
   if (_word.length() > 0) {
-    switch (const char* __restrict__ str{_word.c_str()}; _wtype) {
-      case ALL_BIG:
+    switch (const char* __restrict str{_word.c_str()}; _wtype) {
+      case WordType::ALL_BIG:
         while (*str) {
           const auto ch{*str++};
           _out.putc(Utilities::to_upper(ch));
         }
         break;
 
-      case FIRST_BIG_REST_SMALL:
+      case WordType::FIRST_BIG_REST_SMALL:
         if (*str) {
           const auto ch{*str++};
           _out.putc(Utilities::to_upper(ch));
@@ -436,9 +438,9 @@ void CaseSpace_t::DecodeWord() noexcept {
         [[fallthrough]];
 
       default:
-      case ALL_SMALL:
-      case CRLF_MARKER:
-      case ESCAPE_CHAR:
+      case WordType::ALL_SMALL:
+      case WordType::CRLF_MARKER:
+      case WordType::ESCAPE_CHAR:
         while (*str) {
           const auto ch{*str++};
           _out.putc(ch);
