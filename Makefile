@@ -111,7 +111,7 @@ ifeq ($(MODE),debug)
     CCFLAGS += -fstack-protector-strong
   endif
 else
-  CCFLAGS += -O3 -flto -fno-rtti -fno-asm -funroll-loops -ftree-vectorize
+  CCFLAGS += -O3 -flto -fno-rtti -fno-asm -ftree-vectorize
   ifeq ($(MODE),profile)
     CCFLAGS += -fprofile-generate=$(PROFILE_DIR)
   else

@@ -70,17 +70,16 @@ static auto MEM() noexcept -> uint64_t {
 
 // Global variables
 static bool verbose_{false};  // Set during application parameter parsing (not change during activity)
+static uint32_t bcount_{7};   // Bit processed (7..0) bcount_=7-bpos
 static uint32_t c0_{1};       // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
 static uint32_t c1_{0};       // Last two higher 4-bit nibbles
 static uint32_t c2_{0};       // Last two higher 4-bit nibbles
-static uint32_t c4_{0};       // Last 4 whole bytes (buf(4)..buf(1)), packed
-static uint32_t c8_{0};       // Another 4 bytes (buf(8)..buf(5))
-static uint32_t bcount_{7};   // Bit processed (7..0) bcount_=7-bpos
-static uint32_t groups_{0};   // Last 4 character categories
-static uint32_t fails_{0};
-static uint32_t tt_{0};
-static uint32_t w5_{0};
-static uint32_t x5_{0};
+static uint64_t cx_{0};       // Last 8 whole bytes (buf(8)..buf(1)), packed
+static uint64_t word_{0};     // checksum of last 0..9, a..z and A..Z, reset to zero otherwise
+static uint32_t fails_{0};    //
+static uint32_t tt_{0};       //
+static uint32_t w5_{0};       //
+static uint32_t x5_{0};       //
 
 //#define DEBUG_WRITE_ANALYSIS_ENCODER
 //#define GENERATE_SQUASH_STRETCH
@@ -333,7 +332,7 @@ static auto getDimension(size_t size) noexcept -> std::string {
     }
   }
 
-  std::array<char, 16> tmp{};
+  std::array<char, 32> tmp{};
   snprintf(tmp.data(), tmp.size(), "%4" PRId64 " %s", size, size_dim.c_str());
   return tmp.data();
 }
@@ -694,7 +693,7 @@ public:
 
     for (uint32_t i{0}; i < N; ++i) {
       const auto p{static_cast<int16_t>(((static_cast<int32_t>(i % 24) * 4096) / (24 - 1)) - 2048)};
-      _table[i] = (Squash(p)) * (1U << 20) + start;  // Conversion from -2048..2047 (clamped) into 0..4095
+      _table[i] = Squash(p) * (UINT32_C(1) << 20) + start;  // Conversion from -2048..2047 (clamped) into 0..4095
     }
 
     for (size_t j{0}; j < _dt.size(); ++j) {
@@ -892,6 +891,8 @@ public:
       : _mask{n - 1},  //
         _weights{static_cast<int32_t*>(std::calloc(n * N_LAYERS, sizeof(int32_t)))} {
     assert(ISPOWEROF2(n));
+    assert((2 * N_LAYERS) < _pi.size());
+    _pi.fill(0);
     if (verbose_) {
       fprintf(stdout, "%s for Blend_t\n", getDimension(n * N_LAYERS * sizeof(int32_t)).c_str());
     }
@@ -910,7 +911,7 @@ public:
   auto operator=(const Blend_t&) -> Blend_t& = delete;
   auto operator=(Blend_t&&) -> Blend_t& = delete;
 
-  [[nodiscard]] auto Set() const noexcept -> int16_t* {
+  [[nodiscard]] auto Get() const noexcept -> int16_t* {
     return _new;
   }
 
@@ -938,20 +939,20 @@ public:
   }
 
 private:
-  const uint32_t _mask;                       // n-1
-  uint32_t _ctx{0};                           // Context of last prediction
-  int32_t* const __restrict _weights;         // weights, scaled 24 bits
-  std::array<int16_t, 2 * N_LAYERS> _pi{};    // Prediction inputs
-  int16_t* __restrict _new{&_pi[0]};          // New Inputs (alternating between _pi[0] and _pi[N_LAYERS])
-  int16_t* __restrict _prev{&_pi[N_LAYERS]};  // Previous Inputs (alternating between _pi[0] and _pi[N_LAYERS])
+  const uint32_t _mask;                                   // n-1
+  uint32_t _ctx{0};                                       // Context of last prediction
+  int32_t* const __restrict _weights;                     // weights, scaled 24 bits
+  std::array<int16_t, (((N_LAYERS / 4) + 1) * 8)> _pi{};  // Prediction inputs
+  int16_t* __restrict _new{&_pi[0]};                      // New Inputs (alternating between _pi[0] and _pi[N_LAYERS])
+  int16_t* __restrict _prev{&_pi[N_LAYERS]};              // Previous Inputs (alternating between _pi[0] and _pi[N_LAYERS])
 };
 
 class HashTable_t final {
 public:
   explicit HashTable_t(const uint64_t max_size) noexcept
       : N{(max_size > MEM_LIMIT) ? MEM_LIMIT : max_size},  //
-        _hashtable{static_cast<uint8_t*>(calloc(N, sizeof(uint8_t)))},
-        _mask{static_cast<uint32_t>((N / B) - 1)} {
+        _hashtable{static_cast<Elements_t*>(calloc(N, sizeof(uint8_t)))},
+        _mask{static_cast<uint32_t>((N / UINT64_C(4)) - 1)} {  // 4 is search limit
     assert(ISPOWEROF2(N));
     assert(_hashtable);
     if (verbose_) {
@@ -966,164 +967,145 @@ public:
   auto operator=(const HashTable_t&) -> HashTable_t& = delete;
   auto operator=(HashTable_t&&) -> HashTable_t& = delete;
 
+  // o --> 0,1,2,3,4,5,6,7
   [[nodiscard]] auto get1x(const uint32_t o, const uint32_t i) const noexcept -> uint8_t* {
     const auto chk{static_cast<uint8_t>(o | (i >> 27))};  // 3 + 5 bits
-    const auto idx{B * (i & _mask)};
+    const auto idx{i & _mask};
 
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | -(1*B) (second)
+    // | chk | val | val | val | -1 (second)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val |  0     (first)
+    // | chk | val | val | val |  0 (first)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | +(1*B) (second)
+    // | chk | val | val | val | +1 (second)
     // +-----+-----+-----+-----+
 
-    auto* p{&_hashtable[idx]};
-    if (chk == p[0]) {  // idx + 0 ?
-      return &p[1];
+    auto* __restrict p{&_hashtable[idx]};  // first
+    if (chk == p->checksum) {              // idx + 0 ?
+      return p->count.data();
     }
-    auto* const q{&_hashtable[idx ^ (1 * B)]};
-    if (chk == q[0]) {  // idx +/- 4 ?
-      return &q[1];
+    auto* const __restrict q{&_hashtable[idx ^ 1]};  // second
+    if (chk == q->checksum) {                        // idx +/- 1 ?
+      return q->count.data();
     }
 
     // clang-format off
-    if (p[1] > q[1]) { p = q; }
+    if (p->count[0] > q->count[0]) { p = q; }
     // clang-format on
 
-    if constexpr (std::endian::native == std::endian::little) {
-      reinterpret_cast<uint32_t*>(p)[0] = chk;  // Not big-endian-compatible
-    } else {
-      p[0] = chk;
-      p[1] = 0;
-      p[2] = 0;
-      p[3] = 0;
-    }
-    return &p[1];
+    *p = Elements_t{.checksum = chk, .count{{0, 0, 0}}};
+    return p->count.data();
   }
 
+  // o --> 0,3,4,7
   [[nodiscard]] auto get3a(const uint32_t o, const uint32_t i) const noexcept -> uint8_t* {
     const auto chk{static_cast<uint8_t>(o | (i >> 27))};  // 3 + 5 bits
-    const auto idx{B * (i & _mask)};
+    const auto idx{i & _mask};
 
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | -(3*B) (second)
+    // | chk | val | val | val | -3 (second)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | -(2*B) (third)
+    // | chk | val | val | val | -2 (third)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | -(1*B) (fourth)
+    // | chk | val | val | val | -1 (fourth)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val |  0     (first)
+    // | chk | val | val | val |  0 (first)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | +(1*B) (fourth)
+    // | chk | val | val | val | +1 (fourth)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | +(2*B) (third)
+    // | chk | val | val | val | +2 (third)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | +(3*B) (second)
+    // | chk | val | val | val | +3 (second)
     // +-----+-----+-----+-----+
 
-    auto* p{&_hashtable[idx]};
-    if (chk == p[0]) {  // idx + 0 ?
-      return &p[1];
+    auto* __restrict p{&_hashtable[idx]};  // first
+    if (chk == p->checksum) {              // idx + 0 ?
+      return p->count.data();
     }
-    auto* const q{&_hashtable[idx ^ (3 * B)]};
-    if (chk == q[0]) {  // idx +/- 12 ?
-      return &q[1];
+    auto* const __restrict q{&_hashtable[idx ^ 3]};  // second
+    if (chk == q->checksum) {                        // idx +/- 3 ?
+      return q->count.data();
     }
-    auto* const r{&_hashtable[idx ^ (2 * B)]};
-    if (chk == r[0]) {  // idx +/- 8 ?
-      return &r[1];
+    auto* const __restrict r{&_hashtable[idx ^ 2]};  // third
+    if (chk == r->checksum) {                        // idx +/- 2 ?
+      return r->count.data();
     }
-    auto* const s{&_hashtable[idx ^ (1 * B)]};
-    if (chk == s[0]) {  // idx +/- 4 ?
-      return &s[1];
+    auto* const __restrict s{&_hashtable[idx ^ 1]};  // fourth
+    if (chk == s->checksum) {                        // idx +/- 1 ?
+      return s->count.data();
     }
 
     // clang-format off
-    if (p[1] > q[1]) { p = q; }
-    if (p[1] > r[1]) { p = r; }
-    if (p[1] > s[1]) { p = s; }
+    if (p->count[0] > q->count[0]) { p = q; }
+    if (p->count[0] > r->count[0]) { p = r; }
+    if (p->count[0] > s->count[0]) { p = s; }
     // clang-format on
 
-    if constexpr (std::endian::native == std::endian::little) {
-      reinterpret_cast<uint32_t*>(p)[0] = chk;  // Not big-endian-compatible
-    } else {
-      p[0] = chk;
-      p[1] = 0;
-      p[2] = 0;
-      p[3] = 0;
-    }
-    return &p[1];
+    *p = Elements_t{.checksum = chk, .count{{0, 0, 0}}};
+    return p->count.data();
   }
 
+  // o --> 1,2,5,6
   [[nodiscard]] auto get3b(const uint32_t o, const uint32_t i) const noexcept -> uint8_t* {
     const auto chk{static_cast<uint8_t>(o | (i >> 27))};  // 3 + 5 bits
-    const auto idx{B * (i & _mask)};
+    const auto idx{i & _mask};
 
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | -(3*B) (third)
+    // | chk | val | val | val | -3 (third)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | -(2*B) (second)
+    // | chk | val | val | val | -2 (second)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | -(1*B) (fourth)
+    // | chk | val | val | val | -1 (fourth)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val |  0     (first)
+    // | chk | val | val | val |  0 (first)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | +(1*B) (fourth)
+    // | chk | val | val | val | +1 (fourth)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | +(2*B) (second)
+    // | chk | val | val | val | +2 (second)
     // +-----+-----+-----+-----+
-    // | chk | val | val | val | +(3*B) (third)
+    // | chk | val | val | val | +3 (third)
     // +-----+-----+-----+-----+
 
-    auto* p{&_hashtable[idx]};
-    if (chk == p[0]) {  // idx + 0 ?
-      return &p[1];
+    auto* __restrict p{&_hashtable[idx]};  // first
+    if (chk == p->checksum) {              // idx + 0 ?
+      return p->count.data();
     }
-    auto* const q{&_hashtable[idx ^ (2 * B)]};
-    if (chk == q[0]) {  // idx +/- 8 ?
-      return &q[1];
+    auto* const __restrict q{&_hashtable[idx ^ 2]};  // second
+    if (chk == q->checksum) {                        // idx +/- 2 ?
+      return q->count.data();
     }
-    auto* const r{&_hashtable[idx ^ (3 * B)]};
-    if (chk == r[0]) {  // idx +/- 12 ?
-      return &r[1];
+    auto* const __restrict r{&_hashtable[idx ^ 3]};  // third
+    if (chk == r->checksum) {                        // idx +/- 3 ?
+      return r->count.data();
     }
-    auto* const s{&_hashtable[idx ^ (1 * B)]};
-    if (chk == s[0]) {  // idx +/- 4 ?
-      return &s[1];
+    auto* const __restrict s{&_hashtable[idx ^ 1]};  // fourth
+    if (chk == s->checksum) {                        // idx +/- 1 ?
+      return s->count.data();
     }
 
     // clang-format off
-    if (p[1] > q[1]) { p = q; }
-    if (p[1] > r[1]) { p = r; }
-    if (p[1] > s[1]) { p = s; }
+    if (p->count[0] > q->count[0]) { p = q; }
+    if (p->count[0] > r->count[0]) { p = r; }
+    if (p->count[0] > s->count[0]) { p = s; }
     // clang-format on
 
-    if constexpr (std::endian::native == std::endian::little) {
-      reinterpret_cast<uint32_t*>(p)[0] = chk;  // Not big-endian-compatible
-    } else {
-      p[0] = chk;
-      p[1] = 0;
-      p[2] = 0;
-      p[3] = 0;
-    }
-    return &p[1];
+    *p = Elements_t{.checksum = chk, .count{{0, 0, 0}}};
+    return p->count.data();
   }
 
 private:
-  static constexpr auto B{UINT64_C(4)};
   static constexpr auto MEM_LIMIT{UINT64_C(0x400000000)};  // 16 GiB
 
   struct Elements_t final {
     uint8_t checksum;
     std::array<uint8_t, 3> count;
   };
-  static_assert(0 == offsetof(Elements_t, checksum), "Alignment failure in Elements_t");
-  static_assert(1 == offsetof(Elements_t, count), "Alignment failure in Elements_t");
-  static_assert(4 == sizeof(Elements_t), "Alignment failure in Elements_t");
+  static_assert(0 == offsetof(Elements_t, checksum), "Alignment failure in HashTable_t::Elements_t");
+  static_assert(1 == offsetof(Elements_t, count), "Alignment failure in HashTable_t::Elements_t");
+  static_assert(4 == sizeof(Elements_t), "Alignment failure in HashTable_t::Elements_t");
 
   const uint64_t N;
-  uint8_t* const __restrict _hashtable;
+  Elements_t* const __restrict _hashtable;
   const uint32_t _mask;
   int32_t : 32;  // Padding
 };
@@ -1243,7 +1225,7 @@ public:
     st[1] = state_table[1][st[1]];
     st[2] = state_table[2][st[2]];
 
-    const auto ctx{(7 == bcount_) ? (0xFF & c4_) : c0_};
+    const auto ctx{(7 == bcount_) ? static_cast<uint32_t>(0xFF & cx_) : c0_};
     _ctx_last_prediction = (_ctx_new | ctx) & _mask;
 
     return {{_sm0.Update(bit, _state[_ctx_last_prediction][0]),  //
@@ -1276,7 +1258,7 @@ private:
 class HashMap_t final {
 public:
   explicit HashMap_t(const uint32_t elements) noexcept
-      : _hashmap{static_cast<Elements_t*>(calloc(elements, sizeof(Elements_t)))},  //
+      : _hashmap{static_cast<Elements_t*>(calloc(elements + M, sizeof(Elements_t)))},  //
         _mask{elements - 1} {
     assert(ISPOWEROF2(elements));
     assert(_hashmap);
@@ -1350,8 +1332,9 @@ private:
     uint16_t checksum;
     Node_t node;
   };
-  static_assert(0 == offsetof(Elements_t, checksum), "Alignment failure in Elements_t");
-  static_assert(4 == sizeof(Elements_t), "Alignment failure in Elements_t");
+  static_assert(0 == offsetof(Elements_t, checksum), "Alignment failure in HashMap_t::Elements_t");
+  static_assert(2 == offsetof(Elements_t, node), "Alignment failure in HashMap_t::Elements_t");
+  static_assert(4 == sizeof(Elements_t), "Alignment failure in HashMap_t::Elements_t");
 
   Elements_t* const __restrict _hashmap;
   const uint32_t _mask;
@@ -1376,9 +1359,8 @@ public:
   auto operator=(RunContextMap_t&&) -> RunContextMap_t& = delete;
 
   void Set(const uint32_t cx) noexcept {  // update count
-    if ((0 == _cp->count) || ((0xFF & c4_) != _cp->value)) {
-      _cp->count = 1;           // Reset counts
-      _cp->value = 0xFF & c4_;  // Set expected byte
+    if (const auto expected_byte{static_cast<uint8_t>(cx_)}; (0 == _cp->count) || (expected_byte != _cp->value)) {
+      *_cp = HashMap_t::Node_t{.count = 1, .value = expected_byte};  // Reset count, set expected byte
     } else if (_cp->count < 255) {
       ++_cp->count;
     }
@@ -1388,8 +1370,7 @@ public:
   [[nodiscard]] auto Predict() noexcept -> int16_t {  // predict next bit
     if (const uint8_t expected_byte{_cp->value}; (expected_byte | 0x100u) >> (1 + bcount_) == c0_) {
       const int32_t expected_bit{1 & (expected_byte >> bcount_)};
-      const uint32_t counts{_cp->count};
-      return static_cast<int16_t>(((expected_bit * 2) - 1) * ilog[counts] * SCALE);
+      return static_cast<int16_t>(((expected_bit * 2) - 1) * ilog[_cp->count] * SCALE);
     }
     return 0;  // No or misprediction
   }
@@ -1500,15 +1481,14 @@ public:
 
     _curr = static_cast<uint32_t>(bit ? curr.nx1 : curr.nx0);
 
-    int16_t* const __restrict pr{_blend.Set()};
+    auto* const __restrict pr{_blend.Get()};
     pr[0] = Predict();  // DMC prediction -2048..2047
     pr[1] = _sm2.Update(bit, _nodes[_curr].state);
 
     // Little improvements of DMC predictions
-    pr[2] = _sm3.Update(bit, (c4_ << 8) | c0_);
-    pr[3] = _sm4.Update(bit, (tt_ << 8) | c0_);
-    pr[4] = _sm5.Update(bit, /*  */ c2_ | c0_);
-    pr[5] = _sm6.Update(bit, (x5_ << 8) | c0_);
+    pr[2] = _sm3.Update(bit, (tt_ << 8) | c0_);
+    pr[3] = _sm4.Update(bit, (finalise64(word_, 32) << 8) | c0_);
+    pr[4] = _sm5.Update(bit, (x5_ << 8) | c0_);
 
     const auto last_pr{Squash(Mixer_t::tx_[7])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
@@ -1526,8 +1506,8 @@ private:
     if (!n1) {
       return ~0x7FF;
     }
-    const auto pr{MulDiv(0xFFFu, n1, n0 + n1)};  // (0xFFFu * n1) / (n0 + n1)
-    return Stretch(pr);                          // Conversion from 0..4095 into -2048..2047
+    const auto pr{MulDiv(0xFFF, n1, n0 + n1)};  // (0xFFF * n1) / (n0 + n1)
+    return Stretch(pr);                         // Conversion from 0..4095 into -2048..2047
   }
 
   struct Node {
@@ -1600,31 +1580,16 @@ private:
   uint32_t _threshold_fine{0};
   int32_t : 32;                   // Padding
   StateMap_t<0x100, 6> _sm2{};    // state | Rate of 6 is based on enwik9
-  StateMap_t<0x1000, 2> _sm3{};   // c4_   | Rate of 2 is based on enwik9
-  StateMap_t<0x1000, 1> _sm4{};   // tt_   | Rate of 1 is based on enwik9
-  StateMap_t<0x10000, 1> _sm5{};  // c2_   | Rate of 1 is based on enwik9
-  StateMap_t<0x40000, 2> _sm6{};  // x5_   | Rate of 2 is based on enwik9
-  Blend_t<6> _blend{0x40000};     // w5_
+  StateMap_t<0x4000, 1> _sm3{};   // tt_   | Rate of 1 is based on enwik9 | not part of DynamicMarkovModel, just an improvement
+  StateMap_t<0x10000, 1> _sm4{};  // word_ | Rate of 1 is based on enwik9 | not part of DynamicMarkovModel, just an improvement
+  StateMap_t<0x40000, 2> _sm5{};  // x5_   | Rate of 2 is based on enwik9 | not part of DynamicMarkovModel, just an improvement
+  Blend_t<5> _blend{0x40000};     // w5_
 };
 DynamicMarkovModel_t::~DynamicMarkovModel_t() noexcept {
   std::free(_nodes);
 }
 
 class LempelZivPredict_t final {  // MatchModel
-  enum : uint32_t {
-    MINLEN = 7,           // Minimum required match length
-    MAXLEN = MINLEN + 63  // Longest allowed match (max 6 bits, after subtraction of minimum length)
-  };
-
-  [[nodiscard]] static auto countbits(uint64_t x) noexcept -> uint32_t {
-    uint32_t n{0};
-    while (x) {
-      ++n;
-      x >>= 1;
-    }
-    return n;
-  }
-
 public:
   explicit LempelZivPredict_t(const Buffer_t& __restrict buf, const uint64_t max_size) noexcept
       : _buf{buf},  //
@@ -1671,15 +1636,15 @@ public:
   }
 
   [[nodiscard]] auto Predict(const bool bit) noexcept -> uint32_t {
-    int16_t* const __restrict pr{_blend.Set()};
+    auto* const __restrict pr{_blend.Get()};
 
     uint32_t ctx0{0};
     uint32_t order;
     int32_t rate;
 
-    if ((_match_length >= MINLEN) && (((_expected_byte | 0x100U) >> (1 + bcount_)) == c0_)) {
+    if ((_match_length >= MINLEN) && (((_expected_byte | 0x100) >> (1 + bcount_)) == c0_)) {
       const auto length{_match_length - MINLEN};
-      const auto expected_bit{1u & (_expected_byte >> bcount_)};
+      const auto expected_bit{1U & (_expected_byte >> bcount_)};
 
       const auto sign{static_cast<int16_t>((2 * expected_bit) - 1)};
       pr[0] = static_cast<int16_t>(sign * static_cast<int32_t>(length * 32));
@@ -1690,7 +1655,6 @@ public:
         } else {
           ctx0 = 24 + (2 * ((length - 1) / 4)) + expected_bit;  // 32..55
         }
-        ctx0 = (ctx0 << 8) | c0_;  // 6+8=14 bits
       }
 
       const auto ctx1{(length << 9) | (expected_bit << 8) | c1_};  // 6+1+8=15 bits
@@ -1718,7 +1682,7 @@ public:
       rate = 2;  // Rate of 2 is based on enwik9
     }
 
-    const auto py{_ltp1.Update(bit, ctx0)};
+    const auto py{_ltp1.Update(bit, (ctx0 << 8) | c0_)};  // 6+8=14 bits
     pr[2] = ctx0 ? py : 0;
     pr[3] = _rc.Predict();
 
@@ -1731,7 +1695,18 @@ public:
   }
 
 private:
+  static constexpr uint32_t MINLEN{7};                     // Minimum required match length
+  static constexpr uint32_t MAXLEN{MINLEN + 63};           // Longest allowed match (max 6 bits, after subtraction of minimum length)
   static constexpr auto MEM_LIMIT{UINT64_C(0x100000000)};  // 4 GiB
+
+  [[nodiscard]] auto countbits(uint64_t x) const noexcept -> uint32_t {
+    uint32_t n{0};
+    while (x) {
+      ++n;
+      x >>= 1;
+    }
+    return n;
+  }
 
   const Buffer_t& __restrict _buf;
   const uint32_t _hashbits;
@@ -1744,19 +1719,13 @@ private:
   StateMap_t<0x8000, 5> _ltp0{};  // Length to prediction          | Rate of 5 is based on enwik9
   StateMap_t<0x4000, 8> _ltp1{};  // (curved) Length to prediction | Rate of 8 is based on enwik9
   RunContextMap_t<16> _rc{14};    // match_length | c1_            |
-  Blend_t<4> _blend{0x40000};     //
+  Blend_t<4> _blend{0x40000};     // w5_
 };
 LempelZivPredict_t::~LempelZivPredict_t() noexcept {
   std::free(_ht);
 }
 
 class SparseMatchModel_t final {
-  enum {
-    NBITS = 15,           // Size of look-up table (< 32) default 15 based on enwik9
-    MINLEN = 2,           // Minimum required match length
-    MAXLEN = MINLEN + 63  // Longest allowed match (max 6 bits, after subtraction of minimum length)
-  };
-
 public:
   explicit SparseMatchModel_t(const Buffer_t& __restrict buf) noexcept
       : _buf{buf},  //
@@ -1774,7 +1743,7 @@ public:
   auto operator=(SparseMatchModel_t&&) -> SparseMatchModel_t& = delete;
 
   void Update() noexcept {
-    const auto idx{((UINT32_C(1) << NBITS) - 1) & c4_};
+    const auto idx{((UINT64_C(1) << NBITS) - 1) & cx_};
 
     if (_match_length >= MINLEN) {
       _match_length += _match_length < MAXLEN;
@@ -1798,14 +1767,14 @@ public:
     _rc0.Set(w5_);
     _rc1.Set(x5_);
     _rc2.Set(tt_);
-    _rc3.Set(groups_);
+    _rc3.Set(finalise64(word_, 32));
   }
 
   void Predict(const bool bit) noexcept {
-    int16_t* const __restrict pr{_blend.Set()};
+    auto* const __restrict pr{_blend.Get()};
 
-    if ((_match_length >= MINLEN) && (((_expected_byte | 0x100U) >> (1 + bcount_)) == c0_)) {
-      const auto expected_bit{1u & (_expected_byte >> bcount_)};
+    if ((_match_length >= MINLEN) && (((_expected_byte | 0x100) >> (1 + bcount_)) == c0_)) {
+      const auto expected_bit{1U & (_expected_byte >> bcount_)};
 
       const auto sign{static_cast<int16_t>((2 * expected_bit) - 1)};
       pr[0x0] = static_cast<int16_t>(sign * static_cast<int16_t>(_match_length * 32));
@@ -1849,6 +1818,10 @@ public:
   }
 
 private:
+  static constexpr uint32_t NBITS{15};            // Size of look-up table (< 32) default 15 based on enwik9
+  static constexpr uint32_t MINLEN{2};            // Minimum required match length
+  static constexpr uint32_t MAXLEN{MINLEN + 63};  // Longest allowed match (max 6 bits, after subtraction of minimum length)
+
   const Buffer_t& __restrict _buf;
   uint32_t* const __restrict _ht;
   uint32_t _match{0};
@@ -1861,10 +1834,10 @@ private:
   RunContextMap_t<20> _rc0{16 + level_};       // w5_                         |                                      | not part of SparseMatchModel, just an improvement
   RunContextMap_t<20> _rc1{16 + level_};       // x5_                         |                                      | not part of SparseMatchModel, just an improvement
   RunContextMap_t<20> _rc2{16 + level_};       // tt_                         |                                      | not part of SparseMatchModel, just an improvement
-  RunContextMap_t<20> _rc3{16 + level_};       // groups_                     |                                      | not part of SparseMatchModel, just an improvement
+  RunContextMap_t<20> _rc3{16 + level_};       // word_                       |                                      | not part of SparseMatchModel, just an improvement
   StateMap_t<0x8000, 5> _ltp{};                // length|expected_bit|c1      | Rate of 5 is based on enwik9
   StateMap_t<0x80000, 9> _sm1{};               // expected_byte|bcount|buf(1) | Rate of 9 is based on enwik9
-  Blend_t<3 + (3 * 3) + 4> _blend{0x10000};    //
+  Blend_t<3 + (3 * 3) + 4> _blend{0x20000};    // w5_
 };
 SparseMatchModel_t::~SparseMatchModel_t() noexcept {
   std::free(_ht);
@@ -1927,7 +1900,7 @@ public:
       }
     } else {
       // Detect dictionary indexes
-      if ((3 == bcount_) && (ESCAPE_CHAR != (0xFF & c4_)) && (0xC == (0xC & c0_))) {
+      if ((3 == bcount_) && (ESCAPE_CHAR != (0xFF & cx_)) && (0xC == (0xC & c0_))) {
         if (0xC == (0xE & c0_)) {
           // < MID
           //         C0      80 --> 2 bits prediction
@@ -1961,8 +1934,8 @@ public:
       }
 
       // Detect value transformation <escape><0xFx><0x8x>...<0x0x>
-      if ((5 == bcount_) && (ESCAPE_CHAR == (0xFF & (c4_ >> 8))) && (0xF0 == (0xF0 & c4_)) && (0x06 == c0_)) {
-        const auto costs{0x0F & c4_};
+      if ((5 == bcount_) && (ESCAPE_CHAR == (0xFF & (cx_ >> 8))) && (0xF0 == (0xF0 & cx_)) && (0x06 == c0_)) {
+        const auto costs{0x0F & cx_};
         // clang-format off
         switch (costs) {
           case 0x4: // 80      80      80      00 --> 6 bits prediction
@@ -2126,12 +2099,13 @@ public:
     // Predict
     _sse = pr12;
     if (!_n0[_sse]) {
-      return 0xFFFFu;
+      return 0xFFFF;
     }
     if (!_n1[_sse]) {
-      return 1u;
+      return 1;
     }
-    return MulDiv(0xFFFFu, _n1[_sse], _n0[_sse] + _n1[_sse]);
+    const uint32_t pr{MulDiv(0xFFFF, _n1[_sse], _n0[_sse] + _n1[_sse])};
+    return pr + (pr < 32768);
   }
 
 private:
@@ -2233,7 +2207,7 @@ public:
     const auto p6{_a6.Predict(bit, p4, (4*c0_) ^ finalise64(hash(     cz, 0x0080FF & x5_                          ), 57), rate  )}; // 16 bits APM, hash bits of 57 is based on enwik9
     // clang-format on
 
-    auto* const __restrict px{_blend.Set()};
+    auto* const __restrict px{_blend.Get()};
     px[0] = Stretch(p3);  // Conversions from 0..4095 into -2048..2047
     px[1] = Stretch(p4);
     px[2] = Stretch(p5);
@@ -2292,7 +2266,7 @@ private:
   int32_t : 16;         // Padding
   HashTable_t _t4a{MEM() * 2};
   HashTable_t _t4b{MEM() * 2};
-  Blend_t<4> _blend{0x20000};
+  Blend_t<4> _blend{0x20000};  // w5_
   std::array<std::array<uint8_t, 8192>, 8> _calcfails{};
   std::array<uint8_t, 0x10000> _t0{};
   uint8_t* __restrict _t0c1{_t0.data()};
@@ -2303,7 +2277,6 @@ private:
   uint32_t _ctx5{0};
   int32_t : 32;  // Padding
   int32_t* _ctx6{&smt_[0][0]};
-  uint64_t _word{0};
   uint32_t _pw{0};
   uint32_t _bc4cp0{0};  // Range 0,1,2 or 3
   uint32_t _fails{0};
@@ -2312,6 +2285,8 @@ private:
   bool _is_binary{false};
   int32_t : 24;  // Padding
   SSE_t _sse{};
+  int32_t : 32;  // Padding
+  int32_t : 32;  // Padding
   int32_t : 32;  // Padding
 
   [[nodiscard]] auto Predict_not32(const bool bit) noexcept -> uint16_t {
@@ -2363,7 +2338,7 @@ private:
     smt_[0x4][_ctx1] += (y2o - smt_[0x4][_ctx1]) >> 9;                       // P1
     smt_[0x5][_ctx5] += (y2o - smt_[0x5][_ctx5]) * limits_15a_[_ctx5] >> 9;  // P5
 
-    if (0x2000 == (0xFF00 & c4_)) {
+    if (0x2000 == (0xFF00 & cx_)) {
       y2o += 768;
       smt_[0x7][_ctx2] += (y2o - smt_[0x7][_ctx2]) >> 10;  // P2
       smt_[0x9][_ctx3] += (y2o - smt_[0x9][_ctx3]) >> 11;  // P3
@@ -2447,7 +2422,7 @@ private:
     y2o += 6144;                                                              //
     smt_[4][_ctx1] += (y2o - smt_[4][_ctx1]) >> 14;                           // P1
 
-    if (0x2000 == (0xFF00 & c4_)) {
+    if (0x2000 == (0xFF00 & cx_)) {
       smt_[0x7][_ctx2] += (y2o - smt_[0x7][_ctx2]) >> 13;  // P2
       smt_[0x9][_ctx3] += (y2o - smt_[0x9][_ctx3]) >> 14;  // P3
       smt_[0xB][_ctx4] += (y2o - smt_[0xB][_ctx4]) >> 13;  // P4
@@ -2480,6 +2455,38 @@ private:
     return pz;
   }
 
+  void UpdateStates(const bool bit, int32_t cx) noexcept {
+    const auto& p{bit ? state_table_y1_ : state_table_y0_};
+    int32_t j{1 & cx};
+    const auto& q{j ? state_table_y1_ : state_table_y0_};
+
+    auto* const __restrict toc{_t0c1};
+    toc[cx] = p[2][toc[cx]];
+    cx >>= 1;
+    toc[cx] = q[2][toc[cx]];
+    j = j ^ ~0;  // 0 --> -1    1 --> -2
+
+    auto* const __restrict cp0{cp_[0]};
+    cp0[0] = p[1][cp0[0]];
+    cp0[j] = q[1][cp0[j]];
+
+    auto* const __restrict cp1{cp_[1]};
+    cp1[0] = p[0][cp1[0]];  // in lpaq9m 4 for was32
+    cp1[j] = q[0][cp1[j]];
+
+    auto* const __restrict cp2{cp_[2]};
+    cp2[0] = p[3][cp2[0]];
+    cp2[j] = q[3][cp2[j]];
+
+    auto* const __restrict cp3{cp_[3]};
+    cp3[0] = p[4][cp3[0]];
+    cp3[j] = q[4][cp3[j]];
+
+    auto* const __restrict cp4{cp_[4]};
+    cp4[0] = p[5][cp4[0]];  // in lpaq9m cycles between 5,3,1,5,..
+    cp4[j] = q[5][cp4[j]];
+  }
+
   [[nodiscard]] auto Predict(const bool bit) noexcept -> uint16_t {
     fails_ += fails_;
 #if 1
@@ -2502,45 +2509,17 @@ private:
       fails_ |= _calcfails[(bcount_ - 1) & 7][static_cast<uint16_t>(err + 4096)];
       _mixer.Update(err);
     }
-    auto cx{c0_};
+    const auto cx{static_cast<int32_t>(c0_)};
     c0_ += c0_ + static_cast<uint32_t>(bit);
     bcount_ = 7 & (bcount_ - 1);
     // bpos_ = (bpos_ + 1) & 7;
     _add2order += Mixer_t::N_LAYERS;
 
-    if (0 != (1 & bcount_)) {
-      const auto& p{bit ? state_table_y1_ : state_table_y0_};
-      int32_t j = 1 & cx;
-      const auto& q{j ? state_table_y1_ : state_table_y0_};
-
-      uint8_t* __restrict a{_t0c1};
-      a[cx] = p[2][a[cx]];
-      cx >>= 1;
-      a[cx] = q[2][a[cx]];
-      j = j ^ ~0;  // 0 --> -1    1 --> -2
-
-      a = cp_[0];
-      a[0] = p[1][a[0]];
-      a[j] = q[1][a[j]];
-      a = cp_[1];
-      a[0] = p[0][a[0]];  // in lpaq9m 4 for was32
-      a[j] = q[0][a[j]];
-      a = cp_[2];
-      a[0] = p[3][a[0]];
-      a[j] = q[3][a[j]];
-      a = cp_[3];
-      a[0] = p[4][a[0]];
-      a[j] = q[4][a[j]];
-      a = cp_[4];
-      a[0] = p[5][a[0]];
-      a[j] = q[5][a[j]];
-    }
-
     switch (bcount_) {
-      case 6:
-      case 4:
-      case 2:
-      case 0: {
+      case 6:    // c0_ contains 1 bit
+      case 4:    // c0_ contains 3 bits
+      case 2:    // c0_ contains 5 bits
+      case 0: {  // c0_ contains 7 bits
         const auto z{bit ? 2 : 1};
         cp_[0] += z;
         cp_[1] += z;
@@ -2549,8 +2528,9 @@ private:
         cp_[4] += z;
       } break;
 
-      case 5: {
-        auto zq{2 + (c0_ & 0x03) * 2};           // c0_ contains 2 bits
+      case 5: {  // c0_ contains 2 bits
+        UpdateStates(bit, cx);
+        auto zq{2 + (c0_ & 0x03) * 2};
         cp_[0] = _t4b.get1x(0x00, zq + hh_[0]);  // 000 (0)
         cp_[1] = _t4a.get1x(0x80, zq + hh_[1]);  // 100 (4)
         cp_[4] = _t4b.get1x(0x00, zq + hh_[4]);  // 000 (0)
@@ -2559,8 +2539,9 @@ private:
         cp_[3] = _t4b.get3a(0x80, zq + hh_[3]);  // 100 (4)
       } break;
 
-      case 1: {
-        auto zq{2 + (c0_ & 0x3F) * 2};           // c0_ contains 6 bits
+      case 1: {  // c0_ contains 6 bits
+        UpdateStates(bit, cx);
+        auto zq{2 + (c0_ & 0x3F) * 2};
         cp_[0] = _t4b.get1x(0xC0, zq + hh_[0]);  // 110 (6)
         cp_[1] = _t4a.get1x(0x40, zq + hh_[1]);  // 010 (2)
         cp_[4] = _t4b.get1x(0xC0, zq + hh_[4]);  // 110 (6)
@@ -2569,13 +2550,16 @@ private:
         cp_[3] = _t4b.get3b(0x40, zq + hh_[3]);  // 010 (2)
       } break;
 
-      case 3: {
-        const auto zq{2 + (c0_ & 0x0F) * 2};  // c0_ contains 4 bits
+      case 3: {  // c0_ contains 4 bits
+        UpdateStates(bit, cx);
+        const auto zq{2 + (c0_ & 0x0F) * 2};
         const auto blur{Utilities::PHI32 * zq};
+        const auto c4{cx_ & 0xFFFFFFFF};
+        const auto c8{cx_ >> 32};
         hh_[0] = finalise64(hash(zq - hh_[0]), 32);
         hh_[1] ^= blur;
-        hh_[2] = finalise64(hash(zq, c4_, c8_ & 0x000080FF), 32);
-        hh_[3] = finalise64(hash(zq, c4_, c8_ & 0x00FFFFFF), 32);
+        hh_[2] = finalise64(hash(zq, c4, c8 & 0x000080FF), 32);
+        hh_[3] = finalise64(hash(zq, c4, c8 & 0x00FFFFFF), 32);
         hh_[4] ^= blur;
         cp_[0] = _t4b.get1x(0xA0, hh_[0]);  // 101 (5)
         cp_[1] = _t4a.get1x(0x20, hh_[1]);  // 001 (1)
@@ -2585,10 +2569,11 @@ private:
       } break;
 
       case 7:
-      default: {
-        const auto c{static_cast<uint8_t>(c0_)};
-        c0_ = c;
-        const auto idx{Mixer_t::N_LAYERS * 10u * 4u * wrt_mxr_[c]};  // 9*10*4*(0..30) --> 10800
+      default: {  // c0_ contains 8 bits (from previous cycle) --> Reset to 1 for new cycle
+        UpdateStates(bit, cx);
+        const auto ch{static_cast<uint8_t>(c0_)};
+        c0_ = ch;
+        const auto idx{Mixer_t::N_LAYERS * 10u * 4u * wrt_mxr_[ch]};  // 9*10*4*(0..30) --> 10800
         _add2order = idx;
 
         static constexpr std::array<uint8_t, 256> WRT_mtt{{0, 4, 4, 5, 0, 5, 3, 7, 0, 2, 4, 0, 0, 0, 0, 0,    // 00-0F . . . . . . . . . . . . . . . .
@@ -2608,9 +2593,9 @@ private:
                                                            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,    // E0-EF . . . . . . . . . . . . . . . .
                                                            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}};  // F0-FF . . . . . . . . . . . . . . . .
         if (!(0xFF & _pw)) {
-          c1_ = (static_cast<uint32_t>(WRT_mtt[c]) << 2) + 33u;  // 0..61
+          c1_ = (static_cast<uint32_t>(WRT_mtt[ch]) << 2) + 33u;  // 0..61
         } else {
-          c1_ = (static_cast<uint32_t>(WRT_mtt[c]) << 5) | (0x1F & _pw);
+          c1_ = (static_cast<uint32_t>(WRT_mtt[ch]) << 5) | (0x1F & _pw);
           if (c1_ < 64) {
             static constexpr std::array<uint8_t, 64> WRT_chc1{{0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,    // 00-0F . . . . . . . . . . . . . . . .
                                                                16, 1,  18, 19, 20, 5,  22, 23, 24, 9,  26, 27, 28, 13, 30, 31,    // 10-1F . . . . . . . . . . . . . . . .
@@ -2621,17 +2606,16 @@ private:
         }
         c2_ = c1_ * 256;
 
-        _buf.Add(c);
-        c8_ = (c8_ << 8) | (c4_ >> 24);
-        c4_ = (c4_ << 8) | c;
-        _t0c1 = &_t0[c * 256];
+        _buf.Add(ch);
+        cx_ = (cx_ << 8) | ch;
+        _t0c1 = &_t0[ch * 256];
 
-        if (!(c & 0x80)) {
+        if (!(ch & 0x80)) {
 #if 1
           static constexpr auto TxtFilter{0x28000001D00000000000C14000000400_xxl};
           static constexpr auto ExeFilter{0x00000000000000000000000000008002_xxl};
 
-          if (const auto filter{_is_binary ? ExeFilter : TxtFilter}; 1 & (filter >> c)) {
+          if (const auto filter{_is_binary ? ExeFilter : TxtFilter}; 1 & (filter >> ch)) {
 #else
           // \n & ( . / \ ^ _ ' { }                            0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F              0 1 2 3 4 5 6 7 8 9 A B C D E F
           static constexpr std::array<uint8_t, 128> TxtFilter{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,    // 00-0F . . . . . . . . . . . . . . . .
@@ -2653,17 +2637,17 @@ private:
                                                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    // 60-6F ` a b c d e f g h i j k l m n o
                                                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};  // 70-7F p q r s t u v w x y z { | } ~ .
 
-          if (const auto& filter{_is_binary ? ExeFilter : TxtFilter}; filter[c]) {
+          if (const auto& filter{_is_binary ? ExeFilter : TxtFilter}; filter[ch]) {
 #endif
             tt_ = (tt_ & UINT32_C(-8)) + 1;
             w5_ = (w5_ << 8) | 0x3FF;
-            x5_ = (x5_ << 8) + c;
+            x5_ = (x5_ << 8) + ch;
           }
         }
 
-        tt_ = (tt_ * 8) + WRT_mtt[c];
-        w5_ = (w5_ * 4) + static_cast<uint32_t>(0xF & (UINT64_C(0x0000111111233444) >> (4 * (c >> 4))));  // WRT_mpw
-        x5_ = (x5_ << 8) + c;
+        tt_ = (tt_ * 8) + WRT_mtt[ch];
+        w5_ = (w5_ * 4) + static_cast<uint32_t>(0xF & (UINT64_C(0x0000111111233444) >> (4 * (ch >> 4))));  // WRT_mpw
+        x5_ = (x5_ << 8) + ch;
 
         //                                                 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F              0 1 2 3 4 5 6 7 8 9 A B C D E F
         static constexpr std::array<uint8_t, 256> WRT_wrd{{0, 0, 0, 1, 0, 1, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0,    // 00-0F . . . . . . . . . . . . . . . .
@@ -2682,46 +2666,28 @@ private:
                                                            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,    // D0-DF . . . . . . . . . . . . . . . .
                                                            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,    // E0-EF . . . . . . . . . . . . . . . .
                                                            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}};  // F0-FF . . . . . . . . . . . . . . . .
-        _bc4cp0 = WRT_wrd[c];
+        _bc4cp0 = WRT_wrd[ch];
         _pw += _pw + (_bc4cp0 ? 1 : 0);
 
-        if (const auto pc{static_cast<uint8_t>((c4_ >> 8) & 0xFF)};  //
-            (c > 127) ||                                             //
-            ((c >= 'a') && (c <= 'z')) ||                            //
-            ((c >= '0') && (c <= '9')) ||                            //
-            ((pc >= '0') && (pc <= '9') && ('.' == c))) {            //
-          _word = combine64(_word, c);
-        } else if ((c >= 'A') && (c <= 'Z')) {
-          _word = combine64(_word, c + 'a' - 'A');
+        if (const auto pc{static_cast<uint8_t>(cx_ >> 8)}; (ch > 127) ||                    //
+                                                           ((ch >= 'a') && (ch <= 'z')) ||  //
+                                                           ((ch >= '0') && (ch <= '9')) ||  //
+                                                           ((pc >= '0') && (pc <= '9') && ('.' == ch))) {
+          word_ = combine64(word_, ch);
+        } else if ((ch >= 'A') && (ch <= 'Z')) {
+          word_ = combine64(word_, ch + 'a' - 'A');
         } else {
-          _word = 0;
+          word_ = 0;
         }
 
-        //                                               0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F               0 1 2 3 4 5 6 7 8 9 A B C D E F
-        static constexpr std::array<uint8_t, 256> group{{0,  1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  1,  1,  1,  1,  1,     // 00-0F . . . . . . . . . . . . . . . .
-                                                         1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,     // 10-1F . . . . . . . . . . . . . . . .
-                                                         3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18,    // 20-2F   ! " # $ % & ' ( ) * + , - . /
-                                                         19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 20, 21, 22, 23, 24, 25,    // 30-3F 0 1 2 3 4 5 6 7 8 9 : ; < = > ?
-                                                         26, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,    // 40-4F @ A B C D E F G H I J K L M N O
-                                                         27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 28, 29, 30, 31, 32,    // 50-5F P Q R S T U V W X Y Z [ \ ] ^ _
-                                                         33, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34,    // 60-6F ` a b c d e f g h i j k l m n o
-                                                         34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 35, 36, 37, 38, 39,    // 70-7F p q r s t u v w x y z { | } ~ .
-                                                         40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,    // 80-8F . . . . . . . . . . . . . . . .
-                                                         40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,    // 90-9F . . . . . . . . . . . . . . . .
-                                                         40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,    // A0-AF . . . . . . . . . . . . . . . .
-                                                         40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,    // B0-BF . . . . . . . . . . . . . . . .
-                                                         41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,    // C0-CF . . . . . . . . . . . . . . . .
-                                                         41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,    // D0-DF . . . . . . . . . . . . . . . .
-                                                         42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,    // E0-EF . . . . . . . . . . . . . . . .
-                                                         43, 43, 43, 43, 43, 43, 43, 43, 44, 44, 44, 44, 44, 44, 44, 45}};  // F0-FF . . . . . . . . . . . . . . . .
-        groups_ = (groups_ << 8) | group[c];
-
-        const auto ctx{_is_binary ? exectx(_buf) : (c4_ & 0x0080FFFF)};
+        const auto c4{cx_ & 0xFFFFFFFF};
+        const auto c8{cx_ >> 32};
+        const auto ctx{_is_binary ? exectx(_buf) : (cx_ & 0x0080FFFF)};
         hh_[0] = finalise64(hash(ctx), 32);
-        hh_[1] = finalise64(hash(c4_, wrt_mxr_[c4_ >> 24]), 32);
-        hh_[2] = finalise64(hash(c4_, c8_ & 0x0000C0FF), 32);
-        hh_[3] = finalise64(hash(c4_, c8_ & 0x00FEFFFF, wrt_mxr_[c8_ >> 24]), 32);
-        hh_[4] = finalise64(combine64(_word, wrt_mxr_[c]), 32);
+        hh_[1] = finalise64(hash(c4, wrt_mxr_[(cx_ >> 24) & 0xFF]), 32);
+        hh_[2] = finalise64(hash(c4, c8 & 0x0000C0FF), 32);
+        hh_[3] = finalise64(hash(c4, c8 & 0x00FEFFFF, wrt_mxr_[cx_ >> 56]), 32);
+        hh_[4] = finalise64(combine64(word_, wrt_mxr_[ch]), 32);
         cp_[0] = _t4b.get1x(0xE0, hh_[0]);  // 111 (7)
         cp_[1] = _t4a.get1x(0x60, hh_[1]);  // 011 (3)
         cp_[2] = _t4a.get3a(0xE0, hh_[2]);  // 111 (7)
@@ -3077,7 +3043,7 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
   }
 
   if (!((argc >= 4) && (argc <= 6)) || (nullptr == inFileName) || (nullptr == outFileName)) {
-    static constexpr std::array<uint32_t, 11> use{{87, 116, 174, 291, 523, 988, 1918, 3777, 7497, 13909, 25708}};  // TODO verify this
+    static constexpr std::array<uint32_t, 11> use{{90, 119, 177, 294, 526, 991, 1921, 3780, 7500, 13912, 25711}};  // TODO verify this
     fprintf(stderr,
             "\n\nUsage: Moruga <command> <infile> <outfile>\n"
             "\n<Commands>\n"
@@ -3294,10 +3260,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement{INT64_C(137504007) - outfile.Size()};
+      const auto improvement{INT64_C(137352734) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
-      const auto improvement{INT64_C(17404355) - outfile.Size()};
+      const auto improvement{INT64_C(17387238) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     }
 #endif
