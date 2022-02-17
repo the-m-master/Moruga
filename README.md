@@ -14,7 +14,7 @@ I chose this name because I had two goals in mind while making it.
 * The algorithm should be as fast as possible.
 * The memory usage of the algorithm should be minimal.
 
-During the creation of the implementation, it was always assumed that the memory usage (option -6) should be less than 2 GiB with an acceptable speed (about 200 seconds or so for enwik8).
+When creating this implementation, it was assumed that the memory usage (option -6) should be less than 2 GiB at an acceptable speed (about 250 seconds or so, for enwik8 on Ryzen 9 3950X).
 
 And another premise was that this data compressor is not written for a specific data format or file (like enwik8 or 9).
 Moruga's benchmarks do not rely on external preprocessor applications or (external) dictionaries (such as DRT or enwik9-preproc).

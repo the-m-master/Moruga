@@ -72,13 +72,17 @@ PROFILE_DIR := Profile
 #===============================================================================
 
 ifeq ($(TOOLCHAIN),llvm)
-  CC      := clang
-  CXX     := clang++
-  OBJDUMP := llvm-objdump
+  CXX         := clang++
+  OBJDUMP     := llvm-objdump
+  CXX_VERSION := $(shell expr `$(CXX) -dumpversion | cut -f1 -d.` \>= 11)
 else
-  CC      := gcc
-  CXX     := g++
-  OBJDUMP := objdump
+  CXX         := g++
+  OBJDUMP     := objdump
+  CXX_VERSION := $(shell expr `$(CXX) -dumpversion | cut -f1 -d.` \>= 10)
+endif
+
+ifneq "$(CXX_VERSION)" "1"
+  $(error Use g++-10 or clang++-11 (or newer) for C++20 support)
 endif
 
 #===============================================================================
@@ -177,7 +181,8 @@ else
              -Wundef \
              -Wuninitialized \
              -Wuseless-cast \
-             -Wwrite-strings
+             -Wwrite-strings \
+             -fgcse-sm
 endif
 
 #===============================================================================

@@ -28,6 +28,7 @@
 #else
 #  if defined(_MSC_VER)
 #    define ALWAYS_INLINE __forceinline
+#    define strncasecmp strnicmp
 #    define strcasecmp stricmp
 #  elif defined(__GNUC__)
 #    define ALWAYS_INLINE inline __attribute__((always_inline))
