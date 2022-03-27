@@ -64,8 +64,8 @@
 
 static int32_t level_{DEFAULT_OPTION};  // Compression level 0 to 12
 
-static auto MEM() noexcept -> uint64_t {
-  return UINT64_C(1) << (22 + level_);  // 27,28,29 and 30 only on x64 platforms
+static auto MEM(const int32_t offset = 22) noexcept -> uint64_t {
+  return UINT64_C(1) << (offset + level_);
 }
 
 // Global variables
@@ -309,12 +309,10 @@ static constexpr std::array<int16_t, 0x1000> __stretch{{
 #endif  // GENERATE_SQUASH_STRETCH
 
 template <typename T>
-[[nodiscard]] ALWAYS_INLINE static constexpr auto clamp12(T pr) noexcept -> int16_t {
-  // clang-format off
-  if (pr < ~0x7FF){ return ~0x7FF; }
-  if (pr >  0x7FF){ return  0x7FF; }
-  // clang-format on
-  return static_cast<int16_t>(pr);
+[[nodiscard]] ALWAYS_INLINE static constexpr auto clamp12(T val) noexcept -> int16_t {
+  constexpr T lo{~0x7FF};
+  constexpr T hi{0x7FF};
+  return static_cast<int16_t>((val < lo) ? lo : (hi < val) ? hi : val);
 }
 
 static auto getDimension(size_t size) noexcept -> std::string {
@@ -602,106 +600,30 @@ static constexpr std::array<uint8_t, 256> limits_15b_             //
       0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 0,  0,  0,  0,  0,  0,    // E0-EF . . . . . . . . . . . . . . . .
       0, 0, 0, 0, 0, 0,   0,   0, 0, 0, 0,  0,  0,  0,  0,  0}};  // F0-FF . . . . . . . . . . . . . . . .
 
-#if 0
-
 /**
  * @class APM_t
  * Adaptive Probability Maps
  */
 class APM_t final {
 public:
-  explicit APM_t(uint32_t n, uint32_t) noexcept
-      : N{n * 24},  //
-        _mask{n - 1},
-        _table{new uint32_t[N]} {
-    assert(ISPOWEROF2(n));
-    for (uint32_t i{0}; i < N; ++i) {
-      const auto p{static_cast<int16_t>(((static_cast<int32_t>(i % 24) * 4096) / (24 - 1)) - 2048)};
-      _table[i] = (Squash(p) * (1U << 20)) & -16U;  // Conversion from -2048..2047 (clamped) into 0..4095
-    }
-  }
-
-  virtual ~APM_t() noexcept;
-
-  uint16_t p1(const bool bit, const int16_t pr, const uint32_t cx) noexcept {
-    return Next(bit, pr, cx, 0x9776666665555554);
-  }
-
-  uint16_t p2(const bool bit, const int16_t pr, const uint32_t cx) noexcept {
-    return Next(bit, pr, cx, 0x9887777776666664);
-  }
-
-private:
-  APM_t(const APM_t&) = delete;
-  APM_t(APM_t&&) = delete;
-  APM_t& operator=(const APM_t&) = delete;
-  APM_t& operator=(APM_t&&) = delete;
-
-  uint16_t Next(const bool bit, int32_t pr, uint32_t cx, const uint64_t speedTable) noexcept {
-    uint32_t prediction{_table[_ctx]};
-    uint32_t speedIndex{0xF & prediction};
-    const uint32_t speed{static_cast<uint32_t>(0xF & (speedTable >> (speedIndex * 4)))};
-    if (bit) {
-      prediction += ~prediction >> speed;
-    } else {
-      prediction -= prediction >> speed;
-    }
-    if (speedIndex < 0xF) {
-      ++speedIndex;
-    }
-    _table[_ctx] = (prediction & -16U) | speedIndex;
-
-    pr = (pr + 2048) * (24 - 1);
-    uint32_t wt = pr & 0xFFF;  // interpolation weight of next element
-    cx = ((cx & _mask) * 24) + static_cast<uint32_t>(pr >> 12);
-    assert(cx < (N - 1));
-    _ctx = cx + (wt >> 11);
-    uint32_t vx{_table[cx + 0]};
-    uint32_t vy{_table[cx + 1]};
-    uint32_t vz{(vy >> 12) - (vx >> 12)};
-    uint16_t px{static_cast<uint16_t>(((vz * wt) + vx) >> 20)};
-    assert(px < 0x1000);
-    return px;
-  }
-
-  const uint32_t N;                   // Number of contexts
-  const uint32_t _mask;               // ctx limit
-  uint32_t* const __restrict _table;  // ctx -> prediction
-  uint32_t _ctx{0};                   // Context of last prediction
-  int32_t : 32;                       // Padding
-};
-APM_t::~APM_t() noexcept {
-  delete[] _table;
-}
-
-#else
-
-/**
- * @class APM_t
- * Adaptive Probability Maps
- */
-class APM_t final {
-public:
-  explicit APM_t(uint32_t n, uint32_t start) noexcept
+  explicit APM_t(const uint64_t n, const uint32_t start = 8) noexcept
       : N{(n * 24) + 1},  //
-        _mask{n - 1},
-        _table{static_cast<uint32_t*>(std::calloc(N, sizeof(uint32_t)))} {
+        _mask{static_cast<uint32_t>(n - 1)},
+        _map{static_cast<Map_t*>(std::calloc(N, sizeof(Map_t)))} {
     assert(ISPOWEROF2(n));
     if (verbose_) {
-      fprintf(stdout, "%s for APM_t\n", getDimension(N * sizeof(uint32_t)).c_str());
+      fprintf(stdout, "%s for APM_t\n", getDimension(N * sizeof(Map_t)).c_str());
     }
+    for (auto i{N}; i--;) {
+      const auto pr{(8 == start) ? (((((i % 24) * 2) + 1) * 4096) / (24 * 2)) : (((i % 24) * 4096) / (24 - 1))};
+      const auto prediction{Squash(static_cast<int32_t>(pr) - 2048) * (UINT32_C(1) << 10)};  // Conversion from -2048..2047 (clamped) into 0..4095
+      _map[i].prediction = 0x3FFFFF & prediction;
+      _map[i].count = 0x3FF & start;
 
-    for (uint32_t i{0}; i < N; ++i) {
-      const auto p{static_cast<int16_t>(((static_cast<int32_t>(i % 24) * 4096) / (24 - 1)) - 2048)};
-      _table[i] = Squash(p) * (UINT32_C(1) << 20) + start;  // Conversion from -2048..2047 (clamped) into 0..4095
-    }
-
-    for (size_t j{0}; j < _dt.size(); ++j) {
-      _dt[j] = (40 * 128) / (static_cast<int32_t>(j) + 4);   // 40 is based on enwik9
-      _dta[j] = (32 * 128) / (static_cast<int32_t>(j) + 4);  // 32 is based on enwik9
+      assert((_map[i].value >> 10) == prediction);
+      assert((_map[i].value & 0x3FF) == start);
     }
   }
-
   virtual ~APM_t() noexcept;
 
   APM_t() = delete;
@@ -710,105 +632,260 @@ public:
   auto operator=(const APM_t&) -> APM_t& = delete;
   auto operator=(APM_t&&) -> APM_t& = delete;
 
-  [[nodiscard]] auto p1(const bool bit, int32_t pr, uint32_t cx) noexcept -> uint16_t {
-    uint32_t* const __restrict t{&_table[_ctx]};
-    const auto count{*t & 0x3FF};
-    const auto prediction{static_cast<int32_t>(*t >> 12)};
-    *t += (static_cast<uint32_t>(((bit << 20) - prediction) * _dt[count] + 0x380) & -0x400U) + (count < 0x3FF);  // (896) 28*32 is based on enwik9
-    return Next(pr, cx);
+  [[nodiscard]] auto p1(const bool bit, const int32_t pr, const uint32_t cx) noexcept -> uint16_t {
+    Update(bit, _dta);
+    return Predict(pr, cx);
   }
 
-  [[nodiscard]] auto p2(const bool bit, int32_t pr, uint32_t cx) noexcept -> uint16_t {
-    uint32_t* const __restrict t{&_table[_ctx]};
-    const auto count{*t & 0x3FF};
-    const auto prediction{static_cast<int32_t>(*t >> 12)};
-    *t += (static_cast<uint32_t>(((bit << 20) - prediction) * _dta[count] + 0x180) & -0x400U) + (count < 0x3FF);  // (384) 11*32 is based on enwik9
-    return Next(pr, cx);
+  [[nodiscard]] auto p2(const bool bit, const int32_t pr, const uint32_t cx) noexcept -> uint16_t {
+    Update(bit, _dtb);
+    return Predict(pr, cx);
+  }
+
+  [[nodiscard]] auto p3(const bool bit, const uint32_t pr, const uint32_t cx) noexcept -> uint16_t {
+    Update(bit, _dtc);
+    return Predict(Stretch(pr), cx);
   }
 
 private:
-  [[nodiscard]] auto Next(int32_t pr, uint32_t cx) noexcept -> uint16_t {
+  void Update(const bool bit, const std::array<int16_t, 0x400>& dt) noexcept {
+    auto& map{_map[_ctx]};
+    const auto prediction{static_cast<int32_t>(map.prediction)};
+    const auto count{map.count};
+    const auto err{((bit << 22) - prediction) >> 3};
+    map.value += (static_cast<uint32_t>(err * dt[count]) & -0x400U) + (count < 0x3FF);
+  }
+
+  [[nodiscard]] auto Predict(int32_t pr, uint32_t cx) noexcept -> uint16_t {
+    assert((pr >= -2048) && (pr < 2048));
+    assert((cx & _mask) < (N / 24));
     pr = (24 - 1) * (pr + 2048);                       // Conversion from -2048..2047 into 0..94185
-    const auto wt{static_cast<uint16_t>(0xFFF & pr)};  // interpolation weight of next element
+    const auto wt{static_cast<uint32_t>(0xFFF & pr)};  // interpolation weight of next element
     cx = (24 * (cx & _mask)) + static_cast<uint32_t>(pr >> 12);
     assert(cx < (N - 1));
     _ctx = cx + (wt >> 11);
-    const uint64_t vx{_table[cx + 0]};
-    const uint64_t vy{_table[cx + 1]};
-    const auto px{static_cast<uint16_t>(((vx << 12) - ((vx - vy) * wt)) >> 32)};
-    assert(px < 0x1000);
-    return px;
+    assert(_ctx < N);
+    const uint64_t vx{_map[cx + 0].value};                  // Prediction is needed, count is shifted out later on
+    const uint64_t vy{_map[cx + 1].value};                  // Prediction is needed, count is shifted out later on
+    const auto py{((vx * 4096) - ((vx - vy) * wt)) >> 32};  // Calculate new prediction, lose count
+    assert(py < 0x1000);
+    return static_cast<uint16_t>(py);
   }
 
-  const uint32_t N;                   // Number of contexts
-  const uint32_t _mask;               // ctx limit
-  uint32_t* const __restrict _table;  // ctx -> prediction
-  uint32_t _ctx{0};                   // Context of last prediction
-  std::array<int32_t, 1024> _dt{};
-  std::array<int32_t, 1024> _dta{};
-  int32_t : 32;  // Padding
+  // (72 * 128) / (i+4)
+  static constexpr std::array<int16_t, 0x400> _dta{{2304, 1843, 1536, 1316, 1152, 1024, 921, 837, 768, 708, 658, 614, 576, 542, 512, 485,  // 000-00F
+                                                    460,  438,  418,  400,  384,  368,  354, 341, 329, 317, 307, 297, 288, 279, 271, 263,  // 010-01F
+                                                    256,  249,  242,  236,  230,  224,  219, 214, 209, 204, 200, 196, 192, 188, 184, 180,  // 020-02F
+                                                    177,  173,  170,  167,  164,  161,  158, 156, 153, 151, 148, 146, 144, 141, 139, 137,  // 030-03F
+                                                    135,  133,  131,  129,  128,  126,  124, 122, 121, 119, 118, 116, 115, 113, 112, 111,  // 040-04F
+                                                    109,  108,  107,  105,  104,  103,  102, 101, 100, 99,  98,  97,  96,  95,  94,  93,   // 050-05F
+                                                    92,   91,   90,   89,   88,   87,   86,  86,  85,  84,  83,  83,  82,  81,  80,  80,   // 060-06F
+                                                    79,   78,   78,   77,   76,   76,   75,  74,  74,  73,  73,  72,  72,  71,  70,  70,   // 070-07F
+                                                    69,   69,   68,   68,   67,   67,   66,  66,  65,  65,  64,  64,  64,  63,  63,  62,   // 080-08F
+                                                    62,   61,   61,   61,   60,   60,   59,  59,  59,  58,  58,  57,  57,  57,  56,  56,   // 090-09F
+                                                    56,   55,   55,   55,   54,   54,   54,  53,  53,  53,  52,  52,  52,  52,  51,  51,   // 0A0-0AF
+                                                    51,   50,   50,   50,   50,   49,   49,  49,  49,  48,  48,  48,  48,  47,  47,  47,   // 0B0-0BF
+                                                    47,   46,   46,   46,   46,   45,   45,  45,  45,  44,  44,  44,  44,  44,  43,  43,   // 0C0-0CF
+                                                    43,   43,   43,   42,   42,   42,   42,  42,  41,  41,  41,  41,  41,  40,  40,  40,   // 0D0-0DF
+                                                    40,   40,   40,   39,   39,   39,   39,  39,  39,  38,  38,  38,  38,  38,  38,  37,   // 0E0-0EF
+                                                    37,   37,   37,   37,   37,   37,   36,  36,  36,  36,  36,  36,  36,  35,  35,  35,   // 0F0-0FF
+                                                    35,   35,   35,   35,   34,   34,   34,  34,  34,  34,  34,  34,  33,  33,  33,  33,   // 100-10F
+                                                    33,   33,   33,   33,   32,   32,   32,  32,  32,  32,  32,  32,  32,  31,  31,  31,   // 110-11F
+                                                    31,   31,   31,   31,   31,   31,   30,  30,  30,  30,  30,  30,  30,  30,  30,  30,   // 120-12F
+                                                    29,   29,   29,   29,   29,   29,   29,  29,  29,  29,  28,  28,  28,  28,  28,  28,   // 130-13F
+                                                    28,   28,   28,   28,   28,   28,   27,  27,  27,  27,  27,  27,  27,  27,  27,  27,   // 140-14F
+                                                    27,   27,   26,   26,   26,   26,   26,  26,  26,  26,  26,  26,  26,  26,  26,  25,   // 150-15F
+                                                    25,   25,   25,   25,   25,   25,   25,  25,  25,  25,  25,  25,  25,  24,  24,  24,   // 160-16F
+                                                    24,   24,   24,   24,   24,   24,   24,  24,  24,  24,  24,  24,  24,  23,  23,  23,   // 170-17F
+                                                    23,   23,   23,   23,   23,   23,   23,  23,  23,  23,  23,  23,  23,  22,  22,  22,   // 180-18F
+                                                    22,   22,   22,   22,   22,   22,   22,  22,  22,  22,  22,  22,  22,  22,  22,  21,   // 190-19F
+                                                    21,   21,   21,   21,   21,   21,   21,  21,  21,  21,  21,  21,  21,  21,  21,  21,   // 1A0-1AF
+                                                    21,   21,   21,   20,   20,   20,   20,  20,  20,  20,  20,  20,  20,  20,  20,  20,   // 1B0-1BF
+                                                    20,   20,   20,   20,   20,   20,   20,  20,  20,  19,  19,  19,  19,  19,  19,  19,   // 1C0-1CF
+                                                    19,   19,   19,   19,   19,   19,   19,  19,  19,  19,  19,  19,  19,  19,  19,  19,   // 1D0-1DF
+                                                    19,   19,   18,   18,   18,   18,   18,  18,  18,  18,  18,  18,  18,  18,  18,  18,   // 1E0-1EF
+                                                    18,   18,   18,   18,   18,   18,   18,  18,  18,  18,  18,  18,  18,  17,  17,  17,   // 1F0-1FF
+                                                    17,   17,   17,   17,   17,   17,   17,  17,  17,  17,  17,  17,  17,  17,  17,  17,   // 200-20F
+                                                    17,   17,   17,   17,   17,   17,   17,  17,  17,  17,  17,  16,  16,  16,  16,  16,   // 210-21F
+                                                    16,   16,   16,   16,   16,   16,   16,  16,  16,  16,  16,  16,  16,  16,  16,  16,   // 220-22F
+                                                    16,   16,   16,   16,   16,   16,   16,  16,  16,  16,  16,  16,  16,  15,  15,  15,   // 230-23F
+                                                    15,   15,   15,   15,   15,   15,   15,  15,  15,  15,  15,  15,  15,  15,  15,  15,   // 240-24F
+                                                    15,   15,   15,   15,   15,   15,   15,  15,  15,  15,  15,  15,  15,  15,  15,  15,   // 250-25F
+                                                    15,   15,   15,   14,   14,   14,   14,  14,  14,  14,  14,  14,  14,  14,  14,  14,   // 260-26F
+                                                    14,   14,   14,   14,   14,   14,   14,  14,  14,  14,  14,  14,  14,  14,  14,  14,   // 270-27F
+                                                    14,   14,   14,   14,   14,   14,   14,  14,  14,  14,  14,  14,  14,  14,  14,  13,   // 280-28F
+                                                    13,   13,   13,   13,   13,   13,   13,  13,  13,  13,  13,  13,  13,  13,  13,  13,   // 290-29F
+                                                    13,   13,   13,   13,   13,   13,   13,  13,  13,  13,  13,  13,  13,  13,  13,  13,   // 2A0-2AF
+                                                    13,   13,   13,   13,   13,   13,   13,  13,  13,  13,  13,  13,  13,  13,  13,  13,   // 2B0-2BF
+                                                    13,   12,   12,   12,   12,   12,   12,  12,  12,  12,  12,  12,  12,  12,  12,  12,   // 2C0-2CF
+                                                    12,   12,   12,   12,   12,   12,   12,  12,  12,  12,  12,  12,  12,  12,  12,  12,   // 2D0-2DF
+                                                    12,   12,   12,   12,   12,   12,   12,  12,  12,  12,  12,  12,  12,  12,  12,  12,   // 2E0-2EF
+                                                    12,   12,   12,   12,   12,   12,   12,  12,  12,  12,  12,  12,  12,  11,  11,  11,   // 2F0-2FF
+                                                    11,   11,   11,   11,   11,   11,   11,  11,  11,  11,  11,  11,  11,  11,  11,  11,   // 300-30F
+                                                    11,   11,   11,   11,   11,   11,   11,  11,  11,  11,  11,  11,  11,  11,  11,  11,   // 310-31F
+                                                    11,   11,   11,   11,   11,   11,   11,  11,  11,  11,  11,  11,  11,  11,  11,  11,   // 320-32F
+                                                    11,   11,   11,   11,   11,   11,   11,  11,  11,  11,  11,  11,  11,  11,  11,  11,   // 330-33F
+                                                    11,   11,   10,   10,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 340-34F
+                                                    10,   10,   10,   10,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 350-35F
+                                                    10,   10,   10,   10,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 360-36F
+                                                    10,   10,   10,   10,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 370-37F
+                                                    10,   10,   10,   10,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 380-38F
+                                                    10,   10,   10,   10,   10,   10,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 390-39F
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3A0-3AF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3B0-3BF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3C0-3CF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3D0-3DF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3E0-3EF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   8,   8,   8}};  // 3F0-3FF
+
+  // 3722 / (i+4)--> is about (29 * 128) / (i+4)
+  static constexpr std::array<int16_t, 0x400> _dtb{{930, 744, 620, 531, 465, 413, 372, 338, 310, 286, 265, 248, 232, 218, 206, 195,  // 000-00F
+                                                    186, 177, 169, 161, 155, 148, 143, 137, 132, 128, 124, 120, 116, 112, 109, 106,  // 010-01F
+                                                    103, 100, 97,  95,  93,  90,  88,  86,  84,  82,  80,  79,  77,  75,  74,  72,   // 020-02F
+                                                    71,  70,  68,  67,  66,  65,  64,  63,  62,  61,  60,  59,  58,  57,  56,  55,   // 030-03F
+                                                    54,  53,  53,  52,  51,  50,  50,  49,  48,  48,  47,  47,  46,  45,  45,  44,   // 040-04F
+                                                    44,  43,  43,  42,  42,  41,  41,  40,  40,  40,  39,  39,  38,  38,  37,  37,   // 050-05F
+                                                    37,  36,  36,  36,  35,  35,  35,  34,  34,  34,  33,  33,  33,  32,  32,  32,   // 060-06F
+                                                    32,  31,  31,  31,  31,  30,  30,  30,  30,  29,  29,  29,  29,  28,  28,  28,   // 070-07F
+                                                    28,  27,  27,  27,  27,  27,  26,  26,  26,  26,  26,  26,  25,  25,  25,  25,   // 080-08F
+                                                    25,  24,  24,  24,  24,  24,  24,  24,  23,  23,  23,  23,  23,  23,  22,  22,   // 090-09F
+                                                    22,  22,  22,  22,  22,  22,  21,  21,  21,  21,  21,  21,  21,  21,  20,  20,   // 0A0-0AF
+                                                    20,  20,  20,  20,  20,  20,  20,  19,  19,  19,  19,  19,  19,  19,  19,  19,   // 0B0-0BF
+                                                    18,  18,  18,  18,  18,  18,  18,  18,  18,  18,  18,  17,  17,  17,  17,  17,   // 0C0-0CF
+                                                    17,  17,  17,  17,  17,  17,  17,  16,  16,  16,  16,  16,  16,  16,  16,  16,   // 0D0-0DF
+                                                    16,  16,  16,  16,  16,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  15,   // 0E0-0EF
+                                                    15,  15,  15,  15,  15,  14,  14,  14,  14,  14,  14,  14,  14,  14,  14,  14,   // 0F0-0FF
+                                                    14,  14,  14,  14,  14,  14,  13,  13,  13,  13,  13,  13,  13,  13,  13,  13,   // 100-10F
+                                                    13,  13,  13,  13,  13,  13,  13,  13,  13,  13,  13,  12,  12,  12,  12,  12,   // 110-11F
+                                                    12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,  12,   // 120-12F
+                                                    12,  12,  12,  11,  11,  11,  11,  11,  11,  11,  11,  11,  11,  11,  11,  11,   // 130-13F
+                                                    11,  11,  11,  11,  11,  11,  11,  11,  11,  11,  11,  11,  11,  11,  11,  10,   // 140-14F
+                                                    10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 150-15F
+                                                    10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 160-16F
+                                                    10,  9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 170-17F
+                                                    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 180-18F
+                                                    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,   8,   8,   8,   8,   8,   8,    // 190-19F
+                                                    8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,    // 1A0-1AF
+                                                    8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,    // 1B0-1BF
+                                                    8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   8,   7,   7,    // 1C0-1CF
+                                                    7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,    // 1D0-1DF
+                                                    7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,    // 1E0-1EF
+                                                    7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,    // 1F0-1FF
+                                                    7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,   7,    // 200-20F
+                                                    6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,    // 210-21F
+                                                    6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,    // 220-22F
+                                                    6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,    // 230-23F
+                                                    6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,    // 240-24F
+                                                    6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,   6,    // 250-25F
+                                                    6,   6,   6,   6,   6,   6,   6,   6,   6,   5,   5,   5,   5,   5,   5,   5,    // 260-26F
+                                                    5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,    // 270-27F
+                                                    5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,    // 280-28F
+                                                    5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,    // 290-29F
+                                                    5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,    // 2A0-2AF
+                                                    5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,    // 2B0-2BF
+                                                    5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,    // 2C0-2CF
+                                                    5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   5,    // 2D0-2DF
+                                                    5,   5,   5,   5,   5,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 2E0-2EF
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 2F0-2FF
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 300-30F
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 310-31F
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 320-32F
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 330-33F
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 340-34F
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 350-35F
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 360-36F
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 370-37F
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,    // 380-38F
+                                                    4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   4,   3,    // 390-39F
+                                                    3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,    // 3A0-3AF
+                                                    3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,    // 3B0-3BF
+                                                    3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,    // 3C0-3CF
+                                                    3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,    // 3D0-3DF
+                                                    3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,    // 3E0-3EF
+                                                    3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3,   3}};  // 3F0-3FF
+
+  // 9238 / (i+4) --> is about (72 * 128) / (i+4)
+  static constexpr std::array<int16_t, 0x400> _dtc{{2309, 1847, 1539, 1319, 1154, 1026, 923, 839, 769, 710, 659, 615, 577, 543, 513, 486,  // 000-00F
+                                                    461,  439,  419,  401,  384,  369,  355, 342, 329, 318, 307, 298, 288, 279, 271, 263,  // 010-01F
+                                                    256,  249,  243,  236,  230,  225,  219, 214, 209, 205, 200, 196, 192, 188, 184, 181,  // 020-02F
+                                                    177,  174,  171,  167,  164,  162,  159, 156, 153, 151, 149, 146, 144, 142, 139, 137,  // 030-03F
+                                                    135,  133,  131,  130,  128,  126,  124, 123, 121, 119, 118, 116, 115, 114, 112, 111,  // 040-04F
+                                                    109,  108,  107,  106,  104,  103,  102, 101, 100, 99,  98,  97,  96,  95,  94,  93,   // 050-05F
+                                                    92,   91,   90,   89,   88,   87,   87,  86,  85,  84,  83,  83,  82,  81,  81,  80,   // 060-06F
+                                                    79,   78,   78,   77,   76,   76,   75,  75,  74,  73,  73,  72,  72,  71,  71,  70,   // 070-07F
+                                                    69,   69,   68,   68,   67,   67,   66,  66,  65,  65,  65,  64,  64,  63,  63,  62,   // 080-08F
+                                                    62,   62,   61,   61,   60,   60,   59,  59,  59,  58,  58,  58,  57,  57,  57,  56,   // 090-09F
+                                                    56,   55,   55,   55,   54,   54,   54,  54,  53,  53,  53,  52,  52,  52,  51,  51,   // 0A0-0AF
+                                                    51,   51,   50,   50,   50,   49,   49,  49,  49,  48,  48,  48,  48,  47,  47,  47,   // 0B0-0BF
+                                                    47,   46,   46,   46,   46,   45,   45,  45,  45,  45,  44,  44,  44,  44,  43,  43,   // 0C0-0CF
+                                                    43,   43,   43,   42,   42,   42,   42,  42,  41,  41,  41,  41,  41,  41,  40,  40,   // 0D0-0DF
+                                                    40,   40,   40,   39,   39,   39,   39,  39,  39,  38,  38,  38,  38,  38,  38,  38,   // 0E0-0EF
+                                                    37,   37,   37,   37,   37,   37,   36,  36,  36,  36,  36,  36,  36,  35,  35,  35,   // 0F0-0FF
+                                                    35,   35,   35,   35,   34,   34,   34,  34,  34,  34,  34,  34,  33,  33,  33,  33,   // 100-10F
+                                                    33,   33,   33,   33,   32,   32,   32,  32,  32,  32,  32,  32,  32,  31,  31,  31,   // 110-11F
+                                                    31,   31,   31,   31,   31,   31,   31,  30,  30,  30,  30,  30,  30,  30,  30,  30,   // 120-12F
+                                                    29,   29,   29,   29,   29,   29,   29,  29,  29,  29,  29,  28,  28,  28,  28,  28,   // 130-13F
+                                                    28,   28,   28,   28,   28,   28,   27,  27,  27,  27,  27,  27,  27,  27,  27,  27,   // 140-14F
+                                                    27,   27,   27,   26,   26,   26,   26,  26,  26,  26,  26,  26,  26,  26,  26,  26,   // 150-15F
+                                                    25,   25,   25,   25,   25,   25,   25,  25,  25,  25,  25,  25,  25,  25,  24,  24,   // 160-16F
+                                                    24,   24,   24,   24,   24,   24,   24,  24,  24,  24,  24,  24,  24,  23,  23,  23,   // 170-17F
+                                                    23,   23,   23,   23,   23,   23,   23,  23,  23,  23,  23,  23,  23,  23,  22,  22,   // 180-18F
+                                                    22,   22,   22,   22,   22,   22,   22,  22,  22,  22,  22,  22,  22,  22,  22,  22,   // 190-19F
+                                                    21,   21,   21,   21,   21,   21,   21,  21,  21,  21,  21,  21,  21,  21,  21,  21,   // 1A0-1AF
+                                                    21,   21,   21,   21,   20,   20,   20,  20,  20,  20,  20,  20,  20,  20,  20,  20,   // 1B0-1BF
+                                                    20,   20,   20,   20,   20,   20,   20,  20,  20,  20,  19,  19,  19,  19,  19,  19,   // 1C0-1CF
+                                                    19,   19,   19,   19,   19,   19,   19,  19,  19,  19,  19,  19,  19,  19,  19,  19,   // 1D0-1DF
+                                                    19,   19,   19,   18,   18,   18,   18,  18,  18,  18,  18,  18,  18,  18,  18,  18,   // 1E0-1EF
+                                                    18,   18,   18,   18,   18,   18,   18,  18,  18,  18,  18,  18,  18,  18,  17,  17,   // 1F0-1FF
+                                                    17,   17,   17,   17,   17,   17,   17,  17,  17,  17,  17,  17,  17,  17,  17,  17,   // 200-20F
+                                                    17,   17,   17,   17,   17,   17,   17,  17,  17,  17,  17,  17,  16,  16,  16,  16,   // 210-21F
+                                                    16,   16,   16,   16,   16,   16,   16,  16,  16,  16,  16,  16,  16,  16,  16,  16,   // 220-22F
+                                                    16,   16,   16,   16,   16,   16,   16,  16,  16,  16,  16,  16,  16,  16,  15,  15,   // 230-23F
+                                                    15,   15,   15,   15,   15,   15,   15,  15,  15,  15,  15,  15,  15,  15,  15,  15,   // 240-24F
+                                                    15,   15,   15,   15,   15,   15,   15,  15,  15,  15,  15,  15,  15,  15,  15,  15,   // 250-25F
+                                                    15,   15,   15,   15,   14,   14,   14,  14,  14,  14,  14,  14,  14,  14,  14,  14,   // 260-26F
+                                                    14,   14,   14,   14,   14,   14,   14,  14,  14,  14,  14,  14,  14,  14,  14,  14,   // 270-27F
+                                                    14,   14,   14,   14,   14,   14,   14,  14,  14,  14,  14,  14,  14,  14,  14,  14,   // 280-28F
+                                                    13,   13,   13,   13,   13,   13,   13,  13,  13,  13,  13,  13,  13,  13,  13,  13,   // 290-29F
+                                                    13,   13,   13,   13,   13,   13,   13,  13,  13,  13,  13,  13,  13,  13,  13,  13,   // 2A0-2AF
+                                                    13,   13,   13,   13,   13,   13,   13,  13,  13,  13,  13,  13,  13,  13,  13,  13,   // 2B0-2BF
+                                                    13,   13,   13,   12,   12,   12,   12,  12,  12,  12,  12,  12,  12,  12,  12,  12,   // 2C0-2CF
+                                                    12,   12,   12,   12,   12,   12,   12,  12,  12,  12,  12,  12,  12,  12,  12,  12,   // 2D0-2DF
+                                                    12,   12,   12,   12,   12,   12,   12,  12,  12,  12,  12,  12,  12,  12,  12,  12,   // 2E0-2EF
+                                                    12,   12,   12,   12,   12,   12,   12,  12,  12,  12,  12,  12,  12,  12,  11,  11,   // 2F0-2FF
+                                                    11,   11,   11,   11,   11,   11,   11,  11,  11,  11,  11,  11,  11,  11,  11,  11,   // 300-30F
+                                                    11,   11,   11,   11,   11,   11,   11,  11,  11,  11,  11,  11,  11,  11,  11,  11,   // 310-31F
+                                                    11,   11,   11,   11,   11,   11,   11,  11,  11,  11,  11,  11,  11,  11,  11,  11,   // 320-32F
+                                                    11,   11,   11,   11,   11,   11,   11,  11,  11,  11,  11,  11,  11,  11,  11,  11,   // 330-33F
+                                                    11,   11,   11,   11,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 340-34F
+                                                    10,   10,   10,   10,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 350-35F
+                                                    10,   10,   10,   10,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 360-36F
+                                                    10,   10,   10,   10,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 370-37F
+                                                    10,   10,   10,   10,   10,   10,   10,  10,  10,  10,  10,  10,  10,  10,  10,  10,   // 380-38F
+                                                    10,   10,   10,   10,   10,   10,   10,  10,  9,   9,   9,   9,   9,   9,   9,   9,    // 390-39F
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3A0-3AF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3B0-3BF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3C0-3CF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3D0-3DF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3E0-3EF
+                                                    9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   8}};  // 3F0-3FF
+
+  union Map_t {
+    struct {
+      uint32_t count : 10;
+      uint32_t prediction : 22;
+    };
+    uint32_t value;
+  };
+  static_assert(4 == sizeof(Map_t), "Alignment issue in Map_t");
+
+  const uint64_t N;              // Number of contexts
+  const uint32_t _mask;          // ctx limit
+  uint32_t _ctx{0};              // Context of last prediction
+  Map_t* const __restrict _map;  // ctx -> prediction
 };
 APM_t::~APM_t() noexcept {
-  std::free(_table);
-}
-
-#endif
-
-/**
- * @class APM
- * Adaptive Probability Maps
- */
-class APM final {
-public:
-  explicit APM(uint32_t n) noexcept
-      : N{n - 1},  //
-        _table{static_cast<uint16_t*>(std::calloc(n * 33, sizeof(uint16_t)))} {
-    if (verbose_) {
-      fprintf(stdout, "%s for APM\n", getDimension(n * 33 * sizeof(uint16_t)).c_str());
-    }
-    for (uint32_t j{0}; j < 33; ++j) {
-      _table[j] = static_cast<uint16_t>(Squash(static_cast<int16_t>((static_cast<int32_t>(j) - 16) * 128)) * 16);  // Conversion from -2048..2047 (clamped) into 0..4095
-    }
-    for (uint32_t i{33}; i < (n * 33); ++i) {
-      _table[i] = _table[i - 33];
-    }
-  }
-
-  virtual ~APM() noexcept;
-
-  APM() = delete;
-  APM(const APM&) = delete;
-  APM(APM&&) = delete;
-  auto operator=(const APM&) -> APM& = delete;
-  auto operator=(APM&&) -> APM& = delete;
-
-  [[nodiscard]] auto Predict(const bool bit, const uint16_t px, const uint32_t cx, const int32_t rate) noexcept -> uint16_t {
-    const auto g{(bit << 16) + (bit << rate) - bit - bit};
-
-    uint16_t* const __restrict t{&_table[_ctx]};
-    t[0] = static_cast<uint16_t>(t[0] + ((g - t[0]) >> rate));
-    t[1] = static_cast<uint16_t>(t[1] + ((g - t[1]) >> rate));
-
-    const auto pr{Stretch(px)};                       // Conversion from 0..4095 into -2048..2047
-    const auto wt{static_cast<uint16_t>(pr & 0x7F)};  // interpolation weight (33 points)
-
-    const auto ctx{static_cast<uint32_t>((pr + 2048) >> 7) + (cx & N) * 33};
-    _ctx = ctx;
-
-    const auto vx{_table[ctx + 0]};
-    const auto vy{_table[ctx + 1]};
-    const auto py{static_cast<uint16_t>(((vx << 7) - ((vx - vy) * wt)) >> 11)};
-    assert(py < 0x1000);
-    return py;
-  }
-
-private:
-  const uint32_t N;                   // number of contexts
-  uint32_t _ctx{0};                   // Context of last prediction
-  uint16_t* const __restrict _table;  // [N][33]:  p, context -> p
-};
-APM::~APM() noexcept {
-  std::free(_table);
+  std::free(_map);
 }
 
 [[nodiscard]] static auto safe_add(const int32_t a, const int32_t b) noexcept -> int32_t {
@@ -846,18 +923,19 @@ public:
   auto operator=(const Mixer_t&) -> Mixer_t& = delete;
   auto operator=(Mixer_t&&) -> Mixer_t& = delete;
 
-  void Update(const int16_t err) noexcept {  // train ...
+  void Update(const int32_t err) noexcept {  // train ...
+    assert((err + 4096) < 8192);
     auto* const __restrict wx{&wx_[ctx_]};
-    for (uint32_t i{N_LAYERS}; i--;) {
-      wx[i] += ((tx_[i] * err) + (1 << (14 - 1))) >> 14;
+    for (auto n{N_LAYERS}; n--;) {
+      wx[n] += (((tx_[n] * err) >> 13) + 1) >> 1;
     }
   }
 
   [[nodiscard]] auto Predict() noexcept -> int16_t {  // dot product ...
     const auto* const __restrict wx{&wx_[ctx_]};
     auto sum{0};
-    for (uint32_t i{N_LAYERS}; i--;) {
-      sum += wx[i] * tx_[i];
+    for (auto n{N_LAYERS}; n--;) {
+      sum += wx[n] * tx_[n];
     }
     const auto pr{sum / (1 << dp_shift_)};
     return clamp12(pr);
@@ -875,10 +953,13 @@ public:
 
 private:
   uint32_t ctx_{0};
-  std::array<int32_t, N_LAYERS * 1280> wx_{};
+  int32_t : 32;  // Padding
+  int32_t : 32;  // Padding
+  int32_t : 32;  // Padding
+  alignas(16) std::array<int32_t, N_LAYERS * 1280> wx_{};
 };
 
-std::array<int16_t, Mixer_t::N_LAYERS> Mixer_t::tx_;
+alignas(16) std::array<int16_t, Mixer_t::N_LAYERS> Mixer_t::tx_;
 
 /**
  * @class Blend_t
@@ -886,6 +967,9 @@ std::array<int16_t, Mixer_t::N_LAYERS> Mixer_t::tx_;
  */
 template <const uint32_t N_LAYERS, const int32_t RATE>
 class Blend_t final {
+  static_assert(ISPOWEROF2(N_LAYERS), "Number of layers must be a power of two");
+  static_assert(RATE > 0, "Rate must be a positive value which is larger then zero");
+
 public:
   explicit Blend_t(const uint32_t n, const int16_t weight) noexcept
       : _mask{n - 1},  //
@@ -924,21 +1008,23 @@ public:
   }
 
 private:
-  const uint32_t _mask;                 // n-1
-  uint32_t _ctx{0};                     // Context of last prediction
-  int16_t* const __restrict _weights;   // Weights
-  std::array<int16_t, 64> _pi{};        // Prediction inputs
-  int16_t* __restrict _new{&_pi[0]};    // New Inputs (alternating between _pi[0] and _pi[32])
-  int16_t* __restrict _prev{&_pi[32]};  // Previous Inputs (alternating between _pi[0] and _pi[32])
+  const uint32_t _mask;                       // n-1
+  uint32_t _ctx{0};                           // Context of last prediction
+  int16_t* const __restrict _weights;         // Weights
+  int32_t : 32;                               // Padding
+  int32_t : 32;                               // Padding
+  alignas(16) std::array<int16_t, 64> _pi{};  // Prediction inputs
+  int16_t* __restrict _new{&_pi[0]};          // New Inputs (alternating between _pi[0] and _pi[32])
+  int16_t* __restrict _prev{&_pi[32]};        // Previous Inputs (alternating between _pi[0] and _pi[32])
 
-  ALWAYS_INLINE void train(const int16_t* const t, int16_t* const w, const int32_t err) noexcept {
+  ALWAYS_INLINE void train(const int16_t* const __restrict t, int16_t* const __restrict w, const int32_t err) noexcept {
     for (auto n{N_LAYERS}; n--;) {
       const int32_t wt{w[n] + ((((t[n] * err) >> RATE) + 1) >> 1)};
       w[n] = static_cast<int16_t>(std::clamp(wt, -32768, 32767));
     }
   }
 
-  [[nodiscard]] ALWAYS_INLINE auto dot_product(const int16_t* const t, const int16_t* const w) noexcept -> int32_t {
+  [[nodiscard]] ALWAYS_INLINE auto dot_product(const int16_t* const __restrict t, const int16_t* const __restrict w) noexcept -> int32_t {
     int32_t sum{0};
     for (auto n{N_LAYERS}; n--;) {
       sum += w[n] * t[n];
@@ -1157,7 +1243,7 @@ static constexpr auto MUL64_02{UINT64_C(0xE9C91DC159AB0D2D)};
 template <const uint32_t SIZE, const int32_t RATE>
 class StateMap_t final {
   static_assert(ISPOWEROF2(SIZE), "Size of state map must a power of two");
-  static_assert(RATE > 0, "Speed of state map must be positive");
+  static_assert(RATE >= 0, "Speed of state map must be positive");
 
 public:
   StateMap_t() noexcept {
@@ -1193,8 +1279,8 @@ public:
 
 private:
   uint32_t _ctx{0};  // Context of last prediction
-  std::array<uint16_t, SIZE> _smt{};
-  int32_t : 32;  // Padding
+  int32_t : 32;      // Padding
+  alignas(16) std::array<uint16_t, SIZE> _smt{};
 };
 
 template <const uint32_t SIZE, const int32_t RATE0, const int32_t RATE1, const int32_t RATE2>
@@ -1202,7 +1288,7 @@ class ContextMap_t final {
   static_assert(ISPOWEROF2(SIZE), "Size of context map must a power of two");
   static_assert(RATE0 > 0, "Speed(s) of context map must be positive");
   static_assert(RATE1 > 0, "Speed(s) of context map must be positive");
-  static_assert(RATE2 > 0, "Speed(s) of context map must be positive");
+  static_assert(RATE2 >= 0, "Speed(s) of context map must be positive (0 is switch off)");
 
 public:
   explicit ContextMap_t() noexcept = default;
@@ -1228,13 +1314,21 @@ public:
     const auto ctx{(7 == bcount_) ? static_cast<uint32_t>(0xFF & cx_) : c0_};
     _ctx_last_prediction = (_ctx_new | ctx) & _mask;
 
-    return {{_sm0.Update(bit, _state[_ctx_last_prediction][0]),  //
-             _sm1.Update(bit, _state[_ctx_last_prediction][1]),  //
-             _sm2.Update(bit, _state[_ctx_last_prediction][2])}};
+    if constexpr (0 == RATE2) {
+      return {{_sm0.Update(bit, _state[_ctx_last_prediction][0]),  //
+               _sm1.Update(bit, _state[_ctx_last_prediction][1]),  //
+               0}};
+    } else {
+      return {{_sm0.Update(bit, _state[_ctx_last_prediction][0]),  //
+               _sm1.Update(bit, _state[_ctx_last_prediction][1]),  //
+               _sm2.Update(bit, _state[_ctx_last_prediction][2])}};
+    }
   }
 
 private:
   std::array<std::array<uint8_t, 3>, (SIZE * 256)> _state{};
+  int32_t : 32;                     // Padding
+  int32_t : 32;                     // Padding
   StateMap_t<0x100, RATE0> _sm0{};  // State to prediction
   StateMap_t<0x100, RATE1> _sm1{};  // State to prediction
   StateMap_t<0x100, RATE2> _sm2{};  // State to prediction
@@ -1420,8 +1514,9 @@ public:
   }
 
   // Adaptively increment a counter
-  template <typename T, const uint16_t RATE = 6>
+  template <typename T>
   [[nodiscard]] ALWAYS_INLINE constexpr auto increment_counter(const T x, const T increment) const noexcept -> T {
+    constexpr uint16_t RATE{6};
     return T((((x << RATE) - x) >> RATE) + (increment << (16 - RATE)));
   }
 
@@ -1444,14 +1539,14 @@ public:
 
     if (n > _threshold) {
       const auto next{static_cast<uint32_t>(bit ? curr.nx1 : curr.nx0)};
-      auto n0{_nodes[next].count[0]};
-      auto n1{_nodes[next].count[1]};
+      int32_t n0{_nodes[next].count[0]};
+      int32_t n1{_nodes[next].count[1]};
 
       if (const auto nn{static_cast<uint32_t>(n0 + n1)}; nn > (n + _threshold)) {
-        const auto top_count0{MulDiv(n0, n, nn)};  // 16+16-16
+        const auto top_count0{MulDiv(static_cast<uint32_t>(n0), n, nn)};  // 16+16-16
         assert(n0 >= top_count0);
 
-        const auto top_count1{MulDiv(n1, n, nn)};
+        const auto top_count1{MulDiv(static_cast<uint32_t>(n1), n, nn)};
         assert(n1 >= top_count1);
 
         n0 -= top_count0;
@@ -1462,8 +1557,8 @@ public:
         _nodes[_top].count[0] = top_count0;
         _nodes[_top].count[1] = top_count1;
 
-        _nodes[next].count[0] = n0;
-        _nodes[next].count[1] = n1;
+        _nodes[next].count[0] = static_cast<uint16_t>(n0);
+        _nodes[next].count[1] = static_cast<uint16_t>(n1);
 
         _nodes[_top].all = _nodes[next].all;  // Clone nx0,nx1 and state
 
@@ -1555,7 +1650,7 @@ private:
    */
   [[nodiscard]] ALWAYS_INLINE constexpr auto MulDiv(const uint32_t x, const uint32_t y, const uint32_t z) const noexcept -> uint16_t {
     assert(z > 0);
-    return static_cast<uint16_t>(((2 * (x * y)) + z) / (z + z));
+    return static_cast<uint16_t>(((2 * x * y) + z) / (2 * z));
   }
 
   void Flush() noexcept {
@@ -1588,13 +1683,15 @@ private:
   uint32_t _curr{0};
   uint32_t _threshold{0};
   uint32_t _threshold_fine{0};
-  int32_t : 32;                               // Padding
-  StateMap_t<0x100, 6> _sm2{};                // state   | Rate of 6 is based on enwik9
-  StateMap_t<0x4000, 1> _sm3{};               // tt_     | Rate of 1 is based on enwik9         | not part of DynamicMarkovModel, just an improvement
-  StateMap_t<0x10000, 1> _sm4{};              // word_   | Rate of 1 is based on enwik9         | not part of DynamicMarkovModel, just an improvement
-  StateMap_t<0x40000, 2> _sm5{};              // x5_     | Rate of 2 is based on enwik9         | not part of DynamicMarkovModel, just an improvement
-  ContextMap_t<0x4000, 0xE, 0xD, 0x7> _cm{};  // tt_|c0_ | Rate of 14/13/ 7 are based on enwik9 | not part of DynamicMarkovModel, just an improvement
-  Blend_t<8, 16> _blend{0x80000, 512};        // w5_     | Rate of 16 is based on enwik9
+  int32_t : 32;                                   // Padding
+  int32_t : 32;                                   // Padding
+  int32_t : 32;                                   // Padding
+  StateMap_t<0x100, 6> _sm2{};                    // state   | Rate of 6 is based on enwik9
+  StateMap_t<0x4000, 1> _sm3{};                   // tt_     | Rate of 1 is based on enwik9         | not part of DynamicMarkovModel, just an improvement
+  StateMap_t<0x10000, 1> _sm4{};                  // word_   | Rate of 1 is based on enwik9         | not part of DynamicMarkovModel, just an improvement
+  StateMap_t<0x40000, 2> _sm5{};                  // x5_     | Rate of 2 is based on enwik9         | not part of DynamicMarkovModel, just an improvement
+  ContextMap_t<0x4000, 0xE, 0xD, 0x7> _cm{};      // tt_|c0_ | Rate of 14/13/ 7 are based on enwik9 | not part of DynamicMarkovModel, just an improvement
+  Blend_t<8, 16> _blend{UINT32_C(1) << 19, 512};  // w5_     | Rate of 16 is based on enwik9
 };
 DynamicMarkovModel_t::~DynamicMarkovModel_t() noexcept {
   std::free(_nodes);
@@ -1658,10 +1755,10 @@ public:
 
     if ((_match_length >= MINLEN) && (((_expected_byte | 0x100) >> (1 + bcount_)) == c0_)) {
       const auto length{_match_length - MINLEN};
-      const auto expected_bit{1U & (_expected_byte >> bcount_)};
+      const auto expected_bit{UINT32_C(1) & (_expected_byte >> bcount_)};
 
-      const auto sign{static_cast<int16_t>((2 * expected_bit) - 1)};
-      pr[0] = static_cast<int16_t>(sign * static_cast<int32_t>(length * 32));
+      const auto sign{static_cast<int32_t>(2 * expected_bit) - 1};
+      pr[0] = static_cast<int16_t>(sign * static_cast<int32_t>(length) * 32);
 
       if (length > 0) {
         if (length <= 16) {
@@ -1740,7 +1837,9 @@ private:
   RunContextMap_t<20> _rc2{16 + level_};  // x5_                           | not part of LempelZivPredict, just an improvement
   RunContextMap_t<20> _rc3{16 + level_};  // tt_                           | not part of LempelZivPredict, just an improvement
   RunContextMap_t<20> _rc4{16 + level_};  // word_                         | not part of LempelZivPredict, just an improvement
-  Blend_t<8, 16> _blend{0x80000, 4096};   // w5_                           | Rate of 16 is based on enwik9
+  int32_t : 32;                           // Padding
+  int32_t : 32;                           // Padding
+  Blend_t<8, 16> _blend{1u << 19, 4096};  // w5_                           | Rate of 16 is based on enwik9
 };
 LempelZivPredict_t::~LempelZivPredict_t() noexcept {
   std::free(_ht);
@@ -1755,8 +1854,8 @@ public:
       fprintf(stdout, "%s for SparseMatchModel_t\n", getDimension(((UINT64_C(1) << NBITS) + UINT64_C(1)) * sizeof(uint32_t)).c_str());
     }
   }
-
   virtual ~SparseMatchModel_t() noexcept;
+
   SparseMatchModel_t() = delete;
   SparseMatchModel_t(const SparseMatchModel_t&) = delete;
   SparseMatchModel_t(SparseMatchModel_t&&) = delete;
@@ -1790,10 +1889,10 @@ public:
     auto* const __restrict pr{_blend.Get()};
 
     if ((_match_length >= MINLEN) && (((_expected_byte | 0x100) >> (1 + bcount_)) == c0_)) {
-      const auto expected_bit{1U & (_expected_byte >> bcount_)};
+      const auto expected_bit{UINT32_C(1) & (_expected_byte >> bcount_)};
 
-      const auto sign{static_cast<int16_t>((2 * expected_bit) - 1)};
-      pr[0x0] = static_cast<int16_t>(sign * static_cast<int16_t>(_match_length * 32));
+      const auto sign{static_cast<int32_t>(2 * expected_bit) - 1};
+      pr[0x0] = static_cast<int16_t>(sign * static_cast<int32_t>(_match_length) * 32);
 
       const auto ctx0{(_match_length << 9) | (expected_bit << 8) | c1_};  // 6+1+8=15 bits
       pr[0x1] = _ltp.Update(bit, ctx0);
@@ -1815,11 +1914,13 @@ public:
     const auto pm1{_cm1.Predict(bit)};
     pr[6] = pm1[0];
     pr[7] = pm1[1];
+#if 0  // Disabled, to have length of 8 for blend
     pr[8] = pm1[2];
+#endif
 
     const auto last_pr{Squash(Mixer_t::tx_[8])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
-    const int32_t err{((bit << 12) - last_pr) * 14};
+    const int32_t err{((bit << 12) - last_pr) * 9};
     const auto px{_blend.Predict(err, ctx)};
     Mixer_t::tx_[8] = clamp12(px);
   }
@@ -1835,11 +1936,13 @@ private:
   uint32_t _match_length{0};
   uint32_t _expected_byte{0};
   int32_t : 32;                                    // Padding
+  int32_t : 32;                                    // Padding
+  int32_t : 32;                                    // Padding
   ContextMap_t<0x001, 0xC, 0xA, 0xD> _cm0{};       //     c0_                     | Rate of 12/10/13 are based on enwik9 | not part of SparseMatchModel, just an improvement
-  ContextMap_t<0x100, 0xC, 0x6, 0xE> _cm1{};       // x5_|c0_                     | Rate of 12/ 6/14 are based on enwik9 | not part of SparseMatchModel, just an improvement
+  ContextMap_t<0x100, 0xC, 0x6, 0> _cm1{};         // x5_|c0_                     | Rate of 12/ 6/14 are based on enwik9 | not part of SparseMatchModel, just an improvement
   StateMap_t<0x8000, 5> _ltp{};                    // length|expected_bit|c1      | Rate of 5 is based on enwik9
   StateMap_t<0x80000, 9> _sm1{};                   // expected_byte|bcount|buf(1) | Rate of 9 is based on enwik9
-  Blend_t<3 + (2 * 3), 17> _blend{0x80000, 4096};  // w5_                         | Rate of 17 is based on enwik9
+  Blend_t<8, 16> _blend{UINT32_C(1) << 19, 4096};  // w5_                         | Rate of 17 is based on enwik9
 };
 SparseMatchModel_t::~SparseMatchModel_t() noexcept {
   std::free(_ht);
@@ -1857,7 +1960,7 @@ SparseMatchModel_t::~SparseMatchModel_t() noexcept {
  * normally (release build) it is not used.
  * This model is not "super" effective, but does not claim memory or heavy CPU usage.
  * If the model is active, it predicts a few bits (2,5 or 10), in line with text preparation,
- * and it predicts a few bits (6,8,10,12,14,16,18,20,22,24,26 and 28), in line with value preparation.
+ * and it predicts a few bits (6,8,10,12,14,16,18,20 and 22), in line with value preparation.
  */
 class Txt_t final {
 public:
@@ -2124,7 +2227,7 @@ private:
    */
   [[nodiscard]] ALWAYS_INLINE constexpr auto MulDiv(const uint64_t x, const uint64_t y, const uint64_t z) const noexcept -> uint32_t {
     assert(z > 0);
-    return static_cast<uint32_t>(((2 * (x * y)) + z) / (z + z));
+    return static_cast<uint32_t>(((2 * x * y) + z) / (2 * z));
   }
 };
 
@@ -2159,54 +2262,36 @@ public:
   auto operator=(Predict_t&&) -> Predict_t& = delete;
 
   [[nodiscard]] auto Next(const bool bit) noexcept -> uint32_t {
-    if ((_fails & 0x80) && (_failcount > 0)) {
-      --_failcount;
+    if (_fails & 0x80) {
+      --_failcount;  // 0..8
     }
     _fails += _fails;
     _failz += _failz;
-    auto pr{static_cast<int16_t>(_pr)};  // Previous prediction 0..4095
-    if (bit) {
-      pr ^= 0xFFF;
-    }
-    if (pr >= 750) {
+    const auto pr16{bit ? (_pr16 ^ 0xFFFF) : _pr16};  // Previous prediction 0..65535
+    if (pr16 >= (375 * 32)) {
       ++_failz;
-      if (pr >= 1950) {
+      if (pr16 >= (975 * 32)) {
         ++_fails;
-        ++_failcount;
+        ++_failcount;  // 0..8
       }
     }
 
     // Filter the context model with APMs
     const auto p0{Predict(bit)};
-    const auto p1{Balance(static_cast<uint16_t>(3), _a1.Predict(bit, p0, c0_, 3), p0)};  // Weight of 3 is based on enwik9
+    const auto p1{Balance(static_cast<uint16_t>(3), _a1.p3(bit, p0, c0_), p0)};  // Weight of 3 is based on enwik9
 
-#if 0
-    uint32_t cz{(1u & _fails) ? 9u : 1u};
-    cz += 0xF & (0x7340 >> (4 * (3 & (_fails >> 5))));  // 0x7340, 0x9440 is based on enwik8
-    cz += 0xF & (0xC660 >> (4 * (3 & (_fails >> 3))));  // 0xC660, 0xFAA0 is based on enwik8
-    cz += 0xF & (0xFC60 >> (4 * (3 & (_fails >> 1))));  // 0xC660, 0xFC60 is based on enwik8
-    cz = (std::min)(9u, (_failcount + cz) / 2u);
-#else
-    static constexpr std::array<uint8_t, 128> Table{{0x01, 0x09, 0x07, 0x0F, 0x0D, 0x12, 0x10, 0x12, 0x0B, 0x12, 0x11, 0x12, 0x12, 0x12, 0x12, 0x12,  //
-                                                     0x0B, 0x12, 0x11, 0x12, 0x12, 0x12, 0x12, 0x12, 0x10, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,  //
-                                                     0x05, 0x0D, 0x0B, 0x12, 0x11, 0x12, 0x12, 0x12, 0x0F, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,  //
-                                                     0x0F, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,  //
-                                                     0x05, 0x0D, 0x0B, 0x12, 0x11, 0x12, 0x12, 0x12, 0x0F, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,  //
-                                                     0x0F, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,  //
-                                                     0x0A, 0x12, 0x10, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,  //
-                                                     0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12}};
-    const auto cz{(std::min)(9U, (_failcount + Table[0x7F & _fails]) / 2)};
-#endif
-
-    const auto pos{_buf.Pos()};
-    const auto rate{6 + ((pos > (15 * 256 * 1024)) ? 1 : 0) + ((pos > (56 * 256 * 1024)) ? 1 : 0)};
+    uint32_t cz{(1 & _fails) ? UINT32_C(9) : UINT32_C(1)};
+    cz += 0xF & (0x7340 >> (4 * (3 & (_fails >> 5))));
+    cz += 0xF & (0xC660 >> (4 * (3 & (_fails >> 3))));
+    cz += 0xF & (0xFC60 >> (4 * (3 & (_fails >> 1))));
+    cz = (std::min)(UINT32_C(9), (_failcount + cz) / 2);
 
     // clang-format off
-    const auto p2{_a2.Predict(bit, p0,           finalise64(hash( 8 * c0_, 0x7FF & _failz                         ), 27), rate+1)}; // 15 bits APM, hash bits of 27 is based on enwik9
-    const auto p3{_a3.Predict(bit, p0,           finalise64(hash(32 * c0_, 0x80FFFF & x5_                         ), 25), rate  )}; // 15 bits APM, hash bits of 25 is based on enwik9
-    const auto p4{_a4.Predict(bit, p1, (2*c0_) ^ finalise64(hash( _buf(1), 0xFF & (x5_ >> 8), 0x80FF & (x5_ >> 16)), 57), rate  )}; // 17 bits APM, hash bits of 57 is based on enwik9
-    const auto p5{_a5.Predict(bit, p2,           finalise64(hash(     c0_, w5_                                    ), 24), rate  )}; // 16 bits APM, hash bits of 24 is based on enwik9
-    const auto p6{_a6.Predict(bit, p4, (4*c0_) ^ finalise64(hash(     cz, 0x0080FF & x5_                          ), 57), rate  )}; // 16 bits APM, hash bits of 57 is based on enwik9
+    const auto p2{_a2.p3(bit, p0,           finalise64(hash(  8*c0_, 0x7FF & _failz                         ), 27))}; // hash bits of 27 is based on enwik9
+    const auto p3{_a3.p3(bit, p0,           finalise64(hash( 32*c0_, 0x80FFFF & x5_                         ), 25))}; // hash bits of 25 is based on enwik9
+    const auto p4{_a4.p3(bit, p1, (2*c0_) ^ finalise64(hash(_buf(1), 0xFF & (x5_ >> 8), 0x80FF & (x5_ >> 16)), 57))}; // hash bits of 57 is based on enwik9
+    const auto p5{_a5.p3(bit, p2,           finalise64(hash(    c0_, w5_                                    ), 24))}; // hash bits of 24 is based on enwik9
+    const auto p6{_a6.p3(bit, p4, (4*c0_) ^ finalise64(hash(    cz, 0x0080FF & x5_                          ), 57))}; // hash bits of 57 is based on enwik9
     // clang-format on
 
     auto* const __restrict px{_blend.Get()};
@@ -2216,23 +2301,22 @@ public:
     px[3] = Stretch(p6);
 
     const auto ctx{(w5_ << 1) | ((0xFF & _fails) ? 1 : 0)};
-    const int32_t err{((bit << 12) - _pr) * 2};
-    pr = _blend.Predict(err, ctx);
+    const int32_t err{((bit << 16) - static_cast<int32_t>(_pr16)) / 8};
+    const auto pr12{_blend.Predict(err, ctx)};
 
     uint16_t p7;
     if (0x7FF != _pt) {
       assert((0x000 == _pt) || (0xFFF == _pt));  // Predicts only 0 or 1 with certainty of 100%
       p7 = _pt;
     } else {
-      p7 = Squash(pr);  // Conversion from -2048..2047 (clamped) into 0..4095
+      p7 = Squash(pr12);  // Conversion from -2048..2047 (clamped) into 0..4095
     }
 
-    uint32_t pr16{_sse.Predict16(p7, bit)};
+    _pr16 = _sse.Predict16(p7, bit);
     if (0x7FF != _pt) {
-      pr16 = _pt ? 0xFFFF : 0x0000;
+      _pr16 = _pt ? 0xFFFF : 0x0000;
     }
-    _pr = static_cast<uint16_t>(pr16 / 16);
-    return pr16;
+    return _pr16;
   }
 
   void SetBinary(const bool is_binary) noexcept {
@@ -2251,25 +2335,30 @@ private:
   Buffer_t& __restrict _buf;
   Mixer_t _mixer{};
   uint32_t _add2order{0};
+  uint32_t _fails{0};
+  uint32_t _failz{0};
+  uint32_t _failcount{0};
   DynamicMarkovModel_t _dmc{MEM()};
-  LempelZivPredict_t _lzp{_buf, MEM() / 4};
+  LempelZivPredict_t _lzp{_buf, MEM(20)};
   SparseMatchModel_t _smm{_buf};
   Txt_t _txt{};
-  APM_t _ax1{0x10000, 18};
-  APM_t _ax2{0x800, 40};
-  APM _a1{0x100};
-  APM _a2{0x8000};
-  APM _a3{0x8000};
-  APM _a4{0x20000};
-  APM _a5{0x10000};
-  APM _a6{0x10000};
+  APM_t _ax1{0x10000, 7};  // Fixed 16 bit context | Offset 7 is based on enwik9
+  APM_t _ax2{0x4000, 31};  //                      | Offset 31 is based on enwik9
+  APM_t _a1{0x100};        // Fixed 8 bit context
+  APM_t _a2{MEM(9)};       // 5
+  APM_t _a3{MEM(12)};      // 3
+  APM_t _a4{MEM(14)};      // 1
+  APM_t _a5{MEM(12)};      // 2
+  APM_t _a6{MEM(9)};       // 4
   uint16_t _mxr_pr{0x7FF};
   uint16_t _pt{0x7FF};
-  uint16_t _pr{0x7FF};  // Prediction 0..4095
-  int32_t : 16;         // Padding
-  HashTable_t _t4a{MEM() * 2};
-  HashTable_t _t4b{MEM() * 2};
-  Blend_t<4, 16> _blend{0x80000, 4096};  // w5_ | Rate of 19 is based on enwik9
+  uint32_t _pr16{0x7FFF};  // Prediction 0..65535
+  HashTable_t _t4a{MEM(23)};
+  HashTable_t _t4b{MEM(23)};
+  bool _is_binary{false};
+  int32_t : 24;                                    // Padding
+  int32_t : 32;                                    // Padding
+  Blend_t<4, 16> _blend{UINT32_C(1) << 19, 4096};  // w5_ | Rate of 16 is based on enwik9
   std::array<std::array<uint8_t, 8192>, 8> _calcfails{};
   std::array<uint8_t, 0x10000> _t0{};
   uint8_t* __restrict _t0c1{_t0.data()};
@@ -2278,19 +2367,10 @@ private:
   uint32_t _ctx3{0};
   uint32_t _ctx4{0};
   uint32_t _ctx5{0};
-  int32_t : 32;  // Padding
-  int32_t* _ctx6{&smt_[0][0]};
   uint32_t _pw{0};
+  int32_t* _ctx6{&smt_[0][0]};
   uint32_t _bc4cp0{0};  // Range 0,1,2 or 3
-  uint32_t _fails{0};
-  uint32_t _failz{0};
-  uint32_t _failcount{0};
-  bool _is_binary{false};
-  int32_t : 24;  // Padding
   SSE_t _sse{};
-  int32_t : 32;  // Padding
-  int32_t : 32;  // Padding
-  int32_t : 32;  // Padding
 
   [[nodiscard]] auto Predict_not32(const bool bit) noexcept -> uint16_t {
     auto y2o{(bit << 20) - bit};
@@ -2370,8 +2450,8 @@ private:
     const auto px{_ax1.p1(bit, pr, c2_ | c0_)};
     _mxr_pr = Balance(static_cast<uint16_t>(2), Squash(pr), px);  // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 2 is based on enwik9
 
-    const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + bcount_)};  // Conversion from 0..4095 into -2048..2047
-    const auto pz{Balance(static_cast<uint16_t>(8), _mxr_pr, py)};     // Weight of 8 is based on enwik9
+    const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + 7)};     // Conversion from 0..4095 into -2048..2047
+    const auto pz{Balance(static_cast<uint16_t>(8), _mxr_pr, py)};  // Weight of 8 is based on enwik9
     assert(pz < 0x1000);
     return pz;
   }
@@ -2452,8 +2532,8 @@ private:
     const auto px{_ax1.p1(bit, pr, c2_ | c0_)};
     _mxr_pr = Balance(static_cast<uint16_t>(6), Squash(pr), px);  // Conversion from -2048..2047 (clamped) into 0..4095, Weight of 6 is based on enwik9
 
-    const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + bcount_)};  // Conversion from 0..4095 into -2048..2047
-    const auto pz{Balance(static_cast<uint16_t>(12), _mxr_pr, py)};    // Weight of 12 is based on enwik9
+    const auto py{_ax2.p2(bit, Stretch(px), (fails_ * 8) + 7)};      // Conversion from 0..4095 into -2048..2047
+    const auto pz{Balance(static_cast<uint16_t>(12), _mxr_pr, py)};  // Weight of 12 is based on enwik9
     assert(pz < 0x1000);
     return pz;
   }
@@ -2507,7 +2587,7 @@ private:
     static constexpr int8_t flaw[8]{28, 38, 23, 23, 19, 14, 25, 1};  // based on enwik9
     const int8_t MU{flaw[bcount_]};
 #endif
-    if (const auto err{static_cast<int16_t>((bit << 12) - static_cast<int32_t>(_mxr_pr) - bit)}; (err <= -MU) || (err >= MU)) {
+    if (const auto err{(bit << 12) - static_cast<int32_t>(_mxr_pr) - bit}; (err <= -MU) || (err >= MU)) {
       assert((err + 4096) < 8192);
       fails_ |= _calcfails[(bcount_ - 1) & 7][static_cast<uint16_t>(err + 4096)];
       _mixer.Update(err);
@@ -2649,7 +2729,7 @@ private:
         }
 
         tt_ = (tt_ * 8) + WRT_mtt[ch];
-        w5_ = (w5_ * 4) + static_cast<uint32_t>(0xF & (UINT64_C(0x0000111111233444) >> (4 * (ch >> 4))));  // WRT_mpw
+        w5_ = (w5_ * 4) + static_cast<uint32_t>(0xFU & (UINT64_C(0x0000111111233444) >> (4 * (ch >> 4))));  // WRT_mpw
         x5_ = (x5_ << 8) + ch;
 
         //                                                 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F              0 1 2 3 4 5 6 7 8 9 A B C D E F
@@ -2732,6 +2812,7 @@ private:
     } else {
       _pt = 0x7FF;  // No prediction
     }
+    assert(pr < 0x1000);
     return pr;
   }
 };
@@ -2866,6 +2947,7 @@ public:
   }
 
 private:
+  static constexpr auto _limit{UINT32_C(0x01000000)};
   File_t& _stream;
   std::unique_ptr<Predict_t> _predict;
   uint32_t _high{~0U};
@@ -2888,7 +2970,7 @@ private:
     } else {
       _low = mid + 1;
     }
-    while ((_low ^ _high) < 0x01000000U) {  // Shift out identical leading bytes
+    while ((_low ^ _high) < _limit) {  // Shift out identical leading bytes
       _stream.putc(static_cast<int32_t>(_high >> 24));
       _high = (_high << 8) | 0xFF;
       _low <<= 8;
@@ -2905,7 +2987,7 @@ private:
       _low = mid + 1;
       bit = false;
     }
-    while ((_low ^ _high) < 0x01000000U) {  // Shift out identical leading bytes
+    while ((_low ^ _high) < _limit) {  // Shift out identical leading bytes
       _high = (_high << 8) | 0xFF;
       _low <<= 8;
       _x = (_x << 8) | (_stream.getc() & 0xFF);  // EOF is OK
@@ -3002,8 +3084,8 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
   _stretch = new Stretch_t(/*value*/);
 #elif 0
   if ((6 == argc) && !strncasecmp(argv[5], "--XX", 4)) {
-    extern int32_t XX;
-    XX = std::strtol(4 + argv[5], nullptr, 10);
+    extern uint32_t XX;
+    XX = std::strtoul(4 + argv[5], nullptr, 10);
     // XX = strtoxxl(4 + argv[5]);
     argc--;
     // fprintf(stdout, "\nXX : %s\n", xxltostr(XX).c_str());
@@ -3111,11 +3193,14 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     assert((level_ >= 0) && (level_ <= 12));
     outfile.putc(level_);  // Write memory level
 
-    Buffer_t _buf{MEM()};
+    Buffer_t _buf{};
     Encoder_t en{_buf, true, outfile};
 
     // Original file length
     en.CompressVLI(iLen);
+
+    // Increasing the buffer size above the file length is not useful
+    _buf.Resize(static_cast<uint64_t>(iLen), MEM());
 
     // File length after text preparation (successful or not)
     const auto len{infile.Size()};
@@ -3188,11 +3273,14 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
 
     fprintf(stdout, "\nDecoding file '%s' ... with memory option %d\n", inFileName, level_);
 
-    Buffer_t _buf{MEM()};
+    Buffer_t _buf{};
     Encoder_t en{_buf, false, infile};
 
     // Original file length
     const auto iLen{en.DecompressVLI()};
+
+    // Increasing the buffer size above the file length is not useful
+    _buf.Resize(static_cast<uint64_t>(iLen), MEM());
 
     // File length after text preparation (successful or not)
     auto len{en.DecompressVLI()};
@@ -3265,10 +3353,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement{INT64_C(137312930) - outfile.Size()};
+      const auto improvement{INT64_C(136374429) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
-      const auto improvement{INT64_C(17391554) - outfile.Size()};
+      const auto improvement{INT64_C(17308785) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     }
 #endif

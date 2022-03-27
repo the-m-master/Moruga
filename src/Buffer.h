@@ -22,20 +22,19 @@
 #define _BUFFER_HDR_
 
 #include <cassert>
+#include <cstring>
 #include "File.h"
 
 #define ISPOWEROF2(x) (((x) > 0) && (!((x) & ((x)-1))))
 
 class Buffer_t final {
 public:
-  explicit Buffer_t(const uint64_t max_size) noexcept
-      : _mask{static_cast<uint32_t>(((max_size > mem_limit) ? mem_limit : max_size) - UINT64_C(1))},  //
-        _buffer{static_cast<uint8_t*>(std::calloc(static_cast<size_t>(_mask) + UINT64_C(1), sizeof(uint8_t)))} {
-    assert(ISPOWEROF2(max_size));
-    // fprintf(stdout, "%" PRIu64 " KiB for Buffer_t\n", (max_size * sizeof(uint8_t)) / UINT64_C(1024));
-  }
+  explicit Buffer_t() noexcept
+      : _mask{1024 - 1},  // Initially claim one KiB, increase this with Resize later on
+        _buffer{static_cast<uint8_t*>(std::calloc(_mask + 1, sizeof(uint8_t)))} {}
   ~Buffer_t() noexcept {
     std::free(_buffer);
+    _buffer = nullptr;
   }
   Buffer_t(const Buffer_t&) = delete;
   Buffer_t(Buffer_t&&) = delete;
@@ -52,7 +51,7 @@ public:
     return _buffer[(_pos - i) & _mask];
   }
 
-  ALWAYS_INLINE constexpr void Add(uint8_t ch) noexcept {
+  ALWAYS_INLINE constexpr void Add(const uint8_t ch) noexcept {
     _buffer[_pos++ & _mask] = ch;
   }
 
@@ -60,13 +59,28 @@ public:
     return _pos;
   }
 
-private:
-  // Increasing the buffer limit above the file size is not useful
-  static constexpr auto mem_limit{UINT64_C(0x40000000)};  // 1 GiB
+  void Resize(const uint64_t max_file_size, const uint64_t max_memory) noexcept {
+    // Increasing the buffer size above the file length is not useful
+    static constexpr auto mem_limit{UINT64_C(0x40000000)};  // 1 GiB
 
-  const uint32_t _mask;
-  uint32_t _pos{0};  // Number of input bytes read (is wrapped)
-  uint8_t* const __restrict _buffer;
+    auto max_size{UINT64_C(1)};
+    while (max_size < mem_limit) {
+      if ((max_size >= max_file_size) || (max_size >= max_memory)) {
+        break;
+      }
+      max_size += max_size;
+    }
+    uint8_t* const new_buf{static_cast<uint8_t*>(std::calloc(max_size, sizeof(uint8_t)))};
+    memcpy(new_buf, _buffer, static_cast<size_t>(_mask) + UINT64_C(1));
+    std::free(_buffer);
+    _buffer = new_buf;
+    _mask = static_cast<uint32_t>(max_size - UINT64_C(1));
+  }
+
+private:
+  uint32_t _mask{0};
+  uint32_t _pos{0};  // Number of input bytes read (NOT wrapped)
+  uint8_t* __restrict _buffer{nullptr};
 };
 
 #endif  // _BUFFER_HDR_

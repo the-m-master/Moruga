@@ -116,6 +116,9 @@ ifeq ($(MODE),debug)
   endif
 else
   CCFLAGS += -O3 -flto -fno-rtti -fno-asm -ftree-vectorize
+  ifneq ($(TOOLCHAIN),llvm)
+    CCFLAGS += -ffat-lto-objects
+  endif
   ifeq ($(MODE),profile)
     CCFLAGS += -fprofile-generate=$(PROFILE_DIR)
   else
@@ -310,6 +313,8 @@ mkdirs:
 	$(ECHO) '/    Y    (  <_> )  | \/  |  / /_/  > __ \_'
 	$(ECHO) '\____|__  /\____/|__|  |____/\___  (____  /'
 	$(ECHO) '        \/                  /_____/     \/ '
+	$(ECHO) 'https://github.com/the-m-master/Moruga/    '
+	$(ECHO) '                                           '
 	$(MKDIR) $(dir $(OBJECTS))
 ifeq ($(MODE),profile)
 	$(MKDIR) $(PROFILE_DIR)

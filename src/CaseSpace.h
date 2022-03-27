@@ -38,7 +38,25 @@ public:
 #pragma pack(push, 1)
   struct Dictionary_t final {
     explicit Dictionary_t() = delete;
-    explicit Dictionary_t(std::string w, uint32_t f) noexcept : word{std::move(w)}, frequency{f} {}
+    explicit Dictionary_t(const std::string& w, uint32_t f) noexcept : word{std::move(w)}, frequency{f} {}
+    explicit Dictionary_t(const Dictionary_t& other) noexcept : word{other.word}, frequency{other.frequency} {}
+    Dictionary_t(Dictionary_t&& other) noexcept : word{std::move(other.word)}, frequency{std::move(other.frequency)} {}
+
+    auto& operator=(const Dictionary_t& other) noexcept {
+      if (this != &other) {  // Self-assignment detection
+        word = other.word;
+        frequency = other.frequency;
+      }
+      return *this;
+    }
+
+    auto& operator=(Dictionary_t&& other) noexcept {
+      if (this != &other) {  // Self-assignment detection
+        word = std::move(other.word);
+        frequency = std::move(other.frequency);
+      }
+      return *this;
+    }
 
     std::string word;
     uint32_t frequency;

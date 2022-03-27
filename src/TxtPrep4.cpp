@@ -158,7 +158,7 @@ public:
     std::vector<CaseSpace_t::Dictionary_t> dictionary{};
     dictionary.reserve(_word_map.size());
 
-    std::for_each(_word_map.begin(), _word_map.end(), [&dictionary](const auto entry) {
+    std::for_each(_word_map.begin(), _word_map.end(), [&dictionary](const auto& entry) {
       if (const auto frequency{entry.second + 1}; frequency >= MIN_WORD_FREQ) {  // The first element has count 0 (!)
         dictionary.emplace_back(CaseSpace_t::Dictionary_t(entry.first, frequency));
       }
@@ -450,24 +450,24 @@ public:
         }
         continue;
       } else if (0x80 & ch) {
-        uint32_t bytes{static_cast<uint8_t>(ch)};
-        if (0 != (0x40 & ch)) {
+        int32_t bytes{ch};
+        if (0xC0 == (0xC0 & ch)) {
           ch = _in.getc();
           assert(EOF != ch);
-          bytes = (bytes << 8) | static_cast<uint8_t>(ch);
-          if (0 != (0x40 & ch)) {
+          bytes = (bytes << 8) | ch;
+          if (0xC0 == (0xC0 & ch)) {
             ch = _in.getc();
             assert(EOF != ch);
-            bytes = (bytes << 8) | static_cast<uint8_t>(ch);
-            if (0 != (0x40 & ch)) {
+            bytes = (bytes << 8) | ch;
+            if (0xC0 == (0xC0 & ch)) {
               ch = _in.getc();
               assert(EOF != ch);
-              bytes = (bytes << 8) | static_cast<uint8_t>(ch);
+              bytes = (bytes << 8) | ch;
             }
           }
         }
 
-        const std::string& word{_dictionary.bytes2word(bytes)};
+        const std::string& word{_dictionary.bytes2word(static_cast<uint32_t>(bytes))};
         assert(word.length() > 0);
         for (const char* __restrict str{word.c_str()}; *str;) {
           Putc(*str++);
