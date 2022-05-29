@@ -1,4 +1,4 @@
-/* TxtPrep4, is a text preparation for text encoding/decoding
+/* TxtPrep5, is a text preparation for text encoding/decoding
  *
  * Copyright (c) 2019-2022 Marwijn Hessel
  *
@@ -18,15 +18,13 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#include "TxtPrep4.h"
+#include "TxtPrep5.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cinttypes>
 #include <climits>
-#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -69,42 +67,32 @@
 // Word count can be verified by using (on Linux or MSYS2):
 // sed -e 's/[^[:alpha:]]/ /g' file2count.txt | tr '\n' " " |  tr -s " " | tr " " '\n'| tr 'A-Z' 'a-z' | sort | uniq -c | sort -nr | nl
 
-static constexpr size_t MAX_WORD_SIZE{256};                        // Default 256
-static constexpr size_t MIN_WORD_SIZE{2};                          // Default 2, range 1 .. MAX_WORD_SIZE
-static constexpr size_t MIN_WORD_FREQ{4};                          // Default 4, range 1 .. 256
-static constexpr size_t MIN_SHORTER_WORD_SIZE{MIN_WORD_SIZE + 5};  // Default 5, range always larger then MIN_WORD_SIZE
-static constexpr size_t MIN_NUMBER_SIZE{7};                        // Default 7, range 1 .. 26
-static constexpr size_t MAX_NUMBER_SIZE{20};                       // Default 20, range 1 .. 26
+static constexpr uint32_t MAX_WORD_SIZE{256};                        // Default 256
+static constexpr uint32_t MIN_WORD_SIZE{2};                          // Default 2, range 1 .. MAX_WORD_SIZE
+static constexpr uint32_t MIN_WORD_FREQ{4};                          // Default 4, range 1 .. 256
+static constexpr uint32_t MIN_SHORTER_WORD_SIZE{MIN_WORD_SIZE + 5};  // Default 5, range always larger then MIN_WORD_SIZE
+static constexpr uint32_t MIN_NUMBER_SIZE{7};                        // Default 7, range 1 .. 26
+static constexpr uint32_t MAX_NUMBER_SIZE{20};                       // Default 20, range 1 .. 26
 
 static_assert(MIN_WORD_SIZE < MIN_SHORTER_WORD_SIZE, "MIN_SHORTER_WORD_SIZE must be bigger then MIN_WORD_SIZE");
 static_assert(MIN_WORD_FREQ >= 1, "MIN_WORD_FREQ must be equal or larger then one");
 static_assert(MIN_NUMBER_SIZE < MAX_NUMBER_SIZE, "MAX_NUMBER_SIZE must be bigger then MIN_NUMBER_SIZE");
 
-static constexpr int32_t ESCAPE_CHAR{4};       // 0x04
-static constexpr int32_t QUOTING_CHAR{42};     // 0x2A *
-static constexpr int32_t SEPARATE_CHAR{'\n'};  // default '\n'
-
-static constexpr uint32_t BITS_OUT{6};                                // Practical limit, 6 bits
-static constexpr uint32_t LOW{1 << BITS_OUT};                         //    0 ..    3F --> 0 ..    64 (6 bits)
-static constexpr uint32_t MID{LOW + (1 << ((2 * BITS_OUT) - 1))};     //   40 ..   880 --> 0 ..   840 (2^6 + 2^(6+5)                           --> 64 + 2048                  -->   2112)
-static constexpr uint32_t HIGH{MID + (1 << ((3 * BITS_OUT) - 3))};    //  881 ..  8880 --> 0 ..  8840 (2^6 + 2^(6+5) + 2^(6+5+4)               --> 64 + 2048 + 32768          -->  34880)
-static constexpr uint32_t LIMIT{HIGH + (1 << ((4 * BITS_OUT) - 6))};  // 8881 .. 510C0 --> 0 .. 48840 (2^6 + 2^(6+5) + 2^(6+5+4) + 2^(6+5+4+3) --> 64 + 2048 + 32768 + 262144 --> 297024)
-
-static_assert(BITS_OUT > 1, "Bit range error");
-static_assert(LOW > 1, "Bit range error, LOW must larger then one");
-static_assert(LOW < MID, "Bit range error, LOW must be less then MID");
-static_assert(MID < HIGH, "Bit range error, MID must be less then HIGH");
-static_assert(HIGH < LIMIT, "Bit range error, HIGH must be less then LIMIT");
+static constexpr int32_t ESCAPE_CHAR{4};     // 0x04
+static constexpr int32_t QUOTING_CHAR{42};   // 0x2A *
+static constexpr int32_t SEPARATE_CHAR{20};  // 0x14
 
 static bool to_numbers_{false};
 
-namespace TxtPrep4 {
+namespace TxtPrep5 {
   template <typename T>
   ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
-    return ('>' == ch) || Utilities::is_lower(ch) || (ch > 127) ||                     // Default for text files
-           (to_numbers_ && ((' ' == ch) || ('.' == ch) || Utilities::is_number(ch)));  // In case of a file with a lot of values
+    if (('>' == ch) || Utilities::is_lower(ch) || (ch > 127)) {  // Default for text files
+      return true;
+    }
+    return to_numbers_ && ((' ' == ch) || ('.' == ch) || Utilities::is_number(ch));  // In case of a file with a lot of values
   }
-}  // namespace TxtPrep4
+}  // namespace TxtPrep5
 
 class Dictionary final : public iMonitor_t {
 public:
@@ -116,8 +104,20 @@ public:
   auto operator=(const Dictionary&) -> Dictionary& = delete;
   auto operator=(Dictionary&&) -> Dictionary& = delete;
 
+  static constexpr uint32_t BITS_OUT{6};                                // Limit of 6 bits
+  static constexpr uint32_t LOW{1 << BITS_OUT};                         //    0..3F    --> 0..64 (6 bits)
+  static constexpr uint32_t MID{LOW + (1 << ((2 * BITS_OUT) - 1))};     //   40..880   --> 0..840 (2^6 + 2^(6+5)                             --> 64 + 2048                  -->   2112)
+  static constexpr uint32_t HIGH{MID + (1 << ((3 * BITS_OUT) - 3))};    //  881..8880  --> 0..8840 (2^6 + 2^(6+5) + 2^(6+5+4)                --> 64 + 2048 + 32768          -->  34880)
+  static constexpr uint32_t LIMIT{HIGH + (1 << ((4 * BITS_OUT) - 6))};  // 8881..510C0 --> 0..48840 (2^6 + 2^(6+5) + 2^(6+5+4) + 2^(6+5+4+3) --> 64 + 2048 + 32768 + 262144 --> 297024)
+
+  static_assert(BITS_OUT > 1, "Bit range error");
+  static_assert(LOW > 1, "Bit range error, LOW must larger then one");
+  static_assert(LOW < MID, "Bit range error, LOW must be less then MID");
+  static_assert(MID < HIGH, "Bit range error, MID must be less then HIGH");
+  static_assert(HIGH < LIMIT, "Bit range error, HIGH must be less then LIMIT");
+
   void AppendChar(const int32_t ch) noexcept {
-    if (const auto wlength{_word.length()}; TxtPrep4::is_word_char(ch) && (wlength < MAX_WORD_SIZE)) {
+    if (const auto wlength{_word.length()}; TxtPrep5::is_word_char(ch) && (wlength < MAX_WORD_SIZE)) {
       _word.push_back(static_cast<char>(ch));
     } else {
       if (wlength >= MIN_WORD_SIZE) {
@@ -174,6 +174,16 @@ public:
       return (a.frequency == b.frequency) ? (a.word.compare(b.word) < 0) : (a.frequency > b.frequency);
     });
 
+#if defined(DEBUG_WRITE_DICTIONARY)
+    {
+      File_t txt("dictionary.txt", "wb+");
+      uint32_t n{0};
+      for (const auto& dic : dictionary) {
+        fprintf(txt, "%6" PRIu32 "\t%7" PRIu32 " %s\n", ++n, dic.frequency, dic.word.c_str());
+      }
+    }
+#endif
+
     _dic_length = (std::min)(_dic_length, LIMIT);
 
     constexpr auto name_compare{[](const auto& a, const auto& b) noexcept -> bool {  //
@@ -208,13 +218,6 @@ public:
       out.Write(dictionary[n].word.c_str(), dictionary[n].word.length());
       out.putc(SEPARATE_CHAR);
     }
-
-#if defined(DEBUG_WRITE_DICTIONARY)
-    File_t txt("dictionary.txt", "wb+");
-    for (auto dic : dictionary) {
-      fprintf(txt, "%u,%" PRIu64 ",%s\n", dic.frequency, dic.word.length(), dic.word.c_str());
-    }
-#endif
   }
 
   void Read(const File_t& stream) noexcept {
@@ -516,62 +519,96 @@ private:
     }
   }
 
+  void PreLiteral(const char* __restrict literal, uint32_t length) noexcept {
+    if (length >= MIN_SHORTER_WORD_SIZE) {
+      const std::string word(literal, length);
+      const auto frequency{_dictionary.word2frequency(word)};
+      if (frequency.first) {
+        EncodeCodeWord(frequency.second);
+        return;
+      }
+    }
+    Literal(literal, length);
+  }
+
   void EncodeWord() noexcept {
-    auto wlength{static_cast<uint32_t>(_word.length())};
+    const auto wlength{static_cast<uint32_t>(_word.length())};
     const char* __restrict word{_word.c_str()};
 
     if (wlength >= MIN_WORD_SIZE) {
-      if (const auto whole_word{_dictionary.word2frequency(_word)}; whole_word.first) {
-        EncodeCodeWord(whole_word.second);
+      if (const auto frequency{_dictionary.word2frequency(_word)}; frequency.first) {
+        EncodeCodeWord(frequency.second);
         return;
       }
 
-      uint32_t offset_end{0};
-      uint32_t frequency_end{0};
-
-      // Try to find shorter word, strip end of word
-      for (uint32_t offset{wlength - 1}; offset >= MIN_SHORTER_WORD_SIZE; --offset) {
-        const std::string shorter(word, offset);
-        if (const auto short_word{_dictionary.word2frequency(shorter)}; short_word.first) {
-          offset_end = offset;
-          frequency_end = short_word.second;
-          break;
+      if (wlength > MIN_SHORTER_WORD_SIZE) {
+        // Try to find a shorter word, start shortening at the end of the word
+        uint32_t offset_end{0};
+        uint32_t frequency_end{0};
+        for (uint32_t offset{wlength - 1}; offset >= MIN_SHORTER_WORD_SIZE; --offset) {
+          const std::string shorter(word, offset);
+          if (const auto frequency{_dictionary.word2frequency(shorter)}; frequency.first) {
+            offset_end = offset;
+            frequency_end = frequency.second;
+            break;
+          }
         }
-      }
 
-      uint32_t offset_begin{0};
-      uint32_t frequency_begin{0};
-
-      // Try to find shorter word, strip begin of word
-      for (uint32_t offset{1}; (wlength - offset) >= MIN_SHORTER_WORD_SIZE; ++offset) {
-        const std::string shorter(word + offset, wlength - offset);
-        if (const auto short_word{_dictionary.word2frequency(shorter)}; short_word.first) {
-          offset_begin = offset;
-          frequency_begin = short_word.second;
-          break;
+        // Try to find a shorter word, start shortening at the beginning of the word
+        uint32_t offset_begin{0};
+        uint32_t frequency_begin{0};
+        for (uint32_t offset{1}; (wlength - offset) >= MIN_SHORTER_WORD_SIZE; ++offset) {
+          const std::string shorter(word + offset, wlength - offset);
+          if (const auto frequency{_dictionary.word2frequency(shorter)}; frequency.first) {
+            offset_begin = offset;
+            frequency_begin = frequency.second;
+            break;
+          }
         }
-      }
 
-      if (0 != offset_end) {
-        if (0 != offset_begin) {
-          if ((wlength - offset_end) <= offset_begin) {
-            EncodeCodeWord(frequency_end);
-            Literal(word + offset_end, wlength - offset_end);
+        bool write_begin_word{false};
+        bool write_end_word{false};
+
+        if (0 != offset_end) {
+          if (0 != offset_begin) {
+            if ((wlength - offset_end) <= offset_begin) {
+              write_end_word = true;
+            } else {
+              write_begin_word = true;
+            }
           } else {
-            Literal(word, offset_begin);
-            EncodeCodeWord(frequency_begin);
+            write_end_word = true;
           }
         } else {
-          EncodeCodeWord(frequency_end);
-          Literal(word + offset_end, wlength - offset_end);
+          if (0 != offset_begin) {
+            write_begin_word = true;
+          }
         }
-        return;
-      }
 
-      if (0 != offset_begin) {
-        Literal(word, offset_begin);
-        EncodeCodeWord(frequency_begin);
-        return;
+        if (write_begin_word) {
+          PreLiteral(word, offset_begin);
+          EncodeCodeWord(frequency_begin);
+          return;
+        }
+        if (write_end_word) {
+          EncodeCodeWord(frequency_end);
+          PreLiteral(word + offset_end, wlength - offset_end);
+          return;
+        }
+
+        // Try to find a shorter word, start shortening at the beginning and limiting the length of the word
+        for (uint32_t offset{1}; offset < (wlength - 1); ++offset) {
+          for (uint32_t length{wlength - offset}; length >= MIN_SHORTER_WORD_SIZE; --length) {
+            const std::string shorter(_word, offset, length);
+            const auto frequency{_dictionary.word2frequency(shorter)};
+            if (frequency.first && (frequency.second < Dictionary::HIGH)) {
+              Literal(_word.c_str(), offset);
+              EncodeCodeWord(frequency.second);
+              Literal(_word.c_str() + offset + length, wlength - offset - length);
+              return;
+            }
+          }
+        }
       }
     }
 
@@ -659,7 +696,7 @@ private:
       }
     }
 
-    if (TxtPrep4::is_word_char(ch) && (_word.length() < MAX_WORD_SIZE)) {
+    if (TxtPrep5::is_word_char(ch) && (_word.length() < MAX_WORD_SIZE)) {
       _word.push_back(static_cast<char>(ch));
     } else {
       EncodeWordValue();
@@ -713,6 +750,7 @@ auto encode_txt(File_t& in, File_t& out) noexcept -> int64_t {
     TxtPrep txtprep(tmp, out, cse.charFrequency(), cse.getQuote());
     length = txtprep.Encode();
   }
+
   return length;
 }
 

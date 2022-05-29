@@ -1,4 +1,4 @@
-/* TxtPrep4, is a text preparation for text encoding/decoding
+/* TxtPrep5, is a text preparation for text encoding/decoding
  *
  * Copyright (c) 2019-2022 Marwijn Hessel
  *

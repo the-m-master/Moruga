@@ -115,7 +115,7 @@ ifeq ($(MODE),debug)
     CCFLAGS += -fstack-protector-strong
   endif
 else
-  CCFLAGS += -O3 -flto -fno-rtti -fno-asm -ftree-vectorize
+  CCFLAGS += -O3 -flto=auto -fno-rtti -fno-asm -ftree-vectorize
   ifneq ($(TOOLCHAIN),llvm)
     CCFLAGS += -ffat-lto-objects
   endif
@@ -287,7 +287,7 @@ all:
 #===============================================================================
 $(BUILD_DIR)/$(BIN_FILE): $(OBJECTS)
 	$(CXX) $(LDFLAGS) $(CCFLAGS) $(_LIB_DIRS) $(OBJECTS) $(_LIBS) -o $(BUILD_DIR)/$(BIN_FILE)
-#	$(OBJDUMP) -S $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
+#	$(OBJDUMP) --no-addresses --no-show-raw-insn -S $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
 
 #===============================================================================
 # Build all cpp files

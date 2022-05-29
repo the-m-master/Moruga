@@ -25,7 +25,6 @@
 #include <chrono>
 #include <cinttypes>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include "filters/filter.h"
 #include "iMonitor.h"

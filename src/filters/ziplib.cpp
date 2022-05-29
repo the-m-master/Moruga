@@ -394,10 +394,171 @@ auto encode_zlib(File_t& in, int64_t size, File_t& out, const bool compare) noex
   return (recpos == len) && !diffFound;
 }
 
+#if 0
+
+#define BITS 12
+#define HASHING_SHIFT BITS - 8
+#define MAX_VALUE (1 << BITS) - 1
+#define MAX_CODE MAX_VALUE - 1
+
+#if BITS == 14
+#  define TABLE_SIZE 18041
+#endif
+#if BITS == 13
+#  define TABLE_SIZE 9029
+#endif
+#if BITS <= 12
+#  define TABLE_SIZE 5021
+#endif
+
+static std::array<uint32_t, TABLE_SIZE> prefix_code;
+static std::array<uint8_t, 4000> decode_stack;
+static std::array<uint8_t, TABLE_SIZE> append_character;
+
+static auto decode_string(uint8_t* buffer, uint32_t code) noexcept -> uint8_t* {
+  int32_t i{0};
+  while (code > 255) {
+    *buffer++ = append_character[code];
+    code = prefix_code[code];
+    if (i++ > 4000) {
+      return nullptr;  // Failure!
+    }
+  }
+  *buffer = uint8_t(code);
+  return buffer;
+}
+
+static auto input_code(File_t& input) noexcept -> uint32_t {
+  static int32_t input_bit_count{0};
+  static uint32_t input_bit_buffer{0};
+
+  while (input_bit_count <= 24) {
+    input_bit_buffer |= uint32_t(input.getc()) << (24 - input_bit_count);
+    input_bit_count += 8;
+  }
+  uint32_t return_value = input_bit_buffer >> (32 - BITS);
+  input_bit_buffer <<= BITS;
+  input_bit_count -= BITS;
+  return return_value;
+}
+
+static auto decode_lzw(File_t& in, File_t& out, int64_t& /*len*/) noexcept -> bool {
+  uint32_t next_code{256};
+  uint32_t old_code{input_code(in)};
+  uint32_t character{old_code};
+
+  out.putc(int32_t(old_code));
+
+  uint8_t* string;
+  uint32_t new_code;
+  while ((new_code = input_code(in)) != MAX_VALUE) {
+    if (new_code >= next_code) {
+      decode_stack[0] = uint8_t(character);
+      string = decode_string(&decode_stack[1], old_code);
+    } else {
+      string = decode_string(&decode_stack[0], new_code);
+    }
+    if (string) {
+      character = *string;
+      while (string >= &decode_stack[0]) {
+        out.putc(*string--);
+      }
+    } else {
+      return false;  // Failure
+    }
+    if (next_code <= MAX_CODE) {
+      prefix_code[next_code] = old_code;
+      append_character[next_code] = uint8_t(character);
+      next_code++;
+    }
+    old_code = new_code;
+  }
+  return true;
+}
+
+static auto output_code(File_t& output, const uint32_t code, const bool compare) noexcept -> bool {
+  static int32_t output_bit_count{0};
+  static uint32_t output_bit_buffer{0};
+
+  output_bit_buffer |= code << (32 - BITS - output_bit_count);
+  output_bit_count += BITS;
+  while (output_bit_count >= 8) {
+    if (compare) {
+      const uint32_t cmp{uint32_t(output.getc())};
+      if (cmp != (output_bit_buffer >> 24)) {
+        return false;
+      }
+    } else {
+      output.putc(uint8_t(output_bit_buffer >> 24));
+    }
+    output_bit_buffer <<= 8;
+    output_bit_count -= 8;
+  }
+  return true;
+}
+
+static std::array<uint32_t, TABLE_SIZE> code_value;
+
+static auto find_match(uint32_t hash_prefix, uint32_t hash_character) noexcept -> uint32_t {
+  uint32_t index{(hash_character << (HASHING_SHIFT)) ^ hash_prefix};
+  uint32_t offset{(0 == index) ? 1 : TABLE_SIZE - index};
+  for (;;) {
+    if (UINT_MAX == code_value[index]) {
+      return index;
+    }
+    if (prefix_code[index] == hash_prefix && append_character[index] == hash_character) {
+      return index;
+    }
+    index -= offset;
+    if (int32_t(index) < 0) {
+      index += TABLE_SIZE;
+    }
+  }
+}
+
+static auto encode_lzw(File_t& in, int64_t /*size*/, File_t& out, const bool compare) noexcept -> bool {
+  code_value.fill(UINT_MAX);
+
+  uint32_t next_code{256};
+
+  uint32_t string_code{uint32_t(in.getc())};
+
+  int32_t character;
+  while (EOF != (character = in.getc())) {
+    uint32_t index{find_match(string_code, uint32_t(character))};
+    if (UINT_MAX != code_value[index]) {
+      string_code = code_value[index];
+    } else {
+      if (next_code <= MAX_CODE) {
+        code_value[index] = next_code++;
+        prefix_code[index] = string_code;
+        append_character[index] = uint8_t(character);
+      }
+      if (!output_code(out, string_code, compare)) {
+        return false;  // Failure
+      }
+      string_code = uint32_t(character);
+    }
+  }
+
+  if (!output_code(out, string_code, compare)) {
+    return false;  // Failure
+  }
+  if (!output_code(out, MAX_VALUE, compare)) {
+    return false;  // Failure
+  }
+  if (!output_code(out, 0, compare)) {
+    return false;  // Failure
+  }
+  return true;
+}
+
+#endif
+
 auto decodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t safe_pos, const int64_t block_length) noexcept -> int64_t {
   if (block_length > 0) {
     stream.Seek(safe_pos);
-    File_t pkzip_tmp;  // ("_pkzip_tmp_.bin", "wb+");
+    File_t pkzip_tmp /*("_pkzip_tmp_.bin", "wb+")*/;
     int64_t length{block_length};
     if (decode_zlib(stream, pkzip_tmp, length)) {  // Try to decode
       pkzip_tmp.Rewind();
@@ -416,6 +577,15 @@ auto decodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t 
         }
         return length;  // Success
       }
+    } else {
+#if 0
+      if (decode_lzw(stream, pkzip_tmp, length)) {  // Try to decode
+        pkzip_tmp.Rewind();
+        stream.Seek(safe_pos);
+        if (encode_lzw(pkzip_tmp, pkzip_tmp.Size(), stream, true)) {  // Encode and compare
+        }
+      }
+#endif
     }
 
 #if 0

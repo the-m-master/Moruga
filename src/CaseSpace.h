@@ -35,7 +35,6 @@ public:
   explicit CaseSpace_t(File_t& in, File_t& out) noexcept;
   virtual ~CaseSpace_t() noexcept override;
 
-#pragma pack(push, 1)
   struct Dictionary_t final {
     explicit Dictionary_t() = delete;
     explicit Dictionary_t(const std::string& w, uint32_t f) noexcept : word{std::move(w)}, frequency{f} {}
@@ -61,7 +60,6 @@ public:
     std::string word;
     uint32_t frequency;
   };
-#pragma pack(pop)
 
   void Encode() noexcept;
   [[nodiscard]] auto Decode() noexcept -> int64_t;

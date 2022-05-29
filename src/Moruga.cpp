@@ -34,7 +34,6 @@
 #include <climits>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -47,7 +46,7 @@
 #include "File.h"
 #include "IntegerXXL.h"
 #include "Progress.h"
-#include "TxtPrep4.h"
+#include "TxtPrep5.h"
 #include "Utilities.h"
 #include "filters/filter.h"
 #include "iEncoder.h"
@@ -212,7 +211,7 @@ public:
     //
     std::array<double, TOP> table{};
     for (uint32_t n{0}; n < TOP; ++n) {
-      table[n] = inverf((double(n) - double(HTOP)) / 2048.0001) * a;
+      table[n] = inverf((double(n) - double(HTOP)) / double(HTOP)) * a;
     }
     for (uint32_t n{0}; n < TOP; ++n) {
       int32_t tmp{std::lround(table[n])};
@@ -650,24 +649,35 @@ public:
 private:
   void Update(const bool bit, const std::array<int16_t, 0x400>& dt) noexcept {
     auto& map{_map[_ctx]};
-    const auto prediction{static_cast<int32_t>(map.prediction)};
     const auto count{map.count};
-    const auto err{((bit << 22) - prediction) >> 3};
+    const auto err{((bit << 22) - map.prediction) >> 3};
     map.value += (static_cast<uint32_t>(err * dt[count]) & -0x400U) + (count < 0x3FF);
   }
 
-  [[nodiscard]] auto Predict(int32_t pr, uint32_t cx) noexcept -> uint16_t {
-    assert((pr >= -2048) && (pr < 2048));
-    assert((cx & _mask) < (N / 24));
-    pr = (24 - 1) * (pr + 2048);                       // Conversion from -2048..2047 into 0..94185
-    const auto wt{static_cast<uint32_t>(0xFFF & pr)};  // interpolation weight of next element
-    cx = (24 * (cx & _mask)) + static_cast<uint32_t>(pr >> 12);
+  [[nodiscard]] auto Predict(const int32_t prediction, const uint32_t context) noexcept -> uint16_t {
+    assert((prediction >= -2048) && (prediction < 2048));
+    assert((context & _mask) < (N / 24));
+    const auto pr = static_cast<uint32_t>(prediction + 2048) * (24 - 1);  // Conversion from -2048..2047 into 0..94185
+    const auto weight{0xFFF & pr};                                        // interpolation weight of next element
+    const auto cx = (24 * (context & _mask)) + (pr / 4096);
     assert(cx < (N - 1));
-    _ctx = cx + (wt >> 11);
+    _ctx = cx;
+    if (weight / 2048) {
+      ++_ctx;
+    }
     assert(_ctx < N);
-    const uint64_t vx{_map[cx + 0].value};                  // Prediction is needed, count is shifted out later on
-    const uint64_t vy{_map[cx + 1].value};                  // Prediction is needed, count is shifted out later on
-    const auto py{((vx * 4096) - ((vx - vy) * wt)) >> 32};  // Calculate new prediction, lose count
+#if 1
+    const uint32_t vx{_map[cx + 0].prediction / 8U};
+    const uint32_t vy{_map[cx + 1].prediction / 8U};
+    if ((0 == weight) || (vx == vy)) {
+      return uint16_t(vx / 128U);
+    }
+    const auto py{((vx * 4096) - ((vx - vy) * weight)) >> 19};  // Calculate new prediction
+#else
+    const uint64_t vx{_map[cx + 0].value};                      // Prediction is needed, count is shifted out later on
+    const uint64_t vy{_map[cx + 1].value};                      // Prediction is needed, count is shifted out later on
+    const auto py{((vx * 4096) - ((vx - vy) * weight)) >> 32};  // Calculate new prediction, lose count
+#endif
     assert(py < 0x1000);
     return static_cast<uint16_t>(py);
   }
@@ -941,7 +951,7 @@ public:
     return clamp12(pr);
   }
 
-  void Context(uint32_t ctx) noexcept {
+  void Context(const uint32_t ctx) noexcept {
     ctx_ = ctx;
   }
 
@@ -965,10 +975,9 @@ alignas(16) std::array<int16_t, Mixer_t::N_LAYERS> Mixer_t::tx_;
  * @class Blend_t
  * Combines predictions using a neural network
  */
-template <const uint32_t N_LAYERS, const int32_t RATE>
+template <const uint32_t N_LAYERS>
 class Blend_t final {
   static_assert(ISPOWEROF2(N_LAYERS), "Number of layers must be a power of two");
-  static_assert(RATE > 0, "Rate must be a positive value which is larger then zero");
 
 public:
   explicit Blend_t(const uint32_t n, const int16_t weight) noexcept
@@ -999,9 +1008,11 @@ public:
     return _new;
   }
 
-  [[nodiscard]] auto Predict(const int32_t err, const uint32_t ctx) noexcept -> int16_t {
-    train(_prev, &_weights[_ctx], err);
-    _ctx = (ctx & _mask) * N_LAYERS;
+  [[nodiscard]] auto Predict(const int32_t err, const uint32_t context) noexcept -> int16_t {
+    if ((err < -16) || (err > 16)) {
+      train(_prev, &_weights[_ctx], err);
+    }
+    _ctx = (context & _mask) * N_LAYERS;
     const int32_t sum{dot_product(_new, &_weights[_ctx])};
     std::swap(_new, _prev);
     return static_cast<int16_t>(sum >> 14);
@@ -1019,7 +1030,7 @@ private:
 
   ALWAYS_INLINE void train(const int16_t* const __restrict t, int16_t* const __restrict w, const int32_t err) noexcept {
     for (auto n{N_LAYERS}; n--;) {
-      const int32_t wt{w[n] + ((((t[n] * err) >> RATE) + 1) >> 1)};
+      const int32_t wt{w[n] + ((((t[n] * err) >> 16) + 1) >> 1)};
       w[n] = static_cast<int16_t>(std::clamp(wt, -32768, 32767));
     }
   }
@@ -1218,7 +1229,7 @@ static constexpr auto MUL64_02{UINT64_C(0xE9C91DC159AB0D2D)};
 
 [[nodiscard]] ALWAYS_INLINE static constexpr auto hash(const uint64_t x0) noexcept -> uint64_t {
   const uint64_t ctx{(x0 + 1) * Utilities::PHI64};
-  return ((ctx << 32) | (ctx >> 32));
+  return (ctx << 32) | (ctx >> 32);
 }
 
 [[nodiscard]] ALWAYS_INLINE static constexpr auto hash(const uint64_t x0, const uint64_t x1) noexcept -> uint64_t {
@@ -1232,7 +1243,8 @@ static constexpr auto MUL64_02{UINT64_C(0xE9C91DC159AB0D2D)};
 }
 
 [[nodiscard]] ALWAYS_INLINE static constexpr auto combine64(const uint64_t seed, const uint64_t x) noexcept -> uint64_t {
-  return hash(seed + x);
+  const uint64_t ctx{(seed + x) * Utilities::PHI64};
+  return (ctx << 32) | (ctx >> 32);
 }
 
 [[nodiscard]] ALWAYS_INLINE static constexpr auto finalise64(const uint64_t hash, const uint32_t hashbits) noexcept -> uint32_t {
@@ -1263,17 +1275,17 @@ public:
     return _smt[i];
   }
 
-  [[nodiscard]] auto Update(const bool bit, const uint32_t ctx) noexcept -> int16_t {
+  [[nodiscard]] auto Update(const bool bit, const uint32_t context) noexcept -> int16_t {
     uint16_t& balz{_smt[_ctx]};
     balz = static_cast<uint16_t>(bit ? (balz + (static_cast<uint16_t>(~balz) >> RATE)) : (balz - (balz >> RATE)));
-    _ctx = ctx & (SIZE - 1);
+    _ctx = context & (SIZE - 1);
     return Stretch(_smt[_ctx] / 16);  // Conversion from 0..4095 into -2048..2047
   }
 
-  [[nodiscard]] auto Update(const bool bit, const uint32_t ctx, const int32_t rate) noexcept -> int16_t {
+  [[nodiscard]] auto Update(const bool bit, const uint32_t context, const int32_t rate) noexcept -> int16_t {
     uint16_t& balz{_smt[_ctx]};
     balz = static_cast<uint16_t>(bit ? (balz + (static_cast<uint16_t>(~balz) >> rate)) : (balz - (balz >> rate)));
-    _ctx = ctx & (SIZE - 1);
+    _ctx = context & (SIZE - 1);
     return Stretch(_smt[_ctx] / 16);  // Conversion from 0..4095 into -2048..2047
   }
 
@@ -1452,13 +1464,13 @@ public:
   auto operator=(const RunContextMap_t&) -> RunContextMap_t& = delete;
   auto operator=(RunContextMap_t&&) -> RunContextMap_t& = delete;
 
-  void Set(const uint32_t cx) noexcept {  // update count
+  void Set(const uint32_t context) noexcept {  // update count
     if (const auto expected_byte{static_cast<uint8_t>(cx_)}; (0 == _cp->count) || (expected_byte != _cp->value)) {
       *_cp = HashMap_t::Node_t{.count = 1, .value = expected_byte};  // Reset count, set expected byte
     } else if (_cp->count < 255) {
       ++_cp->count;
     }
-    _cp = _hashmap[cx];
+    _cp = _hashmap[context];
   }
 
   [[nodiscard]] auto Predict() noexcept -> int16_t {  // predict next bit
@@ -1683,15 +1695,15 @@ private:
   uint32_t _curr{0};
   uint32_t _threshold{0};
   uint32_t _threshold_fine{0};
-  int32_t : 32;                                   // Padding
-  int32_t : 32;                                   // Padding
-  int32_t : 32;                                   // Padding
-  StateMap_t<0x100, 6> _sm2{};                    // state   | Rate of 6 is based on enwik9
-  StateMap_t<0x4000, 1> _sm3{};                   // tt_     | Rate of 1 is based on enwik9         | not part of DynamicMarkovModel, just an improvement
-  StateMap_t<0x10000, 1> _sm4{};                  // word_   | Rate of 1 is based on enwik9         | not part of DynamicMarkovModel, just an improvement
-  StateMap_t<0x40000, 2> _sm5{};                  // x5_     | Rate of 2 is based on enwik9         | not part of DynamicMarkovModel, just an improvement
-  ContextMap_t<0x4000, 0xE, 0xD, 0x7> _cm{};      // tt_|c0_ | Rate of 14/13/ 7 are based on enwik9 | not part of DynamicMarkovModel, just an improvement
-  Blend_t<8, 16> _blend{UINT32_C(1) << 19, 512};  // w5_     | Rate of 16 is based on enwik9
+  int32_t : 32;                               // Padding
+  int32_t : 32;                               // Padding
+  int32_t : 32;                               // Padding
+  StateMap_t<0x100, 6> _sm2{};                // state   | Rate of 6 is based on enwik9
+  StateMap_t<0x4000, 1> _sm3{};               // tt_     | Rate of 1 is based on enwik9         | not part of model, just an improvement
+  StateMap_t<0x10000, 1> _sm4{};              // word_   | Rate of 1 is based on enwik9         | not part of model, just an improvement
+  StateMap_t<0x40000, 2> _sm5{};              // x5_     | Rate of 2 is based on enwik9         | not part of model, just an improvement
+  ContextMap_t<0x4000, 0xE, 0xD, 0x7> _cm{};  // tt_|c0_ | Rate of 14/13/ 7 are based on enwik9 | not part of model, just an improvement
+  Blend_t<8> _blend{UINT32_C(1) << 19, 512};  // w5_     | Rate of 16 is based on enwik9
 };
 DynamicMarkovModel_t::~DynamicMarkovModel_t() noexcept {
   std::free(_nodes);
@@ -1718,9 +1730,9 @@ public:
   auto operator=(LempelZivPredict_t&&) -> LempelZivPredict_t& = delete;
 
   void Update() noexcept {
-    uint64_t h{0};
-    for (auto n{MINLEN + 2}; n--;) {
-      h = combine64(h, _buf(n + 1));
+    uint64_t h{1};
+    for (auto n{MINLEN + 2}; n;) {
+      h = combine64(h, _buf(n--));
     }
     const auto idx{finalise64(h, _hashbits)};
 
@@ -1833,13 +1845,13 @@ private:
   StateMap_t<0x8000, 5> _ltp0{};          // Length to prediction          | Rate of 5 is based on enwik9
   StateMap_t<0x4000, 8> _ltp1{};          // (curved) Length to prediction | Rate of 8 is based on enwik9
   RunContextMap_t<16> _rc0{14};           // match_length | c1_            |
-  RunContextMap_t<20> _rc1{16 + level_};  // w5_                           | not part of LempelZivPredict, just an improvement
-  RunContextMap_t<20> _rc2{16 + level_};  // x5_                           | not part of LempelZivPredict, just an improvement
-  RunContextMap_t<20> _rc3{16 + level_};  // tt_                           | not part of LempelZivPredict, just an improvement
-  RunContextMap_t<20> _rc4{16 + level_};  // word_                         | not part of LempelZivPredict, just an improvement
+  RunContextMap_t<20> _rc1{16 + level_};  // w5_                           | not part of model, just an improvement
+  RunContextMap_t<20> _rc2{16 + level_};  // x5_                           | not part of model, just an improvement
+  RunContextMap_t<20> _rc3{16 + level_};  // tt_                           | not part of model, just an improvement
+  RunContextMap_t<20> _rc4{16 + level_};  // word_                         | not part of model, just an improvement
   int32_t : 32;                           // Padding
   int32_t : 32;                           // Padding
-  Blend_t<8, 16> _blend{1u << 19, 4096};  // w5_                           | Rate of 16 is based on enwik9
+  Blend_t<8> _blend{1u << 19, 4096};      // w5_                           | Rate of 16 is based on enwik9
 };
 LempelZivPredict_t::~LempelZivPredict_t() noexcept {
   std::free(_ht);
@@ -1935,14 +1947,14 @@ private:
   uint32_t _match{0};
   uint32_t _match_length{0};
   uint32_t _expected_byte{0};
-  int32_t : 32;                                    // Padding
-  int32_t : 32;                                    // Padding
-  int32_t : 32;                                    // Padding
-  ContextMap_t<0x001, 0xC, 0xA, 0xD> _cm0{};       //     c0_                     | Rate of 12/10/13 are based on enwik9 | not part of SparseMatchModel, just an improvement
-  ContextMap_t<0x100, 0xC, 0x6, 0> _cm1{};         // x5_|c0_                     | Rate of 12/ 6/14 are based on enwik9 | not part of SparseMatchModel, just an improvement
-  StateMap_t<0x8000, 5> _ltp{};                    // length|expected_bit|c1      | Rate of 5 is based on enwik9
-  StateMap_t<0x80000, 9> _sm1{};                   // expected_byte|bcount|buf(1) | Rate of 9 is based on enwik9
-  Blend_t<8, 16> _blend{UINT32_C(1) << 19, 4096};  // w5_                         | Rate of 17 is based on enwik9
+  int32_t : 32;                                // Padding
+  int32_t : 32;                                // Padding
+  int32_t : 32;                                // Padding
+  ContextMap_t<0x001, 0xC, 0xA, 0xD> _cm0{};   //     c0_                     | Rate of 12/10/13 are based on enwik9 | not part of model, just an improvement
+  ContextMap_t<0x100, 0xC, 0x6, 0> _cm1{};     // x5_|c0_                     | Rate of 12/ 6/14 are based on enwik9 | not part of model, just an improvement
+  StateMap_t<0x8000, 5> _ltp{};                // length|expected_bit|c1      | Rate of 5 is based on enwik9
+  StateMap_t<0x80000, 9> _sm1{};               // expected_byte|bcount|buf(1) | Rate of 9 is based on enwik9
+  Blend_t<8> _blend{UINT32_C(1) << 19, 4096};  // w5_                         | Rate of 17 is based on enwik9
 };
 SparseMatchModel_t::~SparseMatchModel_t() noexcept {
   std::free(_ht);
@@ -2231,6 +2243,10 @@ private:
   }
 };
 
+// static uint32_t XX{0xFC60};
+// static uint64_t XX{0x01190E131717261C};
+// static uint128_t XX{0x28000001D00000000000C14000000400_xxl};
+
 // Main model - predicts next bit probability from previous data
 class Predict_t final {
 public:
@@ -2284,6 +2300,7 @@ public:
     cz += 0xF & (0x7340 >> (4 * (3 & (_fails >> 5))));
     cz += 0xF & (0xC660 >> (4 * (3 & (_fails >> 3))));
     cz += 0xF & (0xFC60 >> (4 * (3 & (_fails >> 1))));
+    // cz += 0xF & (XX >> (4 * (3 & (_fails >> 1))));
     cz = (std::min)(UINT32_C(9), (_failcount + cz) / 2);
 
     // clang-format off
@@ -2356,9 +2373,9 @@ private:
   HashTable_t _t4a{MEM(23)};
   HashTable_t _t4b{MEM(23)};
   bool _is_binary{false};
-  int32_t : 24;                                    // Padding
-  int32_t : 32;                                    // Padding
-  Blend_t<4, 16> _blend{UINT32_C(1) << 19, 4096};  // w5_ | Rate of 16 is based on enwik9
+  int32_t : 24;                                // Padding
+  int32_t : 32;                                // Padding
+  Blend_t<4> _blend{UINT32_C(1) << 19, 4096};  // w5_ | Rate of 16 is based on enwik9
   std::array<std::array<uint8_t, 8192>, 8> _calcfails{};
   std::array<uint8_t, 0x10000> _t0{};
   uint8_t* __restrict _t0c1{_t0.data()};
@@ -2538,15 +2555,15 @@ private:
     return pz;
   }
 
-  void UpdateStates(const bool bit, int32_t cx) noexcept {
+  void UpdateStates(const bool bit, int32_t context) noexcept {
     const auto& p{bit ? state_table_y1_ : state_table_y0_};
-    int32_t j{1 & cx};
+    int32_t j{1 & context};
     const auto& q{j ? state_table_y1_ : state_table_y0_};
 
     auto* const __restrict toc{_t0c1};
-    toc[cx] = p[2][toc[cx]];
-    cx >>= 1;
-    toc[cx] = q[2][toc[cx]];
+    toc[context] = p[2][toc[context]];
+    context >>= 1;
+    toc[context] = q[2][toc[context]];
     j = j ^ ~0;  // 0 --> -1    1 --> -2
 
     auto* const __restrict cp0{cp_[0]};
@@ -2571,11 +2588,11 @@ private:
   }
 
   [[nodiscard]] auto Predict(const bool bit) noexcept -> uint16_t {
-    fails_ += fails_;
 #if 1
     // const auto MU{static_cast<int8_t>(INT64_C(0x091A1B14181C232E) >> (8 * bcount_))};  // based on lpaq9m
     // const auto MU{static_cast<int8_t>(INT64_C(0x0117081224254D3B) >> (8 * bcount_))};  // based on enwik8
     const auto MU{static_cast<int8_t>(INT64_C(0x01190E131717261C) >> (8 * bcount_))};  // based on enwik9
+                                                                                       // const auto MU{static_cast<int8_t>(XX >> (8 * bcount_))};  // based on enwik9
 #else
     //                                 2E  23  1C  18  14  1B  1A  9
     // static constexpr int8_t flaw[8]{46, 35, 28, 24, 20, 27, 26, 9};  // based on lpaq9m
@@ -2587,15 +2604,18 @@ private:
     static constexpr int8_t flaw[8]{28, 38, 23, 23, 19, 14, 25, 1};  // based on enwik9
     const int8_t MU{flaw[bcount_]};
 #endif
-    if (const auto err{(bit << 12) - static_cast<int32_t>(_mxr_pr) - bit}; (err <= -MU) || (err >= MU)) {
-      assert((err + 4096) < 8192);
-      fails_ |= _calcfails[(bcount_ - 1) & 7][static_cast<uint16_t>(err + 4096)];
-      _mixer.Update(err);
-    }
-    const auto cx{static_cast<int32_t>(c0_)};
-    c0_ += c0_ + static_cast<uint32_t>(bit);
+
+    fails_ += fails_;
     bcount_ = 7 & (bcount_ - 1);
     // bpos_ = (bpos_ + 1) & 7;
+
+    if (const auto err{(bit << 12) - static_cast<int32_t>(_mxr_pr) - bit}; (err <= -MU) || (err >= MU)) {
+      fails_ |= _calcfails[bcount_][static_cast<uint16_t>(err + 4096)];
+      _mixer.Update(err);
+    }
+
+    const auto cx{static_cast<int32_t>(c0_)};
+    c0_ += c0_ + static_cast<uint32_t>(bit);
     _add2order += Mixer_t::N_LAYERS;
 
     switch (bcount_) {
@@ -2696,6 +2716,7 @@ private:
         if (!(ch & 0x80)) {
 #if 1
           static constexpr auto TxtFilter{0x28000001D00000000000C14000000400_xxl};
+          // const auto TxtFilter{XX};
           static constexpr auto ExeFilter{0x00000000000000000000000000008002_xxl};
 
           if (const auto filter{_is_binary ? ExeFilter : TxtFilter}; 1 & (filter >> ch)) {
@@ -3071,8 +3092,8 @@ static constexpr uint128_t P10_UINT64{10000000000000000000_xxl};  // 19 zeroes
 
 auto main(int32_t argc, char* const argv[]) -> int32_t {
   // clang-format off
-  std::set_terminate  ([]() { fprintf(stderr, "\nUnhandled exception");        std::abort(); });
   std::set_new_handler([]() { fprintf(stderr, "\nFailed to allocate memory!"); std::abort(); });
+  std::set_terminate  ([]() { fprintf(stderr, "\nUnhandled exception");        std::abort(); });
   // clang-format on
 
 #if defined(GENERATE_SQUASH_STRETCH)
@@ -3084,12 +3105,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
   _stretch = new Stretch_t(/*value*/);
 #elif 0
   if ((6 == argc) && !strncasecmp(argv[5], "--XX", 4)) {
-    extern uint32_t XX;
-    XX = std::strtoul(4 + argv[5], nullptr, 10);
-    // XX = strtoxxl(4 + argv[5]);
+    extern int32_t XX;
+    XX = std::strtol(4 + argv[5], nullptr, 10);
     argc--;
-    // fprintf(stdout, "\nXX : %s\n", xxltostr(XX).c_str());
-    fprintf(stdout, "\nXX : %" PRId32 "\n", XX);
+    fprintf(stdout, "\nXX : %" PRIX32 "\n", XX);
   }
 #endif
 
@@ -3353,10 +3372,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement{INT64_C(136374429) - outfile.Size()};
+      const auto improvement{INT64_C(136385659) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
-      const auto improvement{INT64_C(17308785) - outfile.Size()};
+      const auto improvement{INT64_C(17302917) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     }
 #endif

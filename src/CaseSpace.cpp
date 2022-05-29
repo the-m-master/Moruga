@@ -21,7 +21,6 @@
 #include "CaseSpace.h"
 #include <algorithm>
 #include <cassert>
-#include <cinttypes>
 #include <cstdio>
 #include <utility>
 #include <vector>
