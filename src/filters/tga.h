@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _TGA_HDR_
-#define _TGA_HDR_
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -50,5 +49,3 @@ private:
   std::array<int8_t, 4> _prev_rgba{};
   int32_t : 32;  // Padding
 };
-
-#endif  // _TGA_HDR_

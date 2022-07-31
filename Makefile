@@ -30,7 +30,7 @@ UNAME := $(shell uname)
 # source directories
 #===============================================================================
 
-SOURCE_DIRS := src src/filters
+SOURCE_DIRS := src src/filters src/gzip
 
 #===============================================================================
 # include directories
@@ -72,10 +72,12 @@ PROFILE_DIR := Profile
 #===============================================================================
 
 ifeq ($(TOOLCHAIN),llvm)
+  CC          := clang
   CXX         := clang++
   OBJDUMP     := llvm-objdump
   CXX_VERSION := $(shell expr `$(CXX) -dumpversion | cut -f1 -d.` \>= 11)
 else
+  CC          := gcc
   CXX         := g++
   OBJDUMP     := objdump
   CXX_VERSION := $(shell expr `$(CXX) -dumpversion | cut -f1 -d.` \>= 10)
@@ -96,16 +98,22 @@ else
 endif
 
 #===============================================================================
+# c compiler flags
+#===============================================================================
+
+CFLAGS := -std=c17
+
+#===============================================================================
 # c++ compiler flags
 #===============================================================================
 
-CXXFLAGS := -std=c++20 -fdata-sections -ffunction-sections
+CXXFLAGS := -std=c++20
 
 #===============================================================================
 # c\c++ compiler flags
 #===============================================================================
 
-CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native -pthread
+CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native -pthread -fdata-sections -ffunction-sections
 
 ifeq ($(MODE),debug)
   CCFLAGS += -g3 -O0
@@ -249,8 +257,9 @@ TIDY  := clang-tidy
 # list all sources, objects & dependencies
 #===============================================================================
 
+CSOURCES   := $(wildcard $(patsubst %,%/*.c,$(SOURCE_DIRS)))
 CPPSOURCES := $(wildcard $(patsubst %,%/*.cpp,$(SOURCE_DIRS)))
-OBJECTS    := $(CPPSOURCES:%.cpp=%.o)
+OBJECTS    := $(CSOURCES:%.c=%.o) $(CPPSOURCES:%.cpp=%.o)
 OBJECTS    := $(subst ../,,$(OBJECTS))
 OBJECTS    := $(subst ./,,$(OBJECTS))
 OBJECTS    := $(addprefix $(BUILD_DIR)/,$(OBJECTS))
@@ -290,6 +299,12 @@ $(BUILD_DIR)/$(BIN_FILE): $(OBJECTS)
 #	$(OBJDUMP) --no-addresses --no-show-raw-insn -S $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
 
 #===============================================================================
+# Build all c files
+#===============================================================================
+$(BUILD_DIR)/%.o: %.c
+	$(CC) -c $< $(CFLAGS) $(CCFLAGS) $(_INCLUDE_DIRS) $(_DEFINES) -o $@
+
+#===============================================================================
 # Build all cpp files
 #===============================================================================
 $(BUILD_DIR)/%.o: %.cpp
@@ -301,7 +316,7 @@ $(BUILD_DIR)/%.o: %.cpp
 #===============================================================================
 .PHONY: tidy
 tidy:
-	$(TIDY) -quiet $(CPPSOURCES) -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -Weverything
+	$(TIDY) --quiet $(CPPSOURCES) -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -Weverything
 
 #===============================================================================
 # Create the output directories
@@ -314,7 +329,7 @@ mkdirs:
 	$(ECHO) '\____|__  /\____/|__|  |____/\___  (____  /'
 	$(ECHO) '        \/                  /_____/     \/ '
 	$(ECHO) 'https://github.com/the-m-master/Moruga/    '
-	$(ECHO) '                                           '
+	$(ECHO)
 	$(MKDIR) $(dir $(OBJECTS))
 ifeq ($(MODE),profile)
 	$(MKDIR) $(PROFILE_DIR)

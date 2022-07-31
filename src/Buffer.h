@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _BUFFER_HDR_
-#define _BUFFER_HDR_
+#pragma once
 
 #include <cassert>
 #include <cstring>
@@ -63,7 +62,7 @@ public:
     // Increasing the buffer size above the file length is not useful
     static constexpr auto mem_limit{UINT64_C(0x40000000)};  // 1 GiB
 
-    auto max_size{UINT64_C(1)};
+    auto max_size{uint64_t(_mask) + UINT64_C(1)};
     while (max_size < mem_limit) {
       if ((max_size >= max_file_size) || (max_size >= max_memory)) {
         break;
@@ -82,5 +81,3 @@ private:
   uint32_t _pos{0};  // Number of input bytes read (NOT wrapped)
   uint8_t* __restrict _buffer{nullptr};
 };
-
-#endif  // _BUFFER_HDR_

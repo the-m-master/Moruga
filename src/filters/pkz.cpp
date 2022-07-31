@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -25,8 +25,8 @@
 #include "Buffer.h"
 #include "File.h"
 #include "filter.h"
+#include "gzip.h"
 #include "iEncoder.h"
-#include "ziplib.h"
 
 auto Header_t::ScanPKZ(int32_t /*ch*/) noexcept -> Filter {
   // ------------------------------------------------------------------------
@@ -125,7 +125,7 @@ auto PKZ_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if ((_di.pkzippos > 0) && (_buf.Pos() == _di.pkzippos)) {
     int64_t safe_pos{_stream.Position()};
     _coder->Compress(ch);  // Encode last character
-    decodeEncodeCompare(_stream, _coder, safe_pos, _di.pkziplen);
+    DecodeEncodeCompare(_stream, _coder, safe_pos, _di.pkziplen);
     _di.pkzippos = 0;
     _di.pkziplen = 0;
     _di.filter_end = 0;
@@ -140,7 +140,7 @@ auto PKZ_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     _data->putc(ch);
     if (0 == _block_length) {
       _data->Rewind();
-      const bool status = encode_zlib(*_data, _data->Size(), _stream, false);
+      const bool status{EncodeGZip(*_data, _data->Size(), _stream)};
       (void)status;  // Avoid warning in release mode
       assert(status);
       delete _data;

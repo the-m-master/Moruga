@@ -106,28 +106,28 @@ Moruga c <option> <infile> <outfile>
 
 | File | Original | Compressed | Ratio | Option | Memory used | Time used | Speed |
 |:-----|:--------:|:----------:|:-----:|:------:|:-----------:|:---------:|:-----:|
-| enwik8 | 100000000 | 19086431 | 19% | -0 | 82 MiB | 175.5 s | 1755 ns/B |
-| enwik8 | 100000000 | 18628321 | 18% | -1 | 114 MiB | 185.9 s | 1859 ns/B |
-| enwik8 | 100000000 | 18189800 | 18% | -2 | 177 MiB | 198.6 s | 1986 ns/B |
-| enwik8 | 100000000 | 17818937 | 17% | -3 | 302 MiB | 210.3 s | 2103 ns/B |
-| enwik8 | 100000000 | 17559022 | 17% | -4 | 553 MiB | 222.7 s | 2227 ns/B |
-| enwik8 | 100000000 | 17405186 | 17% | -5 | 1056 MiB | 235.8 s | 2358 ns/B |
-| enwik8 | 100000000 | 17302917 | 17% | -6 | 1933 MiB | 249.1 s | 2491 ns/B |
-| enwik8 | 100000000 | 17269577 | 17% | -7 | 3686 MiB | 257.8 s | 2578 ns/B |
-| enwik8 | 100000000 | 17250068 | 17% | -8 | 7193 MiB | 265.6 s | 2656 ns/B |
-| enwik8 | 100000000 | 17239773 | 17% | -9 | 14207 MiB | 274.3 s | 2743 ns/B |
-| enwik8 | 100000000 | 17233511 | 17% | -10 | 27208 MiB | 290.5 s | 2905 ns/B |
-| enwik9 | 1000000000 | 159793250 | 15% | -0 | 139 MiB | 1684.6 s | 1685 ns/B |
-| enwik9 | 1000000000 | 155349835 | 15% | -1 | 139 MiB | 1805.8 s | 1806 ns/B |
-| enwik9 | 1000000000 | 150738632 | 15% | -2 | 177 MiB | 1934.3 s | 1934 ns/B |
-| enwik9 | 1000000000 | 146227049 | 14% | -3 | 303 MiB | 2044.2 s | 2044 ns/B |
-| enwik9 | 1000000000 | 142175884 | 14% | -4 | 554 MiB | 2155.6 s | 2156 ns/B |
-| enwik9 | 1000000000 | 138858401 | 13% | -5 | 1056 MiB | 2273.3 s | 2273 ns/B |
-| enwik9 | 1000000000 | 136385659 | 13% | -6 | 2061 MiB | 2405.6 s | 2406 ns/B |
-| enwik9 | 1000000000 | 134860168 | 13% | -7 | 4071 MiB | 2498.5 s | 2499 ns/B |
-| enwik9 | 1000000000 | 134115580 | 13% | -8 | 8091 MiB | 2576.0 s | 2576 ns/B |
-| enwik9 | 1000000000 | 133650977 | 13% | -9 | 15105 MiB | 2642.4 s | 2642 ns/B |
-| enwik9 | 1000000000 | 133487783 | 13% | -10 | 28106 MiB | 2739.9 s | 2740 ns/B |
+| enwik8 | 100000000 | 18980564 | 18% | -0 | 85 MiB | 138.6 s | 1386 ns/B |
+| enwik8 | 100000000 | 18538925 | 18% | -1 | 115 MiB | 144.7 s | 1447 ns/B |
+| enwik8 | 100000000 | 18110143 | 18% | -2 | 177 MiB | 153.9 s | 1539 ns/B |
+| enwik8 | 100000000 | 17743194 | 17% | -3 | 303 MiB | 164.0 s | 1640 ns/B |
+| enwik8 | 100000000 | 17482308 | 17% | -4 | 554 MiB | 169.9 s | 1699 ns/B |
+| enwik8 | 100000000 | 17324598 | 17% | -5 | 1057 MiB | 181.0 s | 1810 ns/B |
+| enwik8 | 100000000 | 17214209 | 17% | -6 | 1933 MiB | 187.4 s | 1874 ns/B |
+| enwik8 | 100000000 | 17181294 | 17% | -7 | 3687 MiB | 195.1 s | 1951 ns/B |
+| enwik8 | 100000000 | 17161454 | 17% | -8 | 7193 MiB | 198.7 s | 1987 ns/B |
+| enwik8 | 100000000 | 17151169 | 17% | -9 | 14207 MiB | 204.4 s | 2044 ns/B |
+| enwik8 | 100000000 | 17144913 | 17% | -10 | 27209 MiB | 215.7 s | 2157 ns/B |
+| enwik9 | 1000000000 | 159045070 | 15% | -0 | 145 MiB | 1348.6 s | 1349 ns/B |
+| enwik9 | 1000000000 | 154859337 | 15% | -1 | 146 MiB | 1410.4 s | 1410 ns/B |
+| enwik9 | 1000000000 | 150095328 | 15% | -2 | 179 MiB | 1490.1 s | 1490 ns/B |
+| enwik9 | 1000000000 | 145694840 | 14% | -3 | 305 MiB | 1578.1 s | 1578 ns/B |
+| enwik9 | 1000000000 | 141730973 | 14% | -4 | 555 MiB | 1622.1 s | 1622 ns/B |
+| enwik9 | 1000000000 | 138473039 | 13% | -5 | 1057 MiB | 1727.3 s | 1727 ns/B |
+| enwik9 | 1000000000 | 135828075 | 13% | -6 | 2062 MiB | 1771.3 s | 1771 ns/B |
+| enwik9 | 1000000000 | 134346733 | 13% | -7 | 4073 MiB | 1830.4 s | 1830 ns/B |
+| enwik9 | 1000000000 | 133609486 | 13% | -8 | 8093 MiB | 1895.2 s | 1895 ns/B |
+| enwik9 | 1000000000 | 133175782 | 13% | -9 | 15106 MiB | 1922.7 s | 1923 ns/B |
+| enwik9 | 1000000000 | 133010541 | 13% | -10 | 28108 MiB | 1964.6 s | 1965 ns/B |
 
 
 ### Benchmarks compared to BZIP2
@@ -174,18 +174,18 @@ Moruga c <option> <infile> <outfile>
 
 | File | Original | Compressed | Ratio | Option | Memory used | Time used | Speed |
 |:-----|:--------:|:----------:|:-----:|:------:|:-----------:|:---------:|:-----:|
-| silesia/dickens | 10192446 | 2056441 | 20% | -6 | 1821 MiB | 23.4 s | 2297 ns/B |
-| silesia/mozilla | 51220480 | 10147370 | 19% | -6 | 1885 MiB | 204.5 s | 3993 ns/B |
-| silesia/mr | 9970564 | 2097001 | 21% | -6 | 1820 MiB | 24.2 s | 2428 ns/B |
-| silesia/nci | 33553445 | 953088 | 2% | -6 | 1837 MiB | 23.2 s | 691 ns/B |
-| silesia/ooffice | 6152192 | 1729769 | 28% | -6 | 1812 MiB | 25.4 s | 4129 ns/B |
-| silesia/osdb | 10085684 | 2143927 | 21% | -6 | 1820 MiB | 42.3 s | 4191 ns/B |
-| silesia/reymont | 6627202 | 853580 | 12% | -6 | 1829 MiB | 23.0 s | 3469 ns/B |
-| silesia/samba | 21606400 | 2218019 | 10% | -6 | 1852 MiB | 81.5 s | 3771 ns/B |
-| silesia/sao | 7251944 | 4387394 | 60% | -6 | 1812 MiB | 35.9 s | 4945 ns/B |
-| silesia/webster | 41458703 | 5379249 | 12% | -6 | 1868 MiB | 99.6 s | 2403 ns/B |
-| silesia/x-ray | 8474240 | 3621024 | 42% | -6 | 1820 MiB | 32.6 s | 3848 ns/B |
-| silesia/xml | 5345280 | 305092 | 5% | -6 | 1812 MiB | 10.1 s | 1887 ns/B |
+| silesia/dickens | 10192446 | 2058628 | 20% | -6 | 1821 MiB | 17.9 s | 1756 ns/B |
+| silesia/mozilla | 51220480 | 9953951 | 19% | -6 | 1870 MiB | 151.4 s | 2955 ns/B |
+| silesia/mr | 9970564 | 2097060 | 21% | -6 | 1821 MiB | 18.5 s | 1853 ns/B |
+| silesia/nci | 33553445 | 952434 | 2% | -6 | 1837 MiB | 18.8 s | 560 ns/B |
+| silesia/ooffice | 6152192 | 1729155 | 28% | -6 | 1813 MiB | 19.9 s | 3235 ns/B |
+| silesia/osdb | 10085684 | 2143896 | 21% | -6 | 1821 MiB | 30.3 s | 3003 ns/B |
+| silesia/reymont | 6627202 | 853699 | 12% | -6 | 1813 MiB | 17.5 s | 2635 ns/B |
+| silesia/samba | 21606400 | 2509062 | 11% | -6 | 1837 MiB | 61.2 s | 2832 ns/B |
+| silesia/sao | 7251944 | 4387305 | 60% | -6 | 1813 MiB | 26.9 s | 3715 ns/B |
+| silesia/webster | 41458703 | 5370188 | 12% | -6 | 1869 MiB | 74.4 s | 1796 ns/B |
+| silesia/x-ray | 8474240 | 3621006 | 42% | -6 | 1821 MiB | 23.7 s | 2799 ns/B |
+| silesia/xml | 5345280 | 305589 | 5% | -6 | 1813 MiB | 8.9 s | 1658 ns/B |
 
 
 ### Benchmarks compared to BZIP2
@@ -263,24 +263,24 @@ Moruga c <option> <infile> <outfile>
 
 | File | Original | Compressed | Ratio | Option | Memory used | Time used | Speed |
 |:-----|:--------:|:----------:|:-----:|:------:|:-----------:|:---------:|:-----:|
-| calgary/bib | 111261 | 22612 | 20% | -6 | 1804 MiB | 1.0 s | 9248 ns/B |
-| calgary/book1 | 768771 | 198579 | 25% | -6 | 1805 MiB | 2.8 s | 3601 ns/B |
-| calgary/book2 | 610856 | 128101 | 20% | -6 | 1805 MiB | 2.3 s | 3723 ns/B |
-| calgary/geo | 102400 | 45819 | 44% | -6 | 1804 MiB | 1.1 s | 10915 ns/B |
-| calgary/news | 377109 | 94951 | 25% | -6 | 1805 MiB | 1.9 s | 4997 ns/B |
-| calgary/obj1 | 21504 | 9158 | 42% | -6 | 1804 MiB | 0.7 s | 30852 ns/B |
-| calgary/obj2 | 246814 | 56049 | 22% | -6 | 1804 MiB | 1.7 s | 6743 ns/B |
-| calgary/paper1 | 53161 | 14301 | 26% | -6 | 1804 MiB | 0.8 s | 14389 ns/B |
-| calgary/paper2 | 82199 | 21755 | 26% | -6 | 1804 MiB | 0.9 s | 10887 ns/B |
-| calgary/paper3 | 46526 | 13894 | 29% | -6 | 1804 MiB | 0.8 s | 16713 ns/B |
-| calgary/paper4 | 13286 | 4513 | 33% | -6 | 1804 MiB | 0.5 s | 38318 ns/B |
-| calgary/paper5 | 11954 | 4335 | 36% | -6 | 1804 MiB | 0.5 s | 41965 ns/B |
-| calgary/paper6 | 38105 | 10589 | 27% | -6 | 1804 MiB | 0.7 s | 17557 ns/B |
-| calgary/pic | 513216 | 44295 | 8% | -6 | 1805 MiB | 1.4 s | 2672 ns/B |
-| calgary/progc | 39611 | 10662 | 26% | -6 | 1804 MiB | 0.8 s | 19083 ns/B |
-| calgary/progl | 71646 | 11971 | 16% | -6 | 1804 MiB | 0.8 s | 10479 ns/B |
-| calgary/progp | 49379 | 8614 | 17% | -6 | 1804 MiB | 0.7 s | 13189 ns/B |
-| calgary/trans | 93695 | 13415 | 14% | -6 | 1804 MiB | 0.9 s | 9266 ns/B |
+| calgary/bib | 111261 | 22603 | 20% | -6 | 1805 MiB | 0.9 s | 8027 ns/B |
+| calgary/book1 | 768771 | 200143 | 26% | -6 | 1806 MiB | 2.1 s | 2767 ns/B |
+| calgary/book2 | 610856 | 128751 | 21% | -6 | 1806 MiB | 1.7 s | 2829 ns/B |
+| calgary/geo | 102400 | 45803 | 44% | -6 | 1805 MiB | 1.0 s | 9538 ns/B |
+| calgary/news | 377109 | 96138 | 25% | -6 | 1806 MiB | 1.5 s | 3929 ns/B |
+| calgary/obj1 | 21504 | 9126 | 42% | -6 | 1805 MiB | 0.6 s | 26718 ns/B |
+| calgary/obj2 | 246814 | 55999 | 22% | -6 | 1805 MiB | 1.4 s | 5496 ns/B |
+| calgary/paper1 | 53161 | 14510 | 27% | -6 | 1805 MiB | 0.7 s | 13180 ns/B |
+| calgary/paper2 | 82199 | 22028 | 26% | -6 | 1805 MiB | 0.8 s | 9380 ns/B |
+| calgary/paper3 | 46526 | 14151 | 30% | -6 | 1805 MiB | 0.7 s | 14137 ns/B |
+| calgary/paper4 | 13286 | 4511 | 33% | -6 | 1805 MiB | 0.5 s | 38295 ns/B |
+| calgary/paper5 | 11954 | 4336 | 36% | -6 | 1805 MiB | 0.5 s | 41896 ns/B |
+| calgary/paper6 | 38105 | 10766 | 28% | -6 | 1805 MiB | 0.6 s | 16366 ns/B |
+| calgary/pic | 513216 | 43878 | 8% | -6 | 1806 MiB | 1.2 s | 2244 ns/B |
+| calgary/progc | 39611 | 10664 | 26% | -6 | 1805 MiB | 0.6 s | 15810 ns/B |
+| calgary/progl | 71646 | 12306 | 17% | -6 | 1805 MiB | 0.6 s | 8926 ns/B |
+| calgary/progp | 49379 | 8614 | 17% | -6 | 1805 MiB | 0.6 s | 12559 ns/B |
+| calgary/trans | 93695 | 13422 | 14% | -6 | 1805 MiB | 0.8 s | 8055 ns/B |
 
 
 ## Benchmarks compared to BZIP2
@@ -375,22 +375,22 @@ Moruga c <option> <infile> <outfile>
 
 | File | Original | Compressed | Ratio | Option | Memory used | Time used | Speed |
 |:-----|:--------:|:----------:|:-----:|:------:|:-----------:|:---------:|:-----:|
-| canterbury/alice29.txt | 152089 | 36817 | 24% | -6 | 1804 MiB | 1.1 s | 7384 ns/B |
-| canterbury/alphabet.txt | 100000 | 175 | 0% | -6 | 1804 MiB | 0.4 s | 4359 ns/B |
-| canterbury/asyoulik.txt | 125179 | 34119 | 27% | -6 | 1804 MiB | 1.1 s | 8501 ns/B |
-| canterbury/bible.txt | 4047392 | 634091 | 15% | -6 | 1809 MiB | 8.7 s | 2143 ns/B |
-| canterbury/cp.html | 24603 | 6493 | 26% | -6 | 1804 MiB | 0.6 s | 24005 ns/B |
-| canterbury/e.coli | 4638690 | 1106837 | 23% | -6 | 1813 MiB | 11.5 s | 2482 ns/B |
-| canterbury/fields.c | 11150 | 2676 | 24% | -6 | 1804 MiB | 0.5 s | 45561 ns/B |
-| canterbury/grammar.lsp | 3721 | 1132 | 30% | -6 | 1804 MiB | 0.4 s | 115506 ns/B |
-| canterbury/kennedy.xls | 1029744 | 14806 | 1% | -6 | 1805 MiB | 2.8 s | 2740 ns/B |
-| canterbury/lcet10.txt | 426754 | 88702 | 20% | -6 | 1805 MiB | 1.8 s | 4118 ns/B |
-| canterbury/pi.txt | 1000000 | 415606 | 41% | -6 | 1805 MiB | 3.0 s | 3048 ns/B |
-| canterbury/plrabn12.txt | 481861 | 125527 | 26% | -6 | 1805 MiB | 2.1 s | 4306 ns/B |
-| canterbury/ptt5 | 513216 | 44295 | 8% | -6 | 1805 MiB | 1.4 s | 2663 ns/B |
-| canterbury/random.txt | 100000 | 75419 | 75% | -6 | 1804 MiB | 3.7 s | 36999 ns/B |
-| canterbury/sum | 38240 | 9755 | 25% | -6 | 1804 MiB | 3.9 s | 102822 ns/B |
-| canterbury/xargs.1 | 4227 | 1613 | 38% | -6 | 1804 MiB | 4.3 s | 1007758 ns/B |
+| canterbury/alice29.txt | 152089 | 37491 | 24% | -6 | 1805 MiB | 0.9 s | 6024 ns/B |
+| canterbury/alphabet.txt | 100000 | 177 | 0% | -6 | 1805 MiB | 0.4 s | 4224 ns/B |
+| canterbury/asyoulik.txt | 125179 | 34852 | 27% | -6 | 1805 MiB | 0.9 s | 7210 ns/B |
+| canterbury/bible.txt | 4047392 | 637750 | 15% | -6 | 1810 MiB | 6.9 s | 1693 ns/B |
+| canterbury/cp.html | 24603 | 6493 | 26% | -6 | 1805 MiB | 0.6 s | 22476 ns/B |
+| canterbury/e.coli | 4638690 | 1106855 | 23% | -6 | 1813 MiB | 34.5 s | 7433 ns/B |
+| canterbury/fields.c | 11150 | 2675 | 23% | -6 | 1805 MiB | 0.5 s | 42582 ns/B |
+| canterbury/grammar.lsp | 3721 | 1131 | 30% | -6 | 1805 MiB | 0.4 s | 110857 ns/B |
+| canterbury/kennedy.xls | 1029744 | 14827 | 1% | -6 | 1806 MiB | 2.2 s | 2163 ns/B |
+| canterbury/lcet10.txt | 426754 | 89226 | 20% | -6 | 1805 MiB | 1.4 s | 3172 ns/B |
+| canterbury/pi.txt | 1000000 | 415610 | 41% | -6 | 1806 MiB | 2.8 s | 2797 ns/B |
+| canterbury/plrabn12.txt | 481861 | 127278 | 26% | -6 | 1805 MiB | 1.6 s | 3345 ns/B |
+| canterbury/ptt5 | 513216 | 43878 | 8% | -6 | 1806 MiB | 1.2 s | 2247 ns/B |
+| canterbury/random.txt | 100000 | 75419 | 75% | -6 | 1805 MiB | 1.0 s | 9990 ns/B |
+| canterbury/sum | 38240 | 9745 | 25% | -6 | 1805 MiB | 0.6 s | 16833 ns/B |
+| canterbury/xargs.1 | 4227 | 1613 | 38% | -6 | 1805 MiB | 0.4 s | 96665 ns/B |
 
 
 ## Benchmarks compared to BZIP2
@@ -486,9 +486,9 @@ Moruga c -6 <infile> <outfile>
 
 | File | Original | Compressed | Ratio |
 |:-----|:--------:|:----------:|:-----:|
-| misguided/enwik8.drt | 60824424 | 17190996 | 28% |
-| misguided/enwik9.drt | 639386659 | 136658041 | 21% |
-| misguided/ready4cmix | 934188796 | 130880749 | 14% |
+| misguided/enwik8.drt | 60824424 | 17190890 | 28% |
+| misguided/enwik9.drt | 639386659 | 136657909 | 21% |
+| misguided/ready4cmix | 934188796 | 130385102 | 13% |
 
 
 ### Misguided benchmarks compared to BZIP2

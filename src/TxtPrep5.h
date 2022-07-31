@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _TEXT_PREPARATION4_HDR_
-#define _TEXT_PREPARATION4_HDR_
+#pragma once
 
 #include <cstdint>
 class File_t;
@@ -39,5 +38,3 @@ auto encode_txt(File_t& in, File_t& out) noexcept -> int64_t;
  * @return Original file length
  */
 auto decode_txt(File_t& in, File_t& out) noexcept -> int64_t;
-
-#endif  //_TEXT_PREPARATION4_HDR_

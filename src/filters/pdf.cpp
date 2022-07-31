@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -26,8 +26,8 @@
 #include "File.h"
 #include "IntegerXXL.h"
 #include "filter.h"
+#include "gzip.h"
 #include "iEncoder.h"
-#include "ziplib.h"
 
 /* A stream shall consist of a dictionary followed by zero or more bytes
  * bracketed between the keywords stream (followed by newline) and endstream:
@@ -97,7 +97,7 @@ auto PDF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
         (endobj0D == (endobj_mask & _di.tag)) ||                                                     //
         ((stream0A == (stream0A_mask & _di.tag)) && (endstream0A != (endstream_mask & _di.tag))) ||  //
         ((stream0D0A == (stream0D0A_mask & _di.tag)) && (endstream0D != (endstream_mask & _di.tag)))) {
-      // This should not happen, but to be on the safe side...
+      // This shouldn't happen, but just in case...
       break;
     }
     if (endstream0A == (endstream_mask & _di.tag)) {
@@ -115,7 +115,7 @@ auto PDF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   _di.filter_end = 0;
 
   _coder->Compress(ch);  // Encode last character
-  decodeEncodeCompare(_stream, _coder, safe_pos, block_length);
+  DecodeEncodeCompare(_stream, _coder, safe_pos, block_length);
   return true;
 }
 
@@ -125,7 +125,7 @@ auto PDF_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     _data->putc(ch);
     if (0 == _block_length) {
       _data->Rewind();
-      const bool status = encode_zlib(*_data, _data->Size(), _stream, false);
+      const bool status{EncodeGZip(*_data, _data->Size(), _stream)};
       (void)status;  // Avoid warning in release mode
       assert(status);
       delete _data;

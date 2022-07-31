@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _EXE_HDR_
-#define _EXE_HDR_
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -54,5 +53,3 @@ private:
   int32_t _oldc{0};
   std::array<uint8_t, 8> _addr{};
 };
-
-#endif  // _EXE_HDR_

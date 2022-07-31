@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _WAV_HDR_
-#define _WAV_HDR_
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -53,5 +52,3 @@ private:
   uint32_t _getLength{0};
   std::array<int8_t, 36> _delta{};
 };
-
-#endif  // _WAV_HDR_

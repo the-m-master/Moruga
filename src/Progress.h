@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _PROGRESS_HDR_
-#define _PROGRESS_HDR_
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -61,5 +60,3 @@ private:
   int32_t : 32;  // Padding
   std::thread _monitor_worker;
 };
-
-#endif  // _progress_hdr_

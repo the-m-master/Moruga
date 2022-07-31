@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _FILE_HDR_
-#define _FILE_HDR_
+#pragma once
 
 #include <sys/stat.h>
 #include <array>
@@ -130,7 +129,7 @@ public:
 #elif defined(_MSC_VER)
     return _ftelli64(_stream);
 #else
-    if (fpos_t pos; !fgetpos(_stream, &pos)) {
+    if (fpos_t pos{}; !fgetpos(_stream, &pos)) {
 #  if defined(__linux__)
       return pos.__pos;
 #  else
@@ -222,5 +221,3 @@ private:
 
   FILE* _stream;
 };
-
-#endif  // _FILE_HDR_

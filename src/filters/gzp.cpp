@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -25,8 +25,8 @@
 #include "Buffer.h"
 #include "File.h"
 #include "filter.h"
+#include "gzip.h"
 #include "iEncoder.h"
-#include "ziplib.h"
 
 // GZ header
 // 1F 8B 08 08 9E FF 94 61 02 03 77 6F 72 6C 64 39   .......a..world9
@@ -114,9 +114,9 @@ auto Header_t::ScanGZP(int32_t /*ch*/) noexcept -> Filter {
   static constexpr uint32_t offset{9};
 
   const auto header{m4(offset - 0)};
-  if (UINT32_C(0x1F8B0800) == (header & UINT32_C(0xFFFFFF00))) {  // Signature & Deflate ?
+  if (UINT32_C(0x1F8B0808) == header) {  // Signature & Deflate ?
     const auto cm{_buf(offset - 8)};
-    if ((2 == cm) || (4 == cm)) {
+    if ((0 == cm) || (2 == cm) || (4 == cm)) {
       _di.flags = _buf(offset - 3);
       _di.offset_to_start = 0;   // start now!
       _di.filter_end = INT_MAX;  // end never..
@@ -183,7 +183,7 @@ auto GZP_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if (Handle_GZ_flags(ch)) {
     int64_t safe_pos{_stream.Position()};
     _coder->Compress(ch);  // Encode last character
-    decodeEncodeCompare(_stream, _coder, safe_pos, _original_length);
+    DecodeEncodeCompare(_stream, _coder, safe_pos, _original_length);
     _di.pkziplen = 0;
     _di.filter_end = 0;
     return true;
@@ -198,7 +198,7 @@ auto GZP_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
       _data->putc(ch);
       if (0 == _block_length) {
         _data->Rewind();
-        const bool status = encode_zlib(*_data, _data->Size(), _stream, false);
+        const bool status{EncodeGZip(*_data, _data->Size(), _stream)};
         (void)status;  // Avoid warning in release mode
         assert(status);
         delete _data;
@@ -214,7 +214,7 @@ auto GZP_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
       _block_length = (_block_length << 8) | ch;
       if (0 == _length) {
         if ((_DEADBEEF != static_cast<uint32_t>(_block_length)) && (_block_length > 0)) {
-          _data = new File_t;
+          _data = new File_t /*("_GZP_filter_.bin", "wb+")*/;
           pos -= _block_length;
         } else {
           _block_length = 0;

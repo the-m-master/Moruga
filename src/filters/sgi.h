@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _SGI_HDR_
-#define _SGI_HDR_
+#pragma once
 
 #include <cstdint>
 #include "filter.h"
@@ -50,5 +49,3 @@ private:
   uint32_t _length{0};
   int32_t _prev_rgba{0};
 };
-
-#endif  // _SGI_HDR_

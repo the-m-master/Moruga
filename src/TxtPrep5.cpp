@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -26,7 +26,6 @@
 #include <climits>
 #include <cstdio>
 #include <cstring>
-#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,7 +33,9 @@
 #include "File.h"
 #include "IntegerXXL.h"
 #include "Progress.h"
+#include "TxtWords.h"
 #include "Utilities.h"
+#include "gzip/gzip.h"
 #include "iMonitor.h"
 
 //#define DEBUG_WRITE_ANALYSIS_BMP
@@ -78,9 +79,25 @@ static_assert(MIN_WORD_SIZE < MIN_SHORTER_WORD_SIZE, "MIN_SHORTER_WORD_SIZE must
 static_assert(MIN_WORD_FREQ >= 1, "MIN_WORD_FREQ must be equal or larger then one");
 static_assert(MIN_NUMBER_SIZE < MAX_NUMBER_SIZE, "MAX_NUMBER_SIZE must be bigger then MIN_NUMBER_SIZE");
 
+static constexpr uint32_t BITS_OUT{6};                                // Limit of 6 bits
+static constexpr uint32_t LOW{1 << BITS_OUT};                         //    0..3F    --> 0..64 (6 bits)
+static constexpr uint32_t MID{LOW + (1 << ((2 * BITS_OUT) - 1))};     //   40..880   --> 0..840 (2^6 + 2^(6+5)                             --> 64 + 2048                  -->   2112)
+static constexpr uint32_t HIGH{MID + (1 << ((3 * BITS_OUT) - 3))};    //  881..8880  --> 0..8840 (2^6 + 2^(6+5) + 2^(6+5+4)                --> 64 + 2048 + 32768          -->  34880)
+static constexpr uint32_t LIMIT{HIGH + (1 << ((4 * BITS_OUT) - 6))};  // 8881..510C0 --> 0..48840 (2^6 + 2^(6+5) + 2^(6+5+4) + 2^(6+5+4+3) --> 64 + 2048 + 32768 + 262144 --> 297024)
+
+static_assert(BITS_OUT > 1, "Bit range error");
+static_assert(LOW > 1, "Bit range error, LOW must larger then one");
+static_assert(LOW < MID, "Bit range error, LOW must be less then MID");
+static_assert(MID < HIGH, "Bit range error, MID must be less then HIGH");
+static_assert(HIGH < LIMIT, "Bit range error, HIGH must be less then LIMIT");
+
 static constexpr int32_t ESCAPE_CHAR{4};     // 0x04
 static constexpr int32_t QUOTING_CHAR{42};   // 0x2A *
 static constexpr int32_t SEPARATE_CHAR{20};  // 0x14
+
+static constexpr auto HGH_SECTION{UINT32_C(0x00FFFFFF)};
+static constexpr auto MID_SECTION{UINT32_C(0x0000FFFF)};
+static constexpr auto LOW_SECTION{UINT32_C(0x000000FF)};
 
 static bool to_numbers_{false};
 
@@ -94,6 +111,86 @@ namespace TxtPrep5 {
   }
 }  // namespace TxtPrep5
 
+class GZip_t final {
+public:
+  GZip_t() noexcept = default;
+  ~GZip_t() noexcept {
+    _emap.clear();
+    _emap.shrink_to_fit();  // Release memory
+    _dmap.clear();
+    _dmap.shrink_to_fit();  // Release memory
+  }
+
+  GZip_t(const GZip_t&) = delete;
+  GZip_t(GZip_t&&) = delete;
+  auto operator=(const GZip_t&) -> GZip_t& = delete;
+  auto operator=(GZip_t&&) -> GZip_t& = delete;
+
+  auto load_word_emap() noexcept -> ska::bytell_hash_map<std::string, uint32_t> {
+    _emap.reserve(static_words.size());
+    int32_t status{gzip::unzip(static_words.data(), uint32_t(static_words.size()), write_ebuffer, this)};
+    assert(GZip_OK == status);
+    (void)status;  // Avoid warning in release mode
+    assert(LIMIT == _emap.size());
+    return _emap;
+  }
+
+  auto load_word_dmap() noexcept -> ska::bytell_hash_map<uint32_t, std::string> {
+    _dmap.reserve(static_words.size());
+    int32_t status{gzip::unzip(static_words.data(), uint32_t(static_words.size()), write_dbuffer, this)};
+    assert(GZip_OK == status);
+    (void)status;  // Avoid warning in release mode
+    assert(LIMIT == _dmap.size());
+    return _dmap;
+  }
+
+private:
+  std::string _word{};
+  ska::bytell_hash_map<std::string, uint32_t> _emap{};
+  ska::bytell_hash_map<uint32_t, std::string> _dmap{};
+  uint32_t _word_index{0};
+
+  auto write_ebuffer(const void* buf_, uint32_t cnt) noexcept -> uint32_t {
+    const char* buf{static_cast<const char*>(buf_)};
+    for (uint32_t n{0}; n < cnt; ++n) {
+      const char ch{buf[n]};
+      if ('\n' == ch) {
+        _emap[_word] = _word_index++;
+        _word.clear();
+      } else {
+        _word.push_back(ch);
+      }
+    }
+    return cnt;
+  }
+
+  static auto write_ebuffer(const void* buf, uint32_t cnt, void* this_pointer) noexcept -> uint32_t {
+    GZip_t* const self{static_cast<GZip_t*>(this_pointer)};
+    assert(buf && cnt && self);
+    return self->write_ebuffer(buf, cnt);
+  }
+
+  auto write_dbuffer(const void* buf_, uint32_t cnt) noexcept -> uint32_t {
+    const char* buf{static_cast<const char*>(buf_)};
+    for (uint32_t n{0}; n < cnt; ++n) {
+      const char ch{buf[n]};
+      if ('\n' == ch) {
+        _dmap[_word_index++] = _word;
+        _word.clear();
+      } else {
+        _word.push_back(ch);
+      }
+    }
+    return cnt;
+  }
+
+  static auto write_dbuffer(const void* buf, uint32_t cnt, void* this_pointer) noexcept -> uint32_t {
+    GZip_t* const self{static_cast<GZip_t*>(this_pointer)};
+    assert(buf && cnt && self);
+    return self->write_dbuffer(buf, cnt);
+  }
+};
+
 class Dictionary final : public iMonitor_t {
 public:
   Dictionary() noexcept = default;
@@ -103,18 +200,6 @@ public:
   Dictionary(Dictionary&&) = delete;
   auto operator=(const Dictionary&) -> Dictionary& = delete;
   auto operator=(Dictionary&&) -> Dictionary& = delete;
-
-  static constexpr uint32_t BITS_OUT{6};                                // Limit of 6 bits
-  static constexpr uint32_t LOW{1 << BITS_OUT};                         //    0..3F    --> 0..64 (6 bits)
-  static constexpr uint32_t MID{LOW + (1 << ((2 * BITS_OUT) - 1))};     //   40..880   --> 0..840 (2^6 + 2^(6+5)                             --> 64 + 2048                  -->   2112)
-  static constexpr uint32_t HIGH{MID + (1 << ((3 * BITS_OUT) - 3))};    //  881..8880  --> 0..8840 (2^6 + 2^(6+5) + 2^(6+5+4)                --> 64 + 2048 + 32768          -->  34880)
-  static constexpr uint32_t LIMIT{HIGH + (1 << ((4 * BITS_OUT) - 6))};  // 8881..510C0 --> 0..48840 (2^6 + 2^(6+5) + 2^(6+5+4) + 2^(6+5+4+3) --> 64 + 2048 + 32768 + 262144 --> 297024)
-
-  static_assert(BITS_OUT > 1, "Bit range error");
-  static_assert(LOW > 1, "Bit range error, LOW must larger then one");
-  static_assert(LOW < MID, "Bit range error, LOW must be less then MID");
-  static_assert(MID < HIGH, "Bit range error, MID must be less then HIGH");
-  static_assert(HIGH < LIMIT, "Bit range error, HIGH must be less then LIMIT");
 
   void AppendChar(const int32_t ch) noexcept {
     if (const auto wlength{_word.length()}; TxtPrep5::is_word_char(ch) && (wlength < MAX_WORD_SIZE)) {
@@ -158,7 +243,7 @@ public:
     std::vector<CaseSpace_t::Dictionary_t> dictionary{};
     dictionary.reserve(_word_map.size());
 
-    std::for_each(_word_map.begin(), _word_map.end(), [&dictionary](const auto& entry) {
+    std::for_each(_word_map.begin(), _word_map.end(), [&dictionary](const auto& entry) noexcept {
       if (const auto frequency{entry.second + 1}; frequency >= MIN_WORD_FREQ) {  // The first element has count 0 (!)
         dictionary.emplace_back(CaseSpace_t::Dictionary_t(entry.first, frequency));
       }
@@ -167,19 +252,49 @@ public:
 #if defined(USE_BYTELL_HASH_MAP)
     _word_map.shrink_to_fit();  // Release memory
 #endif
-    _dic_length = static_cast<uint32_t>(dictionary.size());
 
-    // Sort all by frequency
+    // Sort all by frequency and length
     std::stable_sort(dictionary.begin(), dictionary.end(), [](const auto& a, const auto& b) noexcept -> bool {  //
-      return (a.frequency == b.frequency) ? (a.word.compare(b.word) < 0) : (a.frequency > b.frequency);
+      if (a.frequency == b.frequency) {
+        if (a.word.length() == b.word.length()) {
+          return a.word.compare(b.word) < 0;
+        }
+        return a.word.length() > b.word.length();
+      }
+      return a.frequency > b.frequency;
     });
+
+    // Remove items that are too short in relation to their frequency
+    {
+      // clang-format off
+      uint32_t index{0};
+      uint32_t bytes{MIN_WORD_SIZE};
+      dictionary.erase(std::remove_if(dictionary.begin(), dictionary.end(), [&](const auto& item) noexcept -> bool {
+        if (item.word.length() < bytes) {
+          return true;
+        }
+        if ((LOW == index) || (MID == index) || (HIGH == index)) {
+          ++bytes;
+        }
+        ++index;
+        return false;
+      }), dictionary.end());
+      // clang-format on
+    }
+
+    _dic_length = static_cast<uint32_t>(dictionary.size());
 
 #if defined(DEBUG_WRITE_DICTIONARY)
     {
-      File_t txt("dictionary.txt", "wb+");
-      uint32_t n{0};
-      for (const auto& dic : dictionary) {
-        fprintf(txt, "%6" PRIu32 "\t%7" PRIu32 " %s\n", ++n, dic.frequency, dic.word.c_str());
+      File_t txt("dictionary_raw.txt", "wb+");
+      for (uint32_t n{0}, bytes{1}; n < _dic_length; ++n) {
+        if ((LOW == n) || (MID == n) || (HIGH == n)) {
+          ++bytes;
+        }
+        if (LIMIT == n) {
+          bytes = 0;
+        }
+        fprintf(txt, "%" PRIu32 ", %7" PRIu32 " %s\n", bytes, dictionary[n].frequency, dictionary[n].word.c_str());
       }
     }
 #endif
@@ -213,11 +328,70 @@ public:
     assert(_dic_length == _word_map.size());
 
     out.putVLI(_dic_length);  // write length of dictionary
+    if (_dic_length > 0) {
+      GZip_t nice{};
+      auto map{nice.load_word_emap()};
 
-    for (uint32_t n{0}; n < _dic_length; ++n) {
-      out.Write(dictionary[n].word.c_str(), dictionary[n].word.length());
-      out.putc(SEPARATE_CHAR);
+      bool in_sync{false};
+      for (uint32_t n{0}, m{0}, delta{0}; n < _dic_length; ++n) {
+        const auto& word{dictionary[n].word};
+
+        const auto it{map.find(word)};
+        if (it != map.end()) {
+          if (n == it->second) {
+            in_sync = false;
+            m = n;
+          } else {
+            write_value(out, frequency2bytes(n));
+            auto frequency = int32_t(it->second - delta);
+            if (frequency < 0) {
+              out.putc('-');
+              frequency = -frequency;
+            }
+            write_value(out, frequency2bytes(uint32_t(frequency)));
+            delta = it->second;
+            in_sync = true;
+            m = n + 1;
+          }
+        } else {
+          in_sync = true;
+          if (n != m) {
+            write_value(out, frequency2bytes(n));
+            auto frequency = int32_t(m - delta);
+            if (frequency < 0) {
+              out.putc('-');
+              frequency = -frequency;
+            }
+            write_value(out, frequency2bytes(uint32_t(frequency)));
+            delta = m;
+            m = n;
+          }
+          ++m;
+          WriteLiteral(out, word.c_str(), word.length());
+        }
+      }
+
+      if (!in_sync) {
+        write_value(out, frequency2bytes(_dic_length - 1));
+        write_value(out, frequency2bytes(_dic_length - 1));
+      }
     }
+
+#if defined(DEBUG_WRITE_DICTIONARY)
+    {
+      File_t txt("dictionary_final.txt", "wb+");
+      for (uint32_t n{0}, bytes{1}; n < _dic_length; ++n) {
+        if ((LOW == n) || (MID == n) || (HIGH == n)) {
+          ++bytes;
+        }
+        if (LIMIT == n) {
+          bytes = 0;
+        }
+        // fprintf(txt, "%" PRIu32 ", %7" PRIu32 " %s\n", bytes, dictionary[n].frequency, dictionary[n].word.c_str());
+        fprintf(txt, "%s\n", dictionary[n].word.c_str());
+      }
+    }
+#endif
   }
 
   void Read(const File_t& stream) noexcept {
@@ -226,16 +400,78 @@ public:
 
     _byte_map.reserve(_dic_length);
 
+    GZip_t nice{};
+    auto map{nice.load_word_dmap()};
+
+    bool sign{false};
+    int32_t delta{0};
     std::string word{};
     for (uint32_t n{0}; n < _dic_length; ++n) {
-      int32_t ch;
-      while ((SEPARATE_CHAR != (ch = stream.getc()))) {
-        word.push_back(static_cast<char>(ch));
+      int32_t ch{stream.getc()};
+      if ('-' == ch) {
+        sign = true;
+        continue;
       }
-      const auto bytes{frequency2bytes(n)};
-      _byte_map[bytes] = word;
-      word.clear();
+      if (0x80 == (0x80 & ch)) {
+        const auto origin{stream.Position()};
+        const uint32_t sync_index{read_value(stream, ch)};  // n
+        if ((sync_index < n) || (sync_index > _dic_length)) {
+          stream.Seek(origin);
+          const auto bytes{frequency2bytes(n)};
+          _byte_map[bytes] = ReadLiteral(stream, ch);
+        } else {
+          ch = stream.getc();
+          if ('-' == ch) {
+            sign = true;
+            ch = stream.getc();
+          }
+          auto freqency{int32_t(read_value(stream, ch))};  // --> word
+          if (sign) {
+            sign = false;
+            freqency = -freqency;
+          }
+          const auto word_index{uint32_t(freqency + delta)};
+          delta = int32_t(word_index);
+
+          if (((_dic_length - 1) == sync_index) && (sync_index == word_index)) {
+            for (; n < _dic_length; ++n) {
+              const auto bytes{frequency2bytes(n)};
+              _byte_map[bytes] = map[n];
+            }
+            continue;
+          }
+
+          while (n < sync_index) {
+            const auto bytes{frequency2bytes(n)};
+            word = map[n];
+            _byte_map[bytes] = word;
+            ++n;
+          }
+
+          if (map[word_index].compare(word)) {
+            const auto bytes{frequency2bytes(n)};  // index == sync_index
+            _byte_map[bytes] = map[word_index];
+          } else {
+            --n;
+          }
+          word.clear();
+        }
+      } else {
+        const auto bytes{frequency2bytes(n)};
+        _byte_map[bytes] = ReadLiteral(stream, ch);
+      }
     }
+
+#if defined(DEBUG_WRITE_DICTIONARY)
+    {
+      File_t txt("dictionary_decode.txt", "wb+");
+      for (uint32_t n{0}; n < _dic_length; ++n) {
+        const auto bytes{frequency2bytes(n)};
+        auto w = _byte_map[bytes];
+        fprintf(txt, "%s\n", w.c_str());
+      }
+    }
+#endif
   }
 
   [[nodiscard]] auto word2frequency(const std::string& word) const noexcept -> std::pair<bool, uint32_t> {
@@ -250,7 +486,9 @@ public:
   }
 
 private:
-  [[nodiscard]] static auto frequency2bytes(uint32_t frequency) noexcept -> uint32_t {
+  static constexpr uint32_t BLOCK_SIZE{1u << 16};
+
+  [[nodiscard]] auto frequency2bytes(uint32_t frequency) noexcept -> uint32_t {
     // clang-format off
     uint32_t bytes;
     if (frequency < LOW) {
@@ -276,6 +514,92 @@ private:
     }
     // clang-format on
     return bytes;
+  }
+
+  void write_value(const File_t& stream, const uint32_t bytes) noexcept {
+    if (bytes > HGH_SECTION) {
+      stream.putc(static_cast<uint8_t>(bytes >> 24));
+      stream.putc(static_cast<uint8_t>(bytes >> 16));
+      stream.putc(static_cast<uint8_t>(bytes >> 8));
+    } else if (bytes > MID_SECTION) {
+      stream.putc(static_cast<uint8_t>(bytes >> 16));
+      stream.putc(static_cast<uint8_t>(bytes >> 8));
+    } else if (bytes > LOW_SECTION) {
+      stream.putc(static_cast<uint8_t>(bytes >> 8));
+    }
+    stream.putc(static_cast<uint8_t>(bytes));
+  }
+
+  auto read_to_value(const uint32_t bytes) noexcept -> uint32_t {
+    uint32_t value;
+    if (bytes > HGH_SECTION) {
+      value = /*          */ ((bytes >> 24) & 0x07);  // 3 bits
+      value = (value << 4) | ((bytes >> 16) & 0x0F);  // 4 bits
+      value = (value << 5) | ((bytes >> 8) & 0x1F);   // 5 bits
+      value = (value << 6) | (bytes & 0x3F);          // 6 bits
+      value += HIGH;
+    } else if (bytes > MID_SECTION) {
+      value = /*          */ ((bytes >> 16) & 0x0F);  // 4 bits
+      value = (value << 5) | ((bytes >> 8) & 0x1F);   // 5 bits
+      value = (value << 6) | (bytes & 0x3F);          // 6 bits
+      value += MID;
+    } else if (bytes > LOW_SECTION) {
+      value = /*          */ (bytes >> 8) & 0x1F;  // 5 bits
+      value = (value << 6) | (bytes & 0x3F);       // 6 bits
+      value += LOW;
+    } else {
+      value = bytes & 0x3F;  // 6 bits
+    }
+    return value;
+  }
+
+  auto read_value(const File_t& stream, int32_t ch) noexcept -> uint32_t {
+    int32_t bytes{ch};
+    if (0xC0 == (0xC0 & ch)) {
+      ch = stream.getc();
+      assert(EOF != ch);
+      bytes = (bytes << 8) | ch;
+      if (0xC0 == (0xC0 & ch)) {
+        ch = stream.getc();
+        assert(EOF != ch);
+        bytes = (bytes << 8) | ch;
+        if (0xC0 == (0xC0 & ch)) {
+          ch = stream.getc();
+          assert(EOF != ch);
+          bytes = (bytes << 8) | ch;
+        }
+      }
+    }
+    return read_to_value(uint32_t(bytes));
+  }
+
+  [[nodiscard]] auto ReadLiteral(const File_t& stream, int32_t ch) noexcept -> std::string {
+    std::string word{};
+    if (ESCAPE_CHAR != ch) {
+      word.push_back(static_cast<char>(ch));
+    }
+    while ((SEPARATE_CHAR != (ch = stream.getc()))) {
+      assert(EOF != ch);
+      if (ESCAPE_CHAR == ch) {
+        continue;
+      }
+      word.push_back(static_cast<char>(ch));
+    }
+    return word;
+  }
+
+  void WriteLiteral(const File_t& stream, const char* __restrict literal, size_t length) noexcept {
+    assert(length > 0);
+    if (length > 0) {
+      while (length-- > 0) {
+        const int32_t ch{*literal++};
+        if (0x80 & ch) {
+          stream.putc(ESCAPE_CHAR);
+        }
+        stream.putc(ch);
+      }
+    }
+    stream.putc(SEPARATE_CHAR);
   }
 
   void AppendWord() noexcept {
@@ -490,10 +814,6 @@ private:
   }
 
   void EncodeCodeWord(const uint32_t bytes) noexcept {
-    static constexpr auto HGH_SECTION{UINT32_C(0x00FFFFFF)};
-    static constexpr auto MID_SECTION{UINT32_C(0x0000FFFF)};
-    static constexpr auto LOW_SECTION{UINT32_C(0x000000FF)};
-
     if (bytes > HGH_SECTION) {
       Putc(static_cast<uint8_t>(bytes >> 24));
       Putc(static_cast<uint8_t>(bytes >> 16));
@@ -522,9 +842,9 @@ private:
   void PreLiteral(const char* __restrict literal, uint32_t length) noexcept {
     if (length >= MIN_SHORTER_WORD_SIZE) {
       const std::string word(literal, length);
-      const auto frequency{_dictionary.word2frequency(word)};
-      if (frequency.first) {
-        EncodeCodeWord(frequency.second);
+      const auto [found, frequency]{_dictionary.word2frequency(word)};
+      if (found) {
+        EncodeCodeWord(frequency);
         return;
       }
     }
@@ -536,8 +856,8 @@ private:
     const char* __restrict word{_word.c_str()};
 
     if (wlength >= MIN_WORD_SIZE) {
-      if (const auto frequency{_dictionary.word2frequency(_word)}; frequency.first) {
-        EncodeCodeWord(frequency.second);
+      if (const auto [found, frequency]{_dictionary.word2frequency(_word)}; found) {
+        EncodeCodeWord(frequency);
         return;
       }
 
@@ -547,9 +867,9 @@ private:
         uint32_t frequency_end{0};
         for (uint32_t offset{wlength - 1}; offset >= MIN_SHORTER_WORD_SIZE; --offset) {
           const std::string shorter(word, offset);
-          if (const auto frequency{_dictionary.word2frequency(shorter)}; frequency.first) {
+          if (const auto [found, frequency]{_dictionary.word2frequency(shorter)}; found) {
             offset_end = offset;
-            frequency_end = frequency.second;
+            frequency_end = frequency;
             break;
           }
         }
@@ -559,9 +879,9 @@ private:
         uint32_t frequency_begin{0};
         for (uint32_t offset{1}; (wlength - offset) >= MIN_SHORTER_WORD_SIZE; ++offset) {
           const std::string shorter(word + offset, wlength - offset);
-          if (const auto frequency{_dictionary.word2frequency(shorter)}; frequency.first) {
+          if (const auto [found, frequency]{_dictionary.word2frequency(shorter)}; found) {
             offset_begin = offset;
-            frequency_begin = frequency.second;
+            frequency_begin = frequency;
             break;
           }
         }
@@ -600,10 +920,10 @@ private:
         for (uint32_t offset{1}; offset < (wlength - 1); ++offset) {
           for (uint32_t length{wlength - offset}; length >= MIN_SHORTER_WORD_SIZE; --length) {
             const std::string shorter(_word, offset, length);
-            const auto frequency{_dictionary.word2frequency(shorter)};
-            if (frequency.first && (frequency.second < Dictionary::HIGH)) {
+            const auto [found, frequency]{_dictionary.word2frequency(shorter)};
+            if (found && (frequency < HIGH)) {
               Literal(_word.c_str(), offset);
-              EncodeCodeWord(frequency.second);
+              EncodeCodeWord(frequency);
               Literal(_word.c_str() + offset + length, wlength - offset - length);
               return;
             }

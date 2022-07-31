@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _IMONITOR_HDR_
-#define _IMONITOR_HDR_
+#pragma once
 
 #include <cstdint>
 
@@ -32,5 +31,3 @@ public:
   [[nodiscard]] virtual int64_t workLength() const noexcept = 0;
   [[nodiscard]] virtual int64_t layoutLength() const noexcept = 0;
 };
-
-#endif  // _IMONITOR_HDR_

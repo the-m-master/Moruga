@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -25,8 +25,8 @@
 #include "Buffer.h"
 #include "File.h"
 #include "filter.h"
+#include "gzip.h"
 #include "iEncoder.h"
-#include "ziplib.h"
 
 auto Header_t::ScanPNG(int32_t /*ch*/) noexcept -> Filter {
   // ------------------------------------------------------------------------
@@ -98,16 +98,14 @@ PNG_filter::~PNG_filter() noexcept = default;
 auto PNG_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if ('IDAT' == m4(4)) {
     const uint32_t lpos{_buf.Pos() - 4};
-    int32_t length = _buf[lpos - 1] | (_buf[lpos - 2] << 8) | (_buf[lpos - 3] << 16) | (_buf[lpos - 4] << 24);
-    if (length > 64) {
-      _di.pkzippos = 0;
-      _di.pkziplen = length;
-    }
+    const int32_t length{_buf[lpos - 1] | (_buf[lpos - 2] << 8) | (_buf[lpos - 3] << 16) | (_buf[lpos - 4] << 24)};
+    _di.pkzippos = 0;
+    _di.pkziplen = length;
   }
 
   if (_di.pkziplen > 0) {
     const int64_t safe_pos{_stream.Position()};
-    decodeEncodeCompare(_stream, _coder, safe_pos - 1, _di.pkziplen);
+    DecodeEncodeCompare(_stream, _coder, safe_pos - 1, _di.pkziplen);
     _di.pkziplen = 0;
     return true;
   }
@@ -126,7 +124,7 @@ auto PNG_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     _data->putc(ch);
     if (0 == _block_length) {
       _data->Rewind();
-      const bool status = encode_zlib(*_data, _data->Size(), _stream, false);
+      const bool status{EncodeGZip(*_data, _data->Size(), _stream)};
       (void)status;  // Avoid warning in release mode
       assert(status);
       delete _data;
@@ -154,7 +152,7 @@ auto PNG_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
   if ('IDAT' == m4(4)) {
     const uint32_t lpos{_buf.Pos() - 4};
     int32_t length = _buf[lpos - 1] | (_buf[lpos - 2] << 8) | (_buf[lpos - 3] << 16) | (_buf[lpos - 4] << 24);
-    if (length > 64) {
+    if (length > 0) {
       _stream.putc(ch);
       _block_length = 0;
       _length = 4;

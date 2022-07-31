@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -21,6 +21,7 @@
 #include "CaseSpace.h"
 #include <algorithm>
 #include <cassert>
+#include <cinttypes>
 #include <cstdio>
 #include <utility>
 #include <vector>
@@ -144,7 +145,7 @@ public:
 
   auto finish() noexcept -> std::string {
     std::vector<CaseSpace_t::Dictionary_t> dictionary{};
-    std::for_each(_esteem.begin(), _esteem.end(), [&dictionary](const auto& entry) {
+    std::for_each(_esteem.begin(), _esteem.end(), [&dictionary](const auto& entry) noexcept {
       if (const auto frequency{entry.second}; frequency > MIN_FREQUENCY) {
         dictionary.emplace_back(CaseSpace_t::Dictionary_t(entry.first, entry.second));
       }
@@ -154,14 +155,14 @@ public:
     _esteem.shrink_to_fit();  // Release memory
 #endif
 
-    std::stable_sort(dictionary.begin(), dictionary.end(), [](const auto& a, const auto& b) -> bool {  //
+    std::stable_sort(dictionary.begin(), dictionary.end(), [](const auto& a, const auto& b) noexcept -> bool {  //
       return (a.frequency * a.word.length()) > (b.frequency * b.word.length());
     });
 
     if (!dictionary.empty()) {
 #if defined(DEBUG_WRITE_DICTIONARY)
       File_t txt("dictionary.txt", "wb+");
-      for (auto dic : dictionary) {
+      for (const auto& dic : dictionary) {
         fprintf(txt, "%2" PRIu64 " %8" PRIu32 " %8" PRIu64 " ", dic.word.length(), dic.frequency, dic.frequency * dic.word.length());
         auto* str{dic.word.c_str()};
         auto length{dic.word.length()};
@@ -174,21 +175,6 @@ public:
           ++str;
         }
         fprintf(txt, "\n");
-      }
-#elif 0  // !defined(NDEBUG)
-      {
-        fprintf(stdout, "\n");
-        auto* str{dictionary[0].word.c_str()};
-        auto length{dictionary[0].word.length()};
-        while (length--) {
-          if (isprint(*str)) {
-            fprintf(stdout, "%c", *str);
-          } else {
-            fprintf(stdout, "\\x%02X", *str);
-          }
-          ++str;
-        }
-        fprintf(stdout, "\n");
       }
 #endif
 

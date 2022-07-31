@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _IENCODER_HDR_
-#define _IENCODER_HDR_
+#pragma once
 
 class iEncoder_t {
 public:
@@ -86,5 +85,3 @@ public:
    */
   virtual void SetStart(const bool state) noexcept = 0;
 };
-
-#endif  // _IENCODER_HDR_

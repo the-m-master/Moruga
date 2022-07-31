@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _INTEGER_XXL_HDR_
-#define _INTEGER_XXL_HDR_
+#pragma once
 
 #include <cassert>
 #include <cinttypes>
@@ -84,7 +83,7 @@ namespace integer_xxl {
   constexpr auto operator"" _xxl() noexcept -> uint128_t {
     return LitEval<Cs...>::eval();
   }
-}
+}  // namespace integer_xxl
 
 template <char... Cs>
 constexpr auto operator"" _xxl() noexcept -> uint128_t {
@@ -92,7 +91,6 @@ constexpr auto operator"" _xxl() noexcept -> uint128_t {
 }
 
 // clang-format off
-
 static_assert(     0_xxl == 0x00, "IntegerXXL error");
 static_assert(   0b0_xxl == 0x00, "IntegerXXL error");
 static_assert(    00_xxl == 0x00, "IntegerXXL error");
@@ -122,7 +120,4 @@ static_assert(1122334455667788_xxl == 1122334455667788LLu, "IntegerXXL error");
 static_assert(0x80000000000000000000000000000000_xxl >> 126 == 0b10, "IntegerXXL error");
 static_assert(0x80000000000000000000000000000000_xxl >> 127 == 0b01, "IntegerXXL error");
 static_assert(0xF000000000000000B000000000000000_xxl > 0xB000000000000000, "IntegerXXL error");
-
 // clang-format on
-
-#endif  // _INTEGER_XXL_HDR_

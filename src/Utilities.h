@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _UTILITIES_HDR_
-#define _UTILITIES_HDR_
+#pragma once
 
 #include <cstdint>
 
@@ -72,5 +71,3 @@ namespace Utilities {
     return is_upper(ch) ? ch - 'A' + 'a' : ch;
   }
 }  // namespace Utilities
-
-#endif  //_UTILITIES_HDR_

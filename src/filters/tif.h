@@ -9,7 +9,7 @@
  *
  * Moruga is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -18,8 +18,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#ifndef _TIFF_HDR_
-#define _TIFF_HDR_
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -51,5 +50,3 @@ private:
   int32_t : 24;  // Padding
   int32_t : 32;  // Padding
 };
-
-#endif  // _TIFF_HDR_
