@@ -3378,10 +3378,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement{INT64_C(135815623) - outfile.Size()};
+      const auto improvement{INT64_C(135814765) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
-      const auto improvement{INT64_C(17214209) - outfile.Size()};
+      const auto improvement{INT64_C(17211567) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     }
 #endif

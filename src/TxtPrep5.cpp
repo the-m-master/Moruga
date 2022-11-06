@@ -736,7 +736,7 @@ public:
       _quote[n] = static_cast<int8_t>(_in.getc());
     }
 
-    Progress_t const progress("TXT", false, *this);
+    const Progress_t progress("TXT", false, *this);
 
     _dictionary.Read(_in);
 
