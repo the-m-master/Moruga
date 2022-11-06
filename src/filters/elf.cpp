@@ -314,14 +314,14 @@ static const Elf32_entry_t* entry_32{nullptr};
 static const Elf64_entry_t* entry_64{nullptr};
 
 auto Header_t::ScanELF(int32_t /*ch*/) noexcept -> Filter {
-  if (0x7F454C46 == m4(offset - 0)) {  // \x7FELF
+  if (0x7F454C46 == _buf.m4(offset - 0)) {  // \x7FELF
     const uint8_t clss{_buf(offset - 4)};
     if (((ELFCLASS32 == clss) || (ELFCLASS64 == clss)) &&  // class
-        (EM_X86_64 == i2(offset - 18)) &&                  // machine
-        (1 == i4(offset - 20))) {                          // version
-      const uint16_t type{i2(offset - 16)};
+        (EM_X86_64 == _buf.i2(offset - 18)) &&             // machine
+        (1 == _buf.i4(offset - 20))) {                     // version
+      const uint16_t type{_buf.i2(offset - 16)};
       if ((ET_NONE == type) || (ET_REL == type) || (ET_EXEC == type) || (ET_DYN == type) || (ET_CORE == type)) {
-        uint32_t i{_buf.Pos() - offset};
+        const uint32_t i{_buf.Pos() - offset};
         if (ELFCLASS64 == clss) {
           const Elf64_entry_t* entry = reinterpret_cast<Elf64_entry_t*>(&_buf[i]);
           _di.location = static_cast<int32_t>(entry->shoff + (entry->shstrndx * sizeof(Elf64_section_t)));

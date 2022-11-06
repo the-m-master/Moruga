@@ -50,11 +50,11 @@
  * between endstream and endobj
  */
 // clang-format off
-static constexpr uint128_t stream0A       {0x00000073747265616D0A_xxl}; // 'stream\n'
-static constexpr uint128_t stream0A_mask  {0x000000FFFFFFFFFFFFFF_xxl};
+static constexpr uint128_t stream0A       {0x00000A73747265616D0A_xxl}; // '\nstream\n'
+static constexpr uint128_t stream0A_mask  {0x0000FFFFFFFFFFFFFFFF_xxl};
 
-static constexpr uint128_t stream0D0A     {0x000073747265616D0D0A_xxl}; // 'stream\r\n'
-static constexpr uint128_t stream0D0A_mask{0x0000FFFFFFFFFFFFFFFF_xxl};
+static constexpr uint128_t stream0D0A     {0x0D0A73747265616D0D0A_xxl}; // '\r\nstream\r\n'
+static constexpr uint128_t stream0D0A_mask{0xFFFFFFFFFFFFFFFFFFFF_xxl};
 
 static constexpr uint128_t endstream0A    {0x656E6473747265616D0A_xxl}; // 'endstream\n'
 static constexpr uint128_t endstream0D    {0x656E6473747265616D0D_xxl}; // 'endstream\r'
@@ -115,7 +115,7 @@ auto PDF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   _di.filter_end = 0;
 
   _coder->Compress(ch);  // Encode last character
-  DecodeEncodeCompare(_stream, _coder, safe_pos, block_length);
+  DecodeEncodeCompare(_stream, _coder, safe_pos, block_length, 0);
   return true;
 }
 

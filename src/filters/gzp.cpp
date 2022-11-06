@@ -113,8 +113,8 @@ auto Header_t::ScanGZP(int32_t /*ch*/) noexcept -> Filter {
 
   static constexpr uint32_t offset{9};
 
-  const auto header{m4(offset - 0)};
-  if (UINT32_C(0x1F8B0808) == header) {  // Signature & Deflate ?
+  const auto header{_buf.m4(offset - 0)};
+  if (UINT32_C(0x1F8B0800) == ((header >> 8) << 8)) {
     const auto cm{_buf(offset - 8)};
     if ((0 == cm) || (2 == cm) || (4 == cm)) {
       _di.flags = _buf(offset - 3);
@@ -181,9 +181,9 @@ auto GZP_filter::Handle_GZ_flags(int32_t ch) noexcept -> bool {
 
 auto GZP_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if (Handle_GZ_flags(ch)) {
-    int64_t safe_pos{_stream.Position()};
-    _coder->Compress(ch);  // Encode last character
-    DecodeEncodeCompare(_stream, _coder, safe_pos, _original_length);
+    const int64_t safe_pos{_stream.Position()};
+    _coder->Compress(ch);                                                 // Encode last character
+    DecodeEncodeCompare(_stream, _coder, safe_pos, _original_length, 0);  // TODO
     _di.pkziplen = 0;
     _di.filter_end = 0;
     return true;

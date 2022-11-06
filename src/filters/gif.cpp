@@ -218,7 +218,7 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
 
   size -= static_cast<int64_t>(5 + header_size * 4);
   int32_t last{_in.getc()};
-  int64_t total{size + 1};
+  const int64_t total{size + 1};
   _outsize = 1;
   _block_size = 0;
 
@@ -394,10 +394,10 @@ auto Header_t::ScanGIF(int32_t /*ch*/) noexcept -> Filter {
 
   static constexpr uint32_t offset{11};
 
-  const auto hdr{m4(offset - 0x0)};
+  const auto hdr{_buf.m4(offset - 0x0)};
   if (('GIF8' == hdr) && (('7' == _buf(offset - 4)) || ('9' == _buf(offset - 4))) && ('a' == _buf(offset - 5))) {
-    const auto width{i2(offset - 6)};
-    const auto height{i2(offset - 8)};
+    const auto width{_buf.i2(offset - 6)};
+    const auto height{_buf.i2(offset - 8)};
     if ((width > 0) && (width < 0x4000) && (height > 0) && (height < 0x4000)) {
       _di.offset_to_start = 0;  // start now!
       _di.filter_end = _encode ? 1 : 0x7FFFFFFF;

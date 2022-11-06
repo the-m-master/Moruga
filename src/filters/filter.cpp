@@ -21,11 +21,11 @@
 #include "filter.h"
 #include "Progress.h"
 #include "bmp.h"
+#include "cab.h"
 #include "elf.h"
 #include "exe.h"
 #include "gif.h"
 #include "gzp.h"
-#include "lzx.h"
 #include "pbm.h"
 #include "pdf.h"
 #include "pkz.h"
@@ -47,11 +47,11 @@ Header_t::~Header_t() noexcept = default;
 auto Header_t::Scan(int32_t ch) noexcept -> Filter {
   Filter type{ScanBMP(ch)};
   // clang-format off
+  if (Filter::NOFILTER == type) { type = ScanCAB(ch); }
   if (Filter::NOFILTER == type) { type = ScanELF(ch); }
   if (Filter::NOFILTER == type) { type = ScanEXE(ch); }
   if (Filter::NOFILTER == type) { type = ScanGIF(ch); }
   if (Filter::NOFILTER == type) { type = ScanGZP(ch); }
-  if (Filter::NOFILTER == type) { type = ScanLZX(ch); }
   if (Filter::NOFILTER == type) { type = ScanPBM(ch); }
   if (Filter::NOFILTER == type) { type = ScanPDF(ch); }
   if (Filter::NOFILTER == type) { type = ScanPKZ(ch); }
@@ -84,11 +84,11 @@ auto Filter_t::Create(const Filter& type) noexcept -> iFilter_t* {
   switch (type) {
     // clang-format off
     case Filter::BMP: return new BMP_filter(_stream, _encoder, _di);
+    case Filter::CAB: return new CAB_filter(_stream, _encoder, _di);
     case Filter::ELF: return new ELF_filter(_stream, _encoder, _di);
     case Filter::EXE: return new EXE_filter(_stream, _encoder, _di);
     case Filter::GIF: return new GIF_filter(_stream, _encoder, _di, _buf, _original_length);
     case Filter::GZP: return new GZP_filter(_stream, _encoder, _di, _original_length);
-    case Filter::LZX: return new LZX_filter(_stream, _encoder, _di);
     case Filter::PBM: return new PBM_filter(_stream, _encoder, _di);
     case Filter::PDF: return new PDF_filter(_stream, _encoder, _di, _buf);
     case Filter::PKZ: return new PKZ_filter(_stream, _encoder, _di, _buf);
@@ -107,7 +107,7 @@ auto Filter_t::Create(const Filter& type) noexcept -> iFilter_t* {
 
 auto Filter_t::Scan(int32_t ch) noexcept -> bool {  // encoding
   if (nullptr == _filter) {
-    Filter type = _header->Scan(ch);
+    const Filter type = _header->Scan(ch);
     if (Filter::NOFILTER != type) {
       Progress_t::FoundType(type);
       _filter = Create(type);
@@ -130,7 +130,7 @@ auto Filter_t::Scan(int32_t ch) noexcept -> bool {  // encoding
 
 auto Filter_t::Scan(int32_t ch, int64_t& pos) noexcept -> bool {  // decoding
   if (nullptr == _filter) {
-    Filter type = _header->Scan(ch);
+    const Filter type = _header->Scan(ch);
     if (Filter::NOFILTER != type) {
       Progress_t::FoundType(type);
       _filter = Create(type);

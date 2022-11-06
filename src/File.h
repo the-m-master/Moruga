@@ -32,9 +32,12 @@
 #  include <windows.h>
 
 #  if !defined(__CYGWIN__)
-#    define getc_unlocked(_stream) _fgetc_nolock(_stream)
-#    define putc_unlocked(_c, _stream) _fputc_nolock(_c, _stream)
-
+#    define fflush_unlocked(stream) fflush(stream)
+#    define fileno_unlocked(stream) fileno(stream)
+#    define fread_unlocked(ptr, size, n, stream) fread(ptr, size, n, stream)
+#    define fwrite_unlocked(ptr, size, n, stream) fwrite(ptr, size, n, stream)
+#    define getc_unlocked(stream) _fgetc_nolock(stream)
+#    define putc_unlocked(c, stream) _fputc_nolock(c, stream)
 /**
  * On Windows when using tmpfile() the temporary file may be created in the root
  * directory causing access denied error when User Account Control (UAC) is on.
@@ -108,13 +111,13 @@ public:
     Flush();  // Mandatory to flush first!
 #if defined(__CYGWIN__)
     struct stat fileInfo;
-    fstat(fileno(_stream), &fileInfo);
+    fstat(fileno_unlocked(_stream), &fileInfo);
 #elif defined(_MSC_VER)
     struct _stat64 fileInfo;
     _fstat64(_fileno(_stream), &fileInfo);
 #else
     struct stat64 fileInfo;
-    fstat64(fileno(_stream), &fileInfo);
+    fstat64(fileno_unlocked(_stream), &fileInfo);
 #endif
     return fileInfo.st_size;
   }
@@ -154,7 +157,7 @@ public:
   }
 
   auto Flush() const noexcept -> int32_t {
-    return fflush(_stream);
+    return fflush_unlocked(_stream);
   }
 
   void Close() noexcept {
@@ -179,11 +182,11 @@ public:
            static_cast<uint32_t>(getc());
   }
 
-  void put32(const uint32_t x) const noexcept {
-    putc(static_cast<int32_t>(x >> 24));
-    putc(static_cast<int32_t>(x >> 16));
-    putc(static_cast<int32_t>(x >> 8));
-    putc(static_cast<int32_t>(x));
+  void put32(const uint32_t value) const noexcept {
+    putc(static_cast<int32_t>(value >> 24));
+    putc(static_cast<int32_t>(value >> 16));
+    putc(static_cast<int32_t>(value >> 8));
+    putc(static_cast<int32_t>(value));
   }
 
   [[nodiscard]] auto getVLI() const noexcept -> int64_t {
@@ -209,11 +212,11 @@ public:
   }
 
   auto Read(void* const data, const size_t size) const noexcept -> size_t {
-    return fread(data, sizeof(char), size, _stream);
+    return fread_unlocked(data, sizeof(char), size, _stream);
   }
 
   auto Write(const void* const data, const size_t size) const noexcept -> size_t {
-    return fwrite(data, sizeof(char), size, _stream);
+    return fwrite_unlocked(data, sizeof(char), size, _stream);
   }
 
 private:

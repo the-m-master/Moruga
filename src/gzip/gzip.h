@@ -43,12 +43,10 @@ typedef uint32_t (*write_buffer_t)(const void* buf, uint32_t cnt, void* ptr) noe
 
 #define BITS 16
 
-#define INBUFSIZ 0x40000    /* input buffer size */
-#define INBUF_EXTRA 64      /* required by unlzw() */
-#define OUTBUFSIZ 0x40000   /* output buffer size */
-#define OUTBUF_EXTRA 2048   /* required by unlzw() */
-#define DIST_BUFSIZE 0x8000 /* buffer for distances, see trees.c */
-#define WSIZE 0x8000        /* window size--must be a power of two, and at least 32K for zip's deflate method */
+#define INBUFSIZ (1 << 15)      // input buffer size
+#define OUTBUFSIZ (1 << 15)     // output buffer size
+#define DIST_BUFSIZE (1 << 15)  // buffer for distances, see trees.c
+#define WSIZE (1 << 15)         // window size--must be a power of two, and at least 32K for zip's deflate method
 
 #define MIN_MATCH 3
 #define MAX_MATCH 258
@@ -57,11 +55,13 @@ typedef uint32_t (*write_buffer_t)(const void* buf, uint32_t cnt, void* ptr) noe
 #define MAX_DIST (WSIZE - MIN_LOOKAHEAD)
 
 #define Assert(cond, msg) assert(cond)
-#define Trace(x)
-#define Tracev(x)
-#define Tracevv(x)
-#define Tracec(c, x)
-#define Tracecv(c, x)
+#if 0
+#  define Trace(x)
+#  define Tracev(x)
+#  define Tracevv(x)
+#  define Tracec(c, x)
+#  define Tracecv(c, x)
+#endif
 
 /* gzip flag byte */
 #define ASCII_FLAG 0x01  /* bit 0 set: file probably ascii text */
@@ -79,24 +79,24 @@ typedef uint32_t (*write_buffer_t)(const void* buf, uint32_t cnt, void* ptr) noe
 #define ASCII 1
 
 namespace gzip {
-  extern const uint8_t* imem;                                   // Memory input
-  extern FILE* ifd;                                             // input file descriptor
-  extern FILE* ofd;                                             // output file descriptor
-  extern int32_t block_start;                                   // window offset of current block
-  extern int32_t level;                                         // compression level
-  extern int32_t rsync;                                         // deflate into rsyncable chunks
-  extern std::array<uint8_t, INBUFSIZ + INBUF_EXTRA> inbuf;     // input buffer
-  extern std::array<uint8_t, OUTBUFSIZ + OUTBUF_EXTRA> outbuf;  // output buffer
-  extern std::array<uint8_t, WSIZE + WSIZE> window;             // Sliding window and suffix table (unlzw)
-  extern uint32_t bytes_in;                                     // number of input bytes
-  extern uint32_t bytes_out;                                    // number of output bytes
-  extern uint32_t ifile_size;                                   // input file size
-  extern uint32_t inptr;                                        // index of next byte to be processed in inbuf
-  extern uint32_t insize;                                       // valid bytes in inbuf
-  extern uint32_t outcnt;                                       // bytes in output buffer
-  extern uint32_t strstart;                                     // window offset of current string
-  extern void* this_pointer;                                    // Optional helper pointer
-  extern write_buffer_t omem;                                   // Write output data to memory
+  extern const uint8_t* imem;                        // Memory input
+  extern FILE* ifd;                                  // input file descriptor
+  extern FILE* ofd;                                  // output file descriptor
+  extern int32_t block_start;                        // window offset of current block
+  extern int32_t level;                              // compression level
+  extern int32_t rsync;                              // deflate into rsyncable chunks
+  extern std::array<uint8_t, INBUFSIZ> inbuf;        // input buffer
+  extern std::array<uint8_t, OUTBUFSIZ> outbuf;      // output buffer
+  extern std::array<uint8_t, WSIZE + WSIZE> window;  // Sliding window and suffix table (unlzw)
+  extern uint32_t bytes_in;                          // number of input bytes
+  extern uint32_t bytes_out;                         // number of output bytes
+  extern uint32_t ifile_size;                        // input file size
+  extern uint32_t inptr;                             // index of next byte to be processed in inbuf
+  extern uint32_t insize;                            // valid bytes in inbuf
+  extern uint32_t outcnt;                            // bytes in output buffer
+  extern uint32_t strstart;                          // window offset of current string
+  extern void* this_pointer;                         // Optional helper pointer
+  extern write_buffer_t omem;                        // Write output data to memory
 
   extern auto bi_reverse(uint32_t value, int32_t length) noexcept -> uint32_t;
   extern auto ct_tally(int32_t dist, int32_t lc) noexcept -> int32_t;

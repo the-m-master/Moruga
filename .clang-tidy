@@ -1,2 +1,18 @@
 # See https://clang.llvm.org/extra/clang-tidy/checks/list.html
-Checks: '-*,clang-diagnostic-*,llvm-*,misc-*,modernize-*,-clang-diagnostic-c++98-*,-clang-diagnostic-covered-switch-default,-clang-diagnostic-exit-time-destructors,-clang-diagnostic-four-char-constants,-clang-diagnostic-gnu-anonymous-struct,-clang-diagnostic-multichar,-clang-diagnostic-nested-anon-types,-clang-diagnostic-pre-c++14-compat,-clang-diagnostic-pre-c++17-compat,-clang-diagnostic-pre-c++20-compat-pedantic,-clang-diagnostic-reserved-identifier,-clang-diagnostic-used-but-marked-unused,-llvm-include-order'
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  llvm-*,
+  misc-*,
+  modernize-*,
+  -clang-diagnostic-c++98-*,
+  -clang-diagnostic-covered-switch-default,
+  -clang-diagnostic-exit-time-destructors,
+  -clang-diagnostic-four-char-constants,
+  -clang-diagnostic-gnu-anonymous-struct,
+  -clang-diagnostic-multichar,
+  -clang-diagnostic-nested-anon-types,
+  -clang-diagnostic-pre-*,
+  -clang-diagnostic-reserved-identifier,
+  -clang-diagnostic-used-but-marked-unused,
+  -llvm-include-order

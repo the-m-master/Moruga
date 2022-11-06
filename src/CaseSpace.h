@@ -58,13 +58,20 @@ public:
 
     std::string word;
     uint32_t frequency;
+    int32_t : 32;  // Padding
   };
 
   void Encode() noexcept;
   [[nodiscard]] auto Decode() noexcept -> int64_t;
 
-  [[nodiscard]] auto charFrequency() const noexcept -> const int64_t*;
+  [[nodiscard]] auto charFrequency() const noexcept -> std::array<int64_t, 256>;
   [[nodiscard]] auto getQuote() const noexcept -> const std::string&;
+
+private:
+  CaseSpace_t(const CaseSpace_t&) = delete;
+  CaseSpace_t(CaseSpace_t&&) = delete;
+  CaseSpace_t& operator=(const CaseSpace_t&) = delete;
+  CaseSpace_t& operator=(CaseSpace_t&&) = delete;
 
   enum struct WordType {
     ALL_SMALL = 60,             // 0x3C <
@@ -73,12 +80,6 @@ public:
     ESCAPE_CHAR = 12,           // 0x0C
     CRLF_MARKER = 28            // 0x1C
   };
-
-private:
-  CaseSpace_t(const CaseSpace_t&) = delete;
-  CaseSpace_t(CaseSpace_t&&) = delete;
-  CaseSpace_t& operator=(const CaseSpace_t&) = delete;
-  CaseSpace_t& operator=(CaseSpace_t&&) = delete;
 
   void Encode(int32_t ch) noexcept;
   void EncodeWord() noexcept;

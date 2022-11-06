@@ -290,6 +290,34 @@ static auto encodeLzw(File_t& in, File_t& out, const bool compare, uint64_t& dif
 
 #endif
 
+static constexpr uint32_t offset{512};
+
+static auto Validation(const uint32_t width,   //
+                       const uint32_t height,  //
+                       const uint32_t bps,     //
+                       const uint32_t cmp,     //
+                       const uint32_t rgb,     //
+                       int32_t ots,            //
+                       DataInfo_t& _di) noexcept -> Filter {
+  if ((width > 0) && (width < 0x30000) &&              //
+      (height > 0) && (height < 0x10000) &&            //
+      (0 != bps) &&                                    //
+      ((1 == cmp) /*|| (5 == cmp)*/) &&                //  1=none, 5=lzw
+      (/*(0 == rgb) || (1 == rgb) ||*/ (2 == rgb)) &&  //  0/1=grey, 2=rgb
+      (/*(1 == _di.bytes_per_pixel) ||*/ (3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
+    /*_di.lzw_encoded = 5 == cmp;*/
+    _di.filter_end = static_cast<int32_t>(width * height * _di.bytes_per_pixel);
+    ots -= static_cast<int32_t>(offset);
+    _di.offset_to_start = (ots < 0) ? 0 : ots;
+#if 0
+    fprintf(stderr, "TIF %ux%ux%u  \n", width, height, _di.bytes_per_pixel);
+    fflush(stderr);
+#endif
+    return Filter::TIF;
+  }
+  return Filter::NOFILTER;
+}
+
 auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
   // ------------------------------------------------------------------------
   // TIFF header
@@ -312,8 +340,6 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
   //     10 |    4 | Field value
   //     14 |   ... (other tags or image data)
 
-  static constexpr uint32_t offset{512};
-
   enum {
     IMAGE_WIDTH = 256,  //
     IMAGE_HEIGHT = 257,
@@ -325,8 +351,8 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
   };
 
   // Intel heading ...
-  if (0x49492A00 == m4(offset - 0)) {
-    const uint32_t ifd{i4(offset - 4)};  // Header must be the beginning (!) as headers normally do ... but with TIFF ...
+  if (0x49492A00 == _buf.m4(offset - 0)) {
+    const uint32_t ifd{_buf.i4(offset - 4)};  // Header must be the beginning (!) as headers normally do ... but with TIFF ...
     if (ifd < offset) {
       uint32_t width{0};
       uint32_t height{0};
@@ -334,14 +360,14 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
       uint32_t cmp{0};
       uint32_t rgb{0};
       int32_t ots{0};
-      const auto tags{i2(offset - ifd)};
+      const auto tags{_buf.i2(offset - ifd)};
       uint32_t i{offset};
       for (uint32_t n{0}, ntags{0}; (i > 18) && (n < tags) && (ntags < 7); i -= 12, ++n) {
-        const auto tagFmt{i2(i - (ifd + 4))};
+        const auto tagFmt{_buf.i2(i - (ifd + 4))};
         if ((3 == tagFmt) || (4 == tagFmt)) {
-          const auto tag{i2(i - (ifd + 2))};
-          const auto tagLen{i4(i - (ifd + 6))};
-          const auto tagVal{(3 == tagFmt) ? i2(i - ((ifd + 10))) : i4(i - (ifd + 10))};
+          const auto tag{_buf.i2(i - (ifd + 2))};
+          const auto tagLen{_buf.i4(i - (ifd + 6))};
+          const auto tagVal{(3 == tagFmt) ? _buf.i2(i - ((ifd + 10))) : _buf.i4(i - (ifd + 10))};
           if (IMAGE_WIDTH == tag) {
             width = tagVal;
             ++ntags;
@@ -366,28 +392,17 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
           }
         }
       }
-      if ((width > 0) && (width < 0x30000) &&    //
-          (height > 0) && (height < 0x10000) &&  //
-          (0 != bps) &&                          //
-          ((1 == cmp) || (5 == cmp)) &&          //
-          (2 == rgb) &&                          //
-          ((3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
-        //        _di.lzw_encoded = 5 == cmp;
-        _di.filter_end = static_cast<int32_t>(width * height * _di.bytes_per_pixel);
-        ots -= static_cast<int32_t>(offset);
-        _di.offset_to_start = (ots < 0) ? 0 : ots;
-#if 0
-        fprintf(stderr, "iTIF %ux%ux%u  \n", width, height, _di.bytes_per_pixel);
-        fflush(stderr);
-#endif
-        return Filter::TIF;
+
+      const Filter result{Validation(width, height, bps, cmp, rgb, ots, _di)};
+      if (Filter::NOFILTER != result) {
+        return result;
       }
     }
   }
 
   // Motorola heading ...
-  if (0x4D4D002A == m4(offset - 0)) {
-    const uint32_t ifd{m4(offset - 4)};  // Header must be the beginning (!) as headers normally do ... but with TIFF ...
+  if (0x4D4D002A == _buf.m4(offset - 0)) {
+    const uint32_t ifd{_buf.m4(offset - 4)};  // Header must be the beginning (!) as headers normally do ... but with TIFF ...
     if (ifd < offset) {
       uint32_t width{0};
       uint32_t height{0};
@@ -395,14 +410,14 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
       uint32_t cmp{0};
       uint32_t rgb{0};
       int32_t ots{0};
-      const auto tags{m2(offset - ifd)};
+      const auto tags{_buf.m2(offset - ifd)};
       uint32_t i{offset};
       for (uint32_t n{0}, ntags{0}; (i > 18) && (n < tags) && (ntags < 7); i -= 12, ++n) {
-        const auto tagFmt{m2(i - (ifd + 4))};
+        const auto tagFmt{_buf.m2(i - (ifd + 4))};
         if ((3 == tagFmt) || (4 == tagFmt)) {
-          const auto tag{m2(i - (ifd + 2))};
-          const auto tagLen{m4(i - (ifd + 6))};
-          const auto tagVal{(3 == tagFmt) ? m2(i - (ifd + 10)) : m4(i - (ifd + 10))};
+          const auto tag{_buf.m2(i - (ifd + 2))};
+          const auto tagLen{_buf.m4(i - (ifd + 6))};
+          const auto tagVal{(3 == tagFmt) ? _buf.m2(i - (ifd + 10)) : _buf.m4(i - (ifd + 10))};
           if (IMAGE_WIDTH == tag) {
             width = tagVal;
             ++ntags;
@@ -427,21 +442,9 @@ auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
           }
         }
       }
-      if ((width > 0) && (width < 0x30000) &&    //
-          (height > 0) && (height < 0x10000) &&  //
-          (0 != bps) &&                          //
-          ((1 == cmp) || (5 == cmp)) &&          //
-          (2 == rgb) &&                          //
-          ((3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
-        //        _di.lzw_encoded = 5 == cmp;
-        _di.filter_end = static_cast<int32_t>(width * height * _di.bytes_per_pixel);
-        ots -= static_cast<int32_t>(offset);
-        _di.offset_to_start = (ots < 0) ? 0 : ots;
-#if 0
-        fprintf(stderr, "mTIF %ux%ux%u  \n", width, height, _di.bytes_per_pixel);
-        fflush(stderr);
-#endif
-        return Filter::TIF;
+      const Filter result{Validation(width, height, bps, cmp, rgb, ots, _di)};
+      if (Filter::NOFILTER != result) {
+        return result;
       }
     }
   }

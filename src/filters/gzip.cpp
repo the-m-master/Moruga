@@ -30,33 +30,6 @@
 #include "gzip/gzip.h"
 #include "iEncoder.h"
 
-static auto GZipEncodeCompare(File_t& in, const uint32_t size, File_t& out) noexcept -> std::tuple<bool, int64_t, uint8_t> {
-  const auto safe_ipos{in.Position()};
-  const auto safe_opos{out.Position()};
-  for (uint8_t level{9}; level >= 1; --level) {
-    File_t deflate_tmp /*("_deflate_tmp_.bin", "wb+")*/;
-    if (GZip_OK == gzip::zip(in, size, deflate_tmp, level)) {
-      int64_t length{deflate_tmp.Size()};
-      deflate_tmp.Rewind();
-      bool success{true};
-      for (int64_t len{length}; len-- > 0;) {
-        const int32_t a{out.getc()};
-        const int32_t b{deflate_tmp.getc()};
-        if (a != b) {
-          success = false;
-          break;
-        }
-      }
-      if (success) {
-        return {true, length, level};
-      }
-      in.Seek(safe_ipos);  // Failure, try with an other compression level
-      out.Seek(safe_opos);
-    }
-  }
-  return {false, 0, 0};
-}
-
 class ZHeader_t final {
 public:
   explicit ZHeader_t(const uint16_t header) : zh_{parse_zlib_header(header)} {}
@@ -96,6 +69,10 @@ public:
 
   [[nodiscard]] auto diffCount() const noexcept -> uint32_t {
     return diffCount_;
+  }
+
+  void diffCount(const uint32_t diffCount) noexcept {
+    diffCount_ = diffCount;
   }
 
   [[nodiscard]] auto diffPos(const uint32_t idx) const noexcept -> uint32_t {
@@ -183,6 +160,44 @@ private:
   }
 };
 
+static auto GZipEncodeCompare(File_t& in, const uint32_t size, File_t& out) noexcept -> std::tuple<ZHeader_t*, uint32_t, uint8_t> {
+  const auto safe_ipos{in.Position()};
+  const auto safe_opos{out.Position()};
+  for (int32_t clevel{9}; clevel >= 1; --clevel) {
+    ZHeader_t* zheader{new ZHeader_t{uint8_t(clevel), 0, 0, 0}};
+    const File_t deflate_tmp /*("_deflate_tmp_.bin", "wb+")*/;
+    if (GZip_OK == gzip::zip(in, size, deflate_tmp, clevel)) {
+      const auto length{uint32_t(deflate_tmp.Size())};
+      deflate_tmp.Rewind();
+      uint32_t diff_count{0};
+      bool success{true};
+      for (uint32_t position{0}; position < length; ++position) {
+        const int32_t a{out.getc()};
+        const int32_t b{deflate_tmp.getc()};
+        if (a != b) {
+          if (diff_count < ZHeader_t::DIFF_COUNT_LIMIT) {
+            zheader->diffPos(diff_count, position);
+            zheader->diffByte(diff_count, uint8_t(a));
+            ++diff_count;
+          } else {
+            success = false;
+            break;
+          }
+        }
+      }
+      if (success) {
+        zheader->diffCount(diff_count);
+        return {zheader, length, clevel};
+      }
+      delete zheader;
+      zheader = nullptr;
+      in.Seek(safe_ipos);  // Failure, try with an other compression level
+      out.Seek(safe_opos);
+    }
+  }
+  return {nullptr, 0, 0};
+}
+
 class ZLib_t {
 public:
   ZLib_t(const uint16_t header) : zheader_{header} {}
@@ -214,7 +229,7 @@ public:
         strm_.avail_out = BLOCK_SIZE;
         state = inflate(&strm_, Z_FINISH);
         if (Z_STREAM_END == state) {
-          length = strm_.total_in;  // True for PKZip, but not for GZ length of file is not known
+          length = uint32_t(strm_.total_in);  // True for PKZip, but not for GZ length of file is not known
         }
         assert(BLOCK_SIZE >= strm_.avail_out);
         const size_t have{BLOCK_SIZE - strm_.avail_out};
@@ -351,18 +366,33 @@ private:
   }
 };
 
-auto EncodeGZip(File_t& in, const int64_t size, File_t& out) noexcept -> bool {
+auto EncodeGZip(File_t& in, const int64_t size_, File_t& out) noexcept -> bool {
+  const auto safe_pos{out.Position()};
+
   const auto clevel{uint8_t(in.getc())};     // clevel
   const auto mem_level{uint8_t(in.getc())};  // mem_level
   const auto zh{uint8_t(in.getc())};         // zlib_header
   const auto dc{uint8_t(in.getc())};         // diffCount
+
+  const auto size{size_t(size_) - (4 + (dc * sizeof(uint32_t)) + (dc * sizeof(uint8_t)))};
   if (!mem_level && !zh) {
-    if (GZip_OK == gzip::zip(in, uint32_t(size - 4), out, clevel)) {
+    const ZHeader_t header{clevel, mem_level, zh, dc, in};
+    if (GZip_OK == gzip::zip(in, uint32_t(size), out, clevel)) {
+      if (dc > 0) {
+        const auto done_pos{out.Position()};
+        for (uint32_t n{0}; n < dc; ++n) {
+          const auto pos{header.diffPos(n)};
+          out.Seek(safe_pos + pos);
+          const auto byte{header.diffByte(n)};
+          out.putc(byte);
+        }
+        out.Seek(done_pos);
+      }
       return true;
     }
   } else {
     ZLib_t zlib{clevel, mem_level, zh, dc, in};
-    const auto [state, length]{zlib.Deflate(in, size_t(size) - (4 + (dc * sizeof(uint32_t)) + (dc * sizeof(uint8_t))), out, false)};
+    const auto [state, length]{zlib.Deflate(in, size, out, false)};
     if (Z_OK == state) {
       return true;
     }
@@ -370,21 +400,27 @@ auto EncodeGZip(File_t& in, const int64_t size, File_t& out) noexcept -> bool {
   return false;
 }
 
-auto DecodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t safe_pos, const int64_t block_length) noexcept -> int64_t {
-  if (block_length > 0) {
+auto DecodeEncodeCompare(File_t& stream,                        //
+                         iEncoder_t* const coder,               //
+                         const int64_t safe_pos,                //
+                         const int64_t compressed_data_length,  //
+                         const uint32_t uncompressed_data_length) noexcept -> int64_t {
+  if (compressed_data_length > 0) {
     stream.Seek(safe_pos);
     File_t inflate_tmp /*("_inflate_tmp_.bin", "wb+")*/;
-    auto length{uint32_t(block_length)};
+    auto length{uint32_t(compressed_data_length)};
 
     if (GZip_OK == gzip::unzip(stream, inflate_tmp, length)) {  // Try to decode using GZIP
       inflate_tmp.Rewind();
       stream.Seek(safe_pos);
-      const auto decoded_length{uint32_t(inflate_tmp.Size())};
-      const auto [encode_succes, encode_length, clevel]{GZipEncodeCompare(inflate_tmp, decoded_length, stream)};
-      if (encode_succes) {
+      auto decoded_length{uint32_t(inflate_tmp.Size())};
+      if ((0 != uncompressed_data_length) && (decoded_length != uncompressed_data_length)) {
+        decoded_length = uncompressed_data_length;
+      }
+      const auto [zheader, encode_length, clevel]{GZipEncodeCompare(inflate_tmp, decoded_length, stream)};
+      if (nullptr != zheader) {
         if (nullptr != coder) {
-          ZHeader_t zheader{clevel, 0, 0, 0};
-          zheader.Encode(*coder, decoded_length);
+          zheader->Encode(*coder, decoded_length);
           inflate_tmp.Rewind();
           for (int32_t c; EOF != (c = inflate_tmp.getc());) {
             coder->Compress(c);
@@ -400,7 +436,7 @@ auto DecodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t 
     stream.Seek(safe_pos);
 
     ZLib_t zlib{uint16_t((h1 << 8) | h2)};
-    const auto [decode_succes, decoded_length]{zlib.Inflate(stream, uint32_t(block_length), inflate_tmp)};  // Try to decode using ZLIB
+    const auto [decode_succes, decoded_length]{zlib.Inflate(stream, uint32_t(compressed_data_length), inflate_tmp)};  // Try to decode using ZLIB
     if (decode_succes) {
       inflate_tmp.Rewind();
       stream.Seek(safe_pos);
@@ -418,7 +454,7 @@ auto DecodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t 
     }
 
 #if 0
-    fprintf(stderr, "fail %u, %d/%d/%d\n", uint32_t(block_length), 0, 0, 0);
+    fprintf(stderr, "fail %" PRIu64 "/%u\n", safe_pos, uint32_t(compressed_data_length));
 #endif
   }
 

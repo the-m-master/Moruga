@@ -19,8 +19,18 @@
 #include "gzip.h"
 
 namespace gzip {
+
+  static void flush() noexcept {
+#if 0
+    inbuf.fill(0);
+    outbuf.fill(0);
+    window.fill(0);
+#endif
+  }
+
   auto unzip(FILE* const in, FILE* const out, uint32_t& ilength) noexcept -> int32_t {
     if (in && out && (ilength > 0)) {
+      flush();
       ifd = in;
       ofd = out;
       imem = nullptr;
@@ -36,6 +46,7 @@ namespace gzip {
 
   auto unzip(const uint8_t* const in, const uint32_t ilength, write_buffer_t out, void* const ptr) noexcept -> int32_t {
     if (in && (ilength > 0) && out) {
+      flush();
       ifd = nullptr;
       ofd = nullptr;
       imem = in;

@@ -50,14 +50,14 @@ auto Header_t::ScanTGA(int32_t /*ch*/) noexcept -> Filter {
   if (((0 == _buf(offset - 0)) || (0x1A == _buf(offset - 0))) &&  //
       (0 == _buf(offset - 1)) &&                                  //
       (2 == _buf(offset - 2)) &&                                  //
-      (0 == m4(offset - 3)) &&                                    //
-      (0 == m4(offset - 8))) {
+      (0 == _buf.m4(offset - 3)) &&                               //
+      (0 == _buf.m4(offset - 8))) {
     const auto bits_per_palette{_buf(offset - 7)};
     if ((0x00 == bits_per_palette) || (0x18 == bits_per_palette)) {
       const auto bits_per_pixel{_buf(offset - 16)};
       if ((8 == bits_per_pixel) || (24 == bits_per_pixel) || (32 == bits_per_pixel)) {
-        const auto width{i2(offset - 12)};
-        const auto height{i2(offset - 14)};
+        const auto width{_buf.i2(offset - 12)};
+        const auto height{_buf.i2(offset - 14)};
         if ((width > 0) && (width < 0x4000) && (height > 0) && (height < 0x4000)) {
           _di.bytes_per_pixel = static_cast<uint32_t>(bits_per_pixel) / 8;
           _di.filter_end = static_cast<int32_t>(_di.bytes_per_pixel * width * height);

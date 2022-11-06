@@ -109,6 +109,11 @@ CFLAGS := -std=c17
 
 CXXFLAGS := -std=c++20
 
+ifeq ($(TOOLCHAIN),llvm)
+else
+  CXXFLAGS += -Weffc++ -Wuseless-cast
+endif
+
 #===============================================================================
 # c\c++ compiler flags
 #===============================================================================
@@ -160,7 +165,6 @@ else
              -Wdisabled-optimization \
              -Wduplicated-branches \
              -Wduplicated-cond \
-             -Weffc++ \
              -Wextra \
              -Wfloat-equal \
              -Wformat \
@@ -191,7 +195,6 @@ else
              -Wswitch-enum \
              -Wundef \
              -Wuninitialized \
-             -Wuseless-cast \
              -Wwrite-strings \
              -fgcse-sm
 endif
@@ -309,14 +312,14 @@ $(BUILD_DIR)/%.o: %.c
 #===============================================================================
 $(BUILD_DIR)/%.o: %.cpp
 	$(CXX) -c $< $(CXXFLAGS) $(CCFLAGS) $(_INCLUDE_DIRS) $(_DEFINES) -o $@
-#	$(TIDY) -quiet $< -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -Weverything
+#	$(TIDY) -quiet $< -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -DCLANG_TIDY -Weverything
 
 #===============================================================================
 # Code analysis all cpp files
 #===============================================================================
 .PHONY: tidy
 tidy:
-	$(TIDY) --quiet $(CPPSOURCES) -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -Weverything
+	$(TIDY) --quiet $(CPPSOURCES) -- -std=c++20 $(_INCLUDE_DIRS) $(_DEFINES) -DCLANG_TIDY -Weverything
 
 #===============================================================================
 # Create the output directories

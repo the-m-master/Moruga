@@ -41,16 +41,6 @@ public:
   virtual auto Handle(int32_t ch, int64_t& pos) noexcept -> bool final;  // decoding
 
 private:
-  // clang-format off
-
-  // 16-bits little endian (Intel) number at buf(i-1)..buf(i)
-  [[nodiscard]] constexpr auto i2(const uint32_t i) const noexcept -> uint16_t { return static_cast<uint16_t>(_buf(i) | (_buf(i - 1) << 8)); }
-
-  // 32-bits big endian (Motorola) number at buf(i-3)..buf(i)
-  [[nodiscard]] constexpr auto m4(const uint32_t i) const noexcept -> uint32_t { return static_cast<uint32_t>(_buf(i - 3) | (_buf(i - 2) << 8) | (_buf(i - 1) << 16) | (_buf(i) << 24)); }
-
-  // clang-format on
-
   const Buffer_t& __restrict _buf;
   File_t& _stream;
   iEncoder_t* const _coder;

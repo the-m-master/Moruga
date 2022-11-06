@@ -25,4 +25,4 @@ class iEncoder_t;
 
 auto EncodeGZip(File_t& in, const int64_t size, File_t& out) noexcept -> bool;
 
-auto DecodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t safe_pos, const int64_t block_length) noexcept -> int64_t;
+auto DecodeEncodeCompare(File_t& stream, iEncoder_t* const coder, const int64_t safe_pos, const int64_t compressed_data_length, const uint32_t uncompressed_data_length) noexcept -> int64_t;

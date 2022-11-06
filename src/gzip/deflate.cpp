@@ -22,13 +22,15 @@
 
 namespace gzip {
 
-static uint16_t prev[1u << BITS]; /* prefix code */
+  // prefix code
+  static std::array<uint16_t, 1u << BITS> prev;
 
-#define head (prev + WSIZE) /* hash head */
+  // hash head
+#define head (&prev[WSIZE])
 
 #define HASH_BITS 15
 
-#define UNALIGNED_OK 1
+#define UNALIGNED_OK 0
 #if (UNALIGNED_OK == 1)
   static_assert(2 == sizeof(uint16_t), "UNALIGNED_OK can only be set as sizeof(uint16_t)==2");
 #endif  // UNALIGNED_OK
@@ -36,10 +38,10 @@ static uint16_t prev[1u << BITS]; /* prefix code */
 /* To save space (see unlzw.c), we overlay prev+head with tab_prefix and
  * window with tab_suffix. Check that we can do this:
  */
-#if (WSIZE << 1) > (1 << BITS)
+#if (WSIZE + WSIZE) > (1 << BITS)
 #  error cannot overlay window with tab_suffix and prev with tab_prefix0
 #endif
-#if HASH_BITS > BITS - 1
+#if HASH_BITS > (BITS - 1)
 #  error cannot overlay head with tab_prefix1
 #endif
 
@@ -129,16 +131,16 @@ static uint16_t prev[1u << BITS]; /* prefix code */
   static int32_t nice_match;
 #endif
 
-  static constexpr std::array<config, 10> configuration_table{{/* 0 */ {0, 0, 0, 0},            // store only
-                                                               /* 1 */ {4, 4, 8, 4},            // maximum speed, no lazy matches
-                                                               /* 2 */ {4, 5, 16, 8},           //
-                                                               /* 3 */ {4, 6, 32, 32},          //
-                                                               /* 4 */ {4, 4, 16, 16},          // lazy matches
-                                                               /* 5 */ {8, 16, 32, 32},         //
-                                                               /* 6 */ {8, 16, 128, 128},       //
-                                                               /* 7 */ {8, 32, 128, 256},       //
-                                                               /* 8 */ {32, 128, 258, 1024},    //
-                                                               /* 9 */ {32, 258, 258, 4096}}};  // maximum compression
+  static constexpr std::array<config, 10> configuration_table{{{0, 0, 0, 0},            // 0 Store only
+                                                               {4, 4, 8, 4},            // 1 Maximum speed, no lazy matches
+                                                               {4, 5, 16, 8},           // 2
+                                                               {4, 6, 32, 32},          // 3
+                                                               {4, 4, 16, 16},          // 4 Lazy matches
+                                                               {8, 16, 32, 32},         // 5
+                                                               {8, 16, 128, 128},       // 6
+                                                               {8, 32, 128, 256},       // 7
+                                                               {32, 128, 258, 1024},    // 8
+                                                               {32, 258, 258, 4096}}};  // 9 Maximum compression
 
 /* Note: the deflate() code requires max_lazy >= MIN_MATCH and max_chain >= 4
  * For deflate_fast() (levels <= 3) good is ignored and lazy has a different
@@ -195,17 +197,18 @@ static uint16_t prev[1u << BITS]; /* prefix code */
       memcpy(&window[0], &window[WSIZE], WSIZE);
       match_start -= WSIZE;
       strstart -= WSIZE; /* we now have strstart >= MAX_DIST: */
-      if (rsync_chunk_end != 0xFFFFFFFFUL)
+      if (rsync_chunk_end != ~0u) {
         rsync_chunk_end -= WSIZE;
+      }
 
       block_start -= WSIZE;
 
       for (uint32_t n = 0; n < HASH_SIZE; n++) {
-        uint32_t m = head[n];
+        const uint32_t m = head[n];
         head[n] = uint16_t(m >= WSIZE ? m - WSIZE : 0);
       }
       for (uint32_t n = 0; n < WSIZE; n++) {
-        uint32_t m = prev[n];
+        const uint32_t m = prev[n];
         prev[n] = uint16_t(m >= WSIZE ? m - WSIZE : 0);
         /* If n is not on any hash chain, prev[n] is garbage but
          * its value will never be used.
@@ -215,7 +218,7 @@ static uint16_t prev[1u << BITS]; /* prefix code */
     }
     /* At this point, more >= 2 */
     if (!eofile) {
-      uint32_t n = file_read(&window[strstart + lookahead], more);
+      const uint32_t n = file_read(&window[strstart + lookahead], more);
       if (n == 0 || n == uint32_t(EOF)) {
         eofile = 1;
         /* Don't let garbage pollute the dictionary.  */
@@ -236,16 +239,10 @@ static uint16_t prev[1u << BITS]; /* prefix code */
     }
 
     /* Initialise the hash table. */
-#if defined MAXSEG_64K && HASH_BITS == 15
-    for (uint32_t j = 0; j < HASH_SIZE; j++)
-      head[j] = 0;
-#else
-    memset(head, 0, HASH_SIZE * sizeof(*head));
-#endif
-    /* prev will be initialised on the fly */
+    prev.fill(0);
 
     /* rsync params */
-    rsync_chunk_end = 0xFFFFFFFFUL;
+    rsync_chunk_end = ~0U;
     rsync_sum = 0;
 
     /* Set the default configuration parameters:
@@ -303,7 +300,7 @@ static uint16_t prev[1u << BITS]; /* prefix code */
     uint8_t* match;                           /* matched string */
     int32_t len;                              /* length of current match */
     int32_t best_len = prev_length;           /* best match length so far */
-    uint32_t limit = strstart > uint32_t(MAX_DIST) ? strstart - uint32_t(MAX_DIST) : 0;
+    const uint32_t limit{strstart > uint32_t(MAX_DIST) ? strstart - uint32_t(MAX_DIST) : 0};
     /* Stop when cur_match becomes <= limit. To simplify the code,
      * we prevent matches with the string of window index 0.
      */
@@ -388,7 +385,8 @@ static uint16_t prev[1u << BITS]; /* prefix code */
        * are always equal when the other bytes match, given that
        * the hash keys are equal and that HASH_BITS >= 8.
        */
-      scan += 2, match++;
+      scan += 2;
+      match++;
 
       /* We check for insufficient lookahead only every 8th comparison;
        * the 256th check will be made at strstart+258.
@@ -399,7 +397,7 @@ static uint16_t prev[1u << BITS]; /* prefix code */
                *++scan == *++match && *++scan == *++match &&  //
                *++scan == *++match && *++scan == *++match && scan < strend);
 
-      len = MAX_MATCH - (int32_t)(strend - scan);
+      len = MAX_MATCH - int32_t(strend - scan);
       scan = strend - MAX_MATCH;
 #endif /* UNALIGNED_OK */
 
@@ -457,7 +455,7 @@ static uint16_t prev[1u << BITS]; /* prefix code */
       rsync_sum += uint32_t(window[i]);
       /* Old character out */
       rsync_sum -= uint32_t(window[i - RSYNC_WIN]);
-      if (rsync_chunk_end == 0xFFFFFFFFUL && RSYNC_SUM_MATCH(rsync_sum)) {
+      if (rsync_chunk_end == ~0u && RSYNC_SUM_MATCH(rsync_sum)) {
         rsync_chunk_end = i;
       }
     }
@@ -543,14 +541,16 @@ static uint16_t prev[1u << BITS]; /* prefix code */
         }
       } else {
         /* No match, output a literal byte */
+#if 0
         Tracevv((stderr, "%c", window[strstart]));
+#endif
         flush = ct_tally(0, window[strstart]);
         RSYNC_ROLL(strstart, 1)
         lookahead--;
         strstart++;
       }
       if (rsync && strstart > rsync_chunk_end) {
-        rsync_chunk_end = 0xFFFFFFFFUL;
+        rsync_chunk_end = ~0u;
         flush = 2;
       }
       if (flush) {
@@ -647,7 +647,7 @@ static uint16_t prev[1u << BITS]; /* prefix code */
         strstart++;
 
         if (rsync && strstart > rsync_chunk_end) {
-          rsync_chunk_end = 0xFFFFFFFFUL;
+          rsync_chunk_end = ~0u;
           flush = 2;
         }
         if (flush) {
@@ -659,10 +659,12 @@ static uint16_t prev[1u << BITS]; /* prefix code */
          * single literal. If there was a match but the current match
          * is longer, truncate the previous match to a single literal.
          */
+#if 0
         Tracevv((stderr, "%c", window[strstart - 1]));
+#endif
         flush = ct_tally(0, window[strstart - 1]);
         if (rsync && strstart > rsync_chunk_end) {
-          rsync_chunk_end = 0xFFFFFFFFu;
+          rsync_chunk_end = ~0u;
           flush = 2;
         }
         if (flush) {
@@ -678,7 +680,7 @@ static uint16_t prev[1u << BITS]; /* prefix code */
          */
         if (rsync && strstart > rsync_chunk_end) {
           /* Reset huffman tree */
-          rsync_chunk_end = 0xFFFFFFFFu;
+          rsync_chunk_end = ~0u;
           flush = 2;
           FLUSH_BLOCK(0);
           block_start = strstart;

@@ -199,10 +199,10 @@ auto Header_t::ScanEXE(int32_t /*ch*/) noexcept -> Filter {
   static constexpr uint32_t offset{0x400};
   static constexpr uint16_t PROCESSOR_AMD{0x8664};
 
-  if ('MZ\x90\x00' == m4(offset - 0)) {
-    const auto lfanew{i2(offset - 60)};
-    if ((lfanew < offset) && ('PE\x00\x00' == m4(offset - lfanew))) {
-      const auto machine{i2(offset - lfanew - 4)};
+  if ('MZ\x90\x00' == _buf.m4(offset - 0)) {
+    const auto lfanew{_buf.i2(offset - 60)};
+    if ((lfanew < offset) && ('PE\x00\x00' == _buf.m4(offset - lfanew))) {
+      const auto machine{_buf.i2(offset - lfanew - 4)};
 
       uint32_t number_of_sections{0};
       int32_t sizeof_headers{0};

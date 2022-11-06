@@ -31,8 +31,8 @@ namespace gzip {
   FILE* ofd{nullptr};
   int32_t level{9};
   int32_t rsync{0};
-  std::array<uint8_t, INBUFSIZ + INBUF_EXTRA> inbuf{};
-  std::array<uint8_t, OUTBUFSIZ + OUTBUF_EXTRA> outbuf{};
+  std::array<uint8_t, INBUFSIZ> inbuf{};
+  std::array<uint8_t, OUTBUFSIZ> outbuf{};
   std::array<uint8_t, WSIZE + WSIZE> window{};
   uint32_t bytes_in{0};
   uint32_t bytes_out{0};

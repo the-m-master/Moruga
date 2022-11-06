@@ -78,7 +78,7 @@ auto Header_t::ScanPNG(int32_t /*ch*/) noexcept -> Filter {
 
   static constexpr uint32_t offset{32};
 
-  if ((0x89504E47u == m4(offset - 0)) && (0x0D0A1A0Au == m4(offset - 4)) && ('IHDR' == m4(offset - 12))) {
+  if ((0x89504E47u == _buf.m4(offset - 0)) && (0x0D0A1A0Au == _buf.m4(offset - 4)) && ('IHDR' == _buf.m4(offset - 12))) {
     _di.offset_to_start = 0;   // start now!
     _di.filter_end = INT_MAX;  // end never..
     return Filter::PNG;
@@ -96,7 +96,7 @@ PNG_filter::PNG_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, 
 PNG_filter::~PNG_filter() noexcept = default;
 
 auto PNG_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
-  if ('IDAT' == m4(4)) {
+  if ('IDAT' == _buf.m4(4)) {
     const uint32_t lpos{_buf.Pos() - 4};
     const int32_t length{_buf[lpos - 1] | (_buf[lpos - 2] << 8) | (_buf[lpos - 3] << 16) | (_buf[lpos - 4] << 24)};
     _di.pkzippos = 0;
@@ -105,12 +105,12 @@ auto PNG_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
 
   if (_di.pkziplen > 0) {
     const int64_t safe_pos{_stream.Position()};
-    DecodeEncodeCompare(_stream, _coder, safe_pos - 1, _di.pkziplen);
+    DecodeEncodeCompare(_stream, _coder, safe_pos - 1, _di.pkziplen, 0);
     _di.pkziplen = 0;
     return true;
   }
 
-  if ('IEND' == m4(4)) {
+  if ('IEND' == _buf.m4(4)) {
     _di.filter_end = 0;
   }
 
@@ -149,9 +149,9 @@ auto PNG_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     return true;
   }
 
-  if ('IDAT' == m4(4)) {
+  if ('IDAT' == _buf.m4(4)) {
     const uint32_t lpos{_buf.Pos() - 4};
-    int32_t length = _buf[lpos - 1] | (_buf[lpos - 2] << 8) | (_buf[lpos - 3] << 16) | (_buf[lpos - 4] << 24);
+    const int32_t length{_buf[lpos - 1] | (_buf[lpos - 2] << 8) | (_buf[lpos - 3] << 16) | (_buf[lpos - 4] << 24)};
     if (length > 0) {
       _stream.putc(ch);
       _block_length = 0;
@@ -160,7 +160,7 @@ auto PNG_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     }
   }
 
-  if ('IEND' == m4(4)) {
+  if ('IEND' == _buf.m4(4)) {
     _di.filter_end = 0;
   }
 

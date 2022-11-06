@@ -76,6 +76,33 @@ public:
     _mask = static_cast<uint32_t>(max_size - UINT64_C(1));
   }
 
+  // 16-bits little endian, number at buf(i-1)..buf(i)
+  [[nodiscard]] constexpr auto i2(const uint32_t i) const noexcept -> uint16_t {
+    return static_cast<uint16_t>(operator()(i) | (operator()(i - 1) << 8));
+  }
+  // 16-bits big endian, number at buf(i-1)..buf(i)
+  [[nodiscard]] constexpr auto m2(const uint32_t i) const noexcept -> uint16_t {
+    return static_cast<uint16_t>(operator()(i - 1) | (operator()(i) << 8));
+  }
+
+  // 32-bits little endian, number at buf(i-3)..buf(i)
+  [[nodiscard]] constexpr auto i4(const uint32_t i) const noexcept -> uint32_t {
+    return static_cast<uint32_t>(i2(i)) | (static_cast<uint32_t>(i2(i - 2)) << 16);
+  }
+  // 32-bits big endian, number at buf(i-3)..buf(i)
+  [[nodiscard]] constexpr auto m4(const uint32_t i) const noexcept -> uint32_t {
+    return static_cast<uint32_t>(m2(i - 2)) | (static_cast<uint32_t>(m2(i)) << 16);
+  }
+
+  // 64-bits little endian, number at buf(i-7)..buf(i)
+  [[nodiscard]] constexpr auto i8(const uint32_t i) const noexcept -> uint64_t {
+    return static_cast<uint64_t>(i4(i)) | (static_cast<uint64_t>(i4(i - 4)) << 32);
+  }
+  // 64-bits big endian, number at buf(i-7)..buf(i)
+  [[nodiscard]] constexpr auto m8(const uint32_t i) const noexcept -> uint64_t {
+    return static_cast<uint64_t>(m4(i - 4)) | (static_cast<uint64_t>(m4(i)) << 32);
+  }
+
 private:
   uint32_t _mask{0};
   uint32_t _pos{0};  // Number of input bytes read (NOT wrapped)

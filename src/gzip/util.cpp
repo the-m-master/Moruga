@@ -30,7 +30,7 @@ namespace gzip {
     /* Read as much as possible */
     insize = 0;
     do {
-      uint32_t len = read_buffer(ifd, &inbuf[insize], INBUFSIZ - insize);
+      const uint32_t len = read_buffer(ifd, &inbuf[insize], INBUFSIZ - insize);
       if (len == 0) {
         break;
       }
@@ -59,6 +59,15 @@ namespace gzip {
     if (INT_MAX < cnt) {
       cnt = INT_MAX;
     }
+#if 0
+    if ((bytes_in + insize) < ifile_size) {
+      if (cnt > ifile_size) {
+        cnt = ifile_size;
+      }
+    } else {
+      cnt = 0;
+    }
+#endif
     if (fd) {
       return uint32_t(fread(buf, sizeof(char), cnt, fd));
     }

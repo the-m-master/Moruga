@@ -64,10 +64,10 @@ auto Header_t::ScanSGI(int32_t /*ch*/) noexcept -> Filter {
 
   static constexpr uint32_t offset{512};
 
-  if ((0x01DA == m2(offset - 0)) && (1 == _buf(offset - 2)) && (1 == _buf(offset - 3)) && (3 == m2(offset - 4))) {
-    const auto xsize{m2(offset - 6)};
-    const auto ysize{m2(offset - 8)};
-    const auto zsize{m2(offset - 10)};
+  if ((0x01DA == _buf.m2(offset - 0)) && (1 == _buf(offset - 2)) && (1 == _buf(offset - 3)) && (3 == _buf.m2(offset - 4))) {
+    const auto xsize{_buf.m2(offset - 6)};
+    const auto ysize{_buf.m2(offset - 8)};
+    const auto zsize{_buf.m2(offset - 10)};
     if ((xsize > 0) && (xsize < 0x4000) && (ysize > 0) && (ysize < 0x4000) && ((3 == zsize) || (4 == zsize))) {
       _di.image_width = xsize;
       _di.image_height = ysize;

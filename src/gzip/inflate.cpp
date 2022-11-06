@@ -53,16 +53,17 @@ namespace gzip {
 
   /* Tables for deflate from PKZIP's appnote.txt. */
   /* Order of the bit length code lengths */
-  static constexpr std::array<uint32_t, 19> border{{16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15}};
+  static constexpr std::array<uint32_t, 19> bitlen_order{{16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15}};
   /* Copy lengths for literal codes 257..285 */
-  static constexpr std::array<uint16_t, 31> cplens{{3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258, 0, 0}};
+  static constexpr std::array<uint16_t, 31> lit_lengths{{3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258, 0, 0}};
   /* note: see note #13 above about the 258 in this list. */
   /* Extra bits for literal codes 257..285 */
-  static constexpr std::array<uint16_t, 31> cplext{{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0, 99, 99}}; /* 99==invalid */
+  static constexpr std::array<uint16_t, 31> lit_extrabits{{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0, 99, 99}}; /* 99==invalid */
   /* Copy offsets for distance codes 0..29 */
-  static constexpr std::array<uint16_t, 30> cpdist{{1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577}};
+  static constexpr std::array<uint16_t, 30> dist_offsets{
+      {1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577}};
   /* Extra bits for distance codes */
-  static constexpr std::array<uint16_t, 30> cpdext{{0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13}};
+  static constexpr std::array<uint16_t, 30> dist_extrabits{{0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13}};
 
   /* Macros for inflate() bit peeking and grabbing.
      The usage is:
@@ -210,7 +211,9 @@ namespace gzip {
     p = b;
     i = n;
     do {
+#if 0
       Tracecv(*p, (stderr, (n - i >= ' ' && n - i <= '~' ? "%c %d\n" : "0x%x %d\n"), n - i, *p));
+#endif
       c[*p]++; /* assume all entries <= BMAX */
       p++;     /* Can't combine with above line (Solaris bug) */
     } while (--i);
@@ -411,7 +414,9 @@ namespace gzip {
       DUMPBITS(t->b);
       if (e == 16) { /* then it's a literal */
         window[w++] = uint8_t(t->v.n);
+#if 0
         Tracevv((stderr, "%c", window[w - 1]));
+#endif
         if (w == WSIZE) {
           flush_output(w);
           w = 0;
@@ -443,7 +448,9 @@ namespace gzip {
         NEEDBITS(e)
         d = w - t->v.n - (b & mask_bits[e]);
         DUMPBITS(e);
+#if 0
         Tracevv((stderr, "\\[%d,%d]", w - d, n));
+#endif
 
         /* do the copy */
         do {
@@ -457,7 +464,9 @@ namespace gzip {
 #endif
             do {
               window[w++] = window[d++];
+#if 0
               Tracevv((stderr, "%c", window[w - 1]));
+#endif
             } while (--e);
           if (w == WSIZE) {
             flush_output(w);
@@ -496,7 +505,7 @@ namespace gzip {
     n = b & 0xFFFF;
     DUMPBITS(16);
     NEEDBITS(16)
-    if (n != uint32_t((~b) & 0xFFFF)) {
+    if (n != (~b & 0xFFFF)) {
       return 1; /* error in compressed data */
     }
     DUMPBITS(16);
@@ -523,12 +532,12 @@ namespace gzip {
      either replace this with a custom decoder, or at least precompute the
      Huffman tables. */
   static auto inflate_fixed() noexcept -> int32_t {
-    int32_t i;       /* temporary variable */
-    huft* tl;        /* literal/length code table */
-    huft* td;        /* distance code table */
-    int32_t bl;      /* lookup bits for tl */
-    int32_t bd;      /* lookup bits for td */
-    uint32_t l[288]; /* length list for huft_build */
+    uint32_t i;                  /* temporary variable */
+    huft* tl;                    /* literal/length code table */
+    huft* td;                    /* distance code table */
+    int32_t bl;                  /* lookup bits for tl */
+    int32_t bd;                  /* lookup bits for td */
+    std::array<uint32_t, 288> l; /* length list for huft_build */
 
     /* set up literal table */
     for (i = 0; i < 144; i++) {
@@ -544,8 +553,11 @@ namespace gzip {
       l[i] = 8;
     }
     bl = 7;
-    if ((i = huft_build(l, 288, 257, cplens.data(), cplext.data(), &tl, &bl)) != 0) {
-      return i;
+    {
+      const auto state{huft_build(l.data(), l.size(), 257, lit_lengths.data(), lit_extrabits.data(), &tl, &bl)};
+      if (0 != state) {
+        return state;
+      }
     }
 
     /* set up distance table */
@@ -553,9 +565,12 @@ namespace gzip {
       l[i] = 5;
     }
     bd = 5;
-    if ((i = huft_build(l, 30, 0, cpdist.data(), cpdext.data(), &td, &bd)) > 1) {
-      huft_free(tl);
-      return i;
+    {
+      const auto state{huft_build(l.data(), 30, 0, dist_offsets.data(), dist_extrabits.data(), &td, &bd)};
+      if (state > 1) {
+        huft_free(tl);
+        return state;
+      }
     }
 
     /* decompress until an end-of-block code */
@@ -584,9 +599,9 @@ namespace gzip {
     uint32_t nl; /* number of literal/length codes */
     uint32_t nd; /* number of distance codes */
 #ifdef PKZIP_BUG_WORKAROUND
-    uint32_t ll[288 + 32]; /* literal/length and distance code lengths */
+    std::array<uint32_t, 288 + 32> ll; /* literal/length and distance code lengths */
 #else
-    uint32_t ll[286 + 30]; /* literal/length and distance code lengths */
+    std::array<uint32_t, 286 + 30> ll; /* literal/length and distance code lengths */
 #endif
     uint32_t b; /* bit buffer */
     uint32_t k; /* number of bits in bit buffer */
@@ -594,7 +609,7 @@ namespace gzip {
     /* make local bit buffer */
     b = bb;
     k = bk;
-    uint32_t w = outcnt; /* current window position */
+    const uint32_t w{outcnt}; /* current window position */
 
     /* read in table lengths */
     NEEDBITS(5)
@@ -616,16 +631,16 @@ namespace gzip {
     /* read in bit-length-code lengths */
     for (j = 0; j < nb; j++) {
       NEEDBITS(3)
-      ll[border[j]] = b & 7;
+      ll[bitlen_order[j]] = b & 7;
       DUMPBITS(3);
     }
     for (; j < 19; j++) {
-      ll[border[j]] = 0;
+      ll[bitlen_order[j]] = 0;
     }
 
     /* build decoding table for trees--single level, 7 bit lookup */
     bl = 7;
-    if ((i = huft_build(ll, 19, 19, nullptr, nullptr, &tl, &bl)) != 0) {
+    if ((i = huft_build(ll.data(), 19, 19, nullptr, nullptr, &tl, &bl)) != 0) {
       if (i == 1) {
         huft_free(tl);
       }
@@ -695,17 +710,21 @@ namespace gzip {
 
     /* build the decoding tables for literal/length and distance codes */
     bl = lbits;
-    if ((i = huft_build(ll, nl, 257, cplens.data(), cplext.data(), &tl, &bl)) != 0) {
+    if ((i = huft_build(ll.data(), nl, 257, lit_lengths.data(), lit_extrabits.data(), &tl, &bl)) != 0) {
       if (i == 1) {
+#if 0
         Trace((stderr, " incomplete literal tree\n"));
+#endif
         huft_free(tl);
       }
       return i; /* incomplete code set */
     }
     bd = dbits;
-    if ((i = huft_build(ll + nl, nd, 0, cpdist.data(), cpdext.data(), &td, &bd)) != 0) {
+    if ((i = huft_build(ll.data() + nl, nd, 0, dist_offsets.data(), dist_extrabits.data(), &td, &bd)) != 0) {
       if (i == 1) {
+#if 0
         Trace((stderr, " incomplete distance tree\n"));
+#endif
 #ifdef PKZIP_BUG_WORKAROUND
         i = 0;
       }
@@ -719,7 +738,7 @@ namespace gzip {
 
     {
       /* decompress until an end-of-block code */
-      int32_t err = inflate_codes(tl, td, bl, bd) ? 1 : 0;
+      const int32_t err = inflate_codes(tl, td, bl, bd) ? 1 : 0;
 
       /* free the decoding tables */
       huft_free(tl);
@@ -732,14 +751,10 @@ namespace gzip {
   /* decompress an inflated block */
   /* E is the last block flag */
   static auto inflate_block(int32_t* e) noexcept -> int32_t {
-    uint32_t t; /* block type */
-    uint32_t b; /* bit buffer */
-    uint32_t k; /* number of bits in bit buffer */
-
-    /* make local bit buffer */
-    b = bb;
-    k = bk;
-    uint32_t w = outcnt; /* current window position */
+    // make local bit buffer
+    uint32_t b = bb;           // bit buffer
+    uint32_t k = bk;           // number of bits in bit buffer
+    const uint32_t w{outcnt};  // current window position
 
     /* read in last block bit */
     NEEDBITS(1)
@@ -748,7 +763,7 @@ namespace gzip {
 
     /* read in block type */
     NEEDBITS(2)
-    t = b & 3u;
+    const uint32_t t{b & 3u};  // block type
     DUMPBITS(2);
 
     /* restore the global bit buffer */
@@ -787,7 +802,7 @@ namespace gzip {
     uint32_t h = 0; /* maximum huft's malloc'ed */
     do {
       hufts = 0;
-      int32_t r = inflate_block(&e); /* result code */
+      const int32_t r = inflate_block(&e); /* result code */
       if (GZip_OK != r) {
         return r;
       }
@@ -807,8 +822,10 @@ namespace gzip {
     /* flush out window */
     flush_output(outcnt);
 
-    /* return success */
+#if 0
     Trace((stderr, "<%u> ", h));
+#endif
+    /* return success */
     return GZip_OK;
   }
 };  // namespace gzip

@@ -47,15 +47,15 @@ auto Header_t::ScanWAV(int32_t /*ch*/) noexcept -> Filter {
 
   static constexpr uint32_t offset{44};
 
-  if (('RIFF' == m4(offset - 0)) && ('WAVE' == m4(offset - 8))) {
-    const auto length{static_cast<int32_t>(i4(offset - 4))};
-    const auto nChannels{i2(offset - 22)};
-    const auto bitsProSample{i2(offset - 34)};
+  if (('RIFF' == _buf.m4(offset - 0)) && ('WAVE' == _buf.m4(offset - 8))) {
+    const auto length{static_cast<int32_t>(_buf.i4(offset - 4))};
+    const auto nChannels{_buf.i2(offset - 22)};
+    const auto bitsProSample{_buf.i2(offset - 34)};
     if ((length > 0) && (nChannels >= 1) && (nChannels <= 8)) {
       if ((8 == bitsProSample) || (16 == bitsProSample) || (24 == bitsProSample) || (32 == bitsProSample)) {
         _di.cycles = static_cast<uint32_t>((nChannels * bitsProSample) / 8);
-        if ('data' == m4(offset - 36)) {
-          _di.filter_end = static_cast<int32_t>(i4(offset - 40));
+        if ('data' == _buf.m4(offset - 36)) {
+          _di.filter_end = static_cast<int32_t>(_buf.i4(offset - 40));
           _di.seekdata = false;
         } else {
           _di.filter_end = length;

@@ -29,8 +29,8 @@
 #include "Progress.h"
 #include "Utilities.h"
 
-//#define DEBUG_WRITE_DICTIONARY
-#if !defined(_MSC_VER)         // VS2019 has trouble handling this code
+// #define DEBUG_WRITE_DICTIONARY
+#if !defined(CLANG_TIDY)
 #  define USE_BYTELL_HASH_MAP  // Enable the fastest hash table by Malte Skarupke
 #endif
 
@@ -40,6 +40,7 @@
 #  pragma GCC diagnostic ignored "-Wc++98-c++11-compat-binary-literal"
 #  pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
 #  pragma GCC diagnostic ignored "-Wconversion"
+#  pragma GCC diagnostic ignored "-Wdeprecated"
 #  pragma GCC diagnostic ignored "-Weffc++"
 #  pragma GCC diagnostic ignored "-Wpadded"
 #  pragma GCC diagnostic ignored "-Wshadow"
@@ -50,40 +51,46 @@
 #  include <unordered_map>
 #endif
 
-#define BITS 19
+#if defined(USE_BYTELL_HASH_MAP)
+using map_string2uint_t = ska::bytell_hash_map<std::string, uint32_t>;
+#else
+using map_string2uint_t = std::unordered_map<std::string, uint32_t>;
+#endif
+
+#define BITS UINT32_C(19)
 
 #if BITS == 24
-static constexpr int32_t TABLE_SIZE{16777259};
+static constexpr auto TABLE_SIZE{UINT32_C(16777259)};
 #elif BITS == 23
-static constexpr int32_t TABLE_SIZE{8388617};
+static constexpr auto TABLE_SIZE{UINT32_C(8388617)};
 #elif BITS == 22
-static constexpr int32_t TABLE_SIZE{4194319};
+static constexpr auto TABLE_SIZE{UINT32_C(4194319)};
 #elif BITS == 21
-static constexpr int32_t TABLE_SIZE{2097169};
+static constexpr auto TABLE_SIZE{UINT32_C(2097169)};
 #elif BITS == 20
-static constexpr int32_t TABLE_SIZE{1048583};
+static constexpr auto TABLE_SIZE{UINT32_C(1048583)};
 #elif BITS == 19
-static constexpr int32_t TABLE_SIZE{524309};
+static constexpr auto TABLE_SIZE{UINT32_C(524309)};
 #elif BITS == 18
-static constexpr int32_t TABLE_SIZE{262147};
+static constexpr auto TABLE_SIZE{UINT32_C(262147)};
 #elif BITS == 17
-static constexpr int32_t TABLE_SIZE{131101};
+static constexpr auto TABLE_SIZE{UINT32_C(131101)};
 #elif BITS == 16
-static constexpr int32_t TABLE_SIZE{65537};
+static constexpr auto TABLE_SIZE{UINT32_C(65537)};
 #elif BITS == 15
-static constexpr int32_t TABLE_SIZE{32771};
+static constexpr auto TABLE_SIZE{UINT32_C(32771)};
 #elif BITS == 14
-static constexpr int32_t TABLE_SIZE{18041};
+static constexpr auto TABLE_SIZE{UINT32_C(18041)};
 #elif BITS == 13
-static constexpr int32_t TABLE_SIZE{9029};
+static constexpr auto TABLE_SIZE{UINT32_C(9029)};
 #elif BITS == 12
-static constexpr int32_t TABLE_SIZE{5021};
+static constexpr auto TABLE_SIZE{UINT32_C(5021)};
 #elif BITS == 11
-static constexpr int32_t TABLE_SIZE{2053};
+static constexpr auto TABLE_SIZE{UINT32_C(2053)};
 #elif BITS == 10
-static constexpr int32_t TABLE_SIZE{1031};
+static constexpr auto TABLE_SIZE{UINT32_C(1031)};
 #elif BITS <= 9
-static constexpr int32_t TABLE_SIZE{521};
+static constexpr auto TABLE_SIZE{UINT32_C(521)};
 #endif
 
 static constexpr auto MAX_VALUE{(UINT32_C(1) << BITS) - UINT32_C(1)};
@@ -95,10 +102,7 @@ static constexpr auto MIN_WORD_SIZE{UINT32_C(32)};
 
 class LempelZivWelch_t final {
 public:
-  explicit LempelZivWelch_t() noexcept {
-    reset();
-  }
-
+  explicit LempelZivWelch_t() noexcept = default;
   virtual ~LempelZivWelch_t() noexcept;
 
   LempelZivWelch_t(const LempelZivWelch_t&) = delete;
@@ -106,20 +110,13 @@ public:
   auto operator=(const LempelZivWelch_t&) -> LempelZivWelch_t& = delete;
   auto operator=(LempelZivWelch_t&&) -> LempelZivWelch_t& = delete;
 
-  void reset() noexcept {
-    _next_code = 256;
-    for (uint32_t n{TABLE_SIZE}; n--;) {
-      _hashTable[n].code_value = UNUSED;
-    }
-  }
-
   void append(const int32_t ch) noexcept {
     _word.push_back(static_cast<char>(ch));
 
     const auto key{find_match(_string_code, ch)};
 
     if (HashTable_t & ht{_hashTable[key]}; UNUSED != ht.code_value) {
-      _string_code = static_cast<int32_t>(ht.code_value);
+      _string_code = ht.code_value;
 
       if (const auto length{_word.length()}; (length >= MIN_WORD_SIZE) && (length < 256)) {
         if (auto it{_esteem.find(_word)}; it != _esteem.end()) {
@@ -132,13 +129,17 @@ public:
       _word.clear();
 
       ht.code_value = _next_code++;
-      ht.prefix_code = 0x00FFFFFFu & static_cast<uint32_t>(_string_code);
+      ht.prefix_code = 0x00FFFFFFu & _string_code;
       ht.append_character = static_cast<uint8_t>(ch);
 
-      _string_code = ch;
+      _string_code = 0xFF & ch;
 
       if (_next_code > MAX_CODE) {
-        reset();
+        // Reset
+        _next_code = 256;
+        for (uint32_t n{TABLE_SIZE}; n--;) {
+          _hashTable[n].code_value = UNUSED;
+        }
       }
     }
   }
@@ -185,8 +186,8 @@ public:
   }
 
 private:
-  auto find_match(const int32_t prefix_code, const int32_t append_character) noexcept -> uint32_t {
-    uint32_t offset{(Utilities::PHI32 * static_cast<uint32_t>((prefix_code << 8) | append_character)) >> (32 - BITS)};
+  auto find_match(const uint32_t prefix_code, const int32_t append_character) noexcept -> uint32_t {
+    uint32_t offset{(Utilities::PHI32 * ((prefix_code << 8) | (0xFF & append_character))) >> (32 - BITS)};
     const uint32_t stride{(0 == offset) ? 1 : (TABLE_SIZE - offset)};
     for (;;) {
       assert(offset < TABLE_SIZE);
@@ -196,8 +197,7 @@ private:
         return offset;
       }
 
-      if ((static_cast<uint32_t>(prefix_code) == ht.prefix_code) &&  //
-          (static_cast<uint32_t>(append_character) == ht.append_character)) {
+      if ((prefix_code == ht.prefix_code) && (append_character == ht.append_character)) {
         return offset;
       }
 
@@ -209,17 +209,13 @@ private:
   }
 
   uint32_t _next_code{256};
-  int32_t _string_code{0};
+  uint32_t _string_code{0};
   std::string _word{};
-#if defined(USE_BYTELL_HASH_MAP)
-  ska::bytell_hash_map<std::string, uint32_t> _esteem{};
-#else
-  std::unordered_map<std::string, uint32_t> _esteem{};
-#endif
+  map_string2uint_t _esteem{};
   struct HashTable_t {
-    uint32_t code_value;
-    uint32_t prefix_code : 24;
-    uint32_t append_character : 8;
+    uint32_t code_value{UNUSED};
+    uint32_t prefix_code : 24 {0};
+    uint32_t append_character : 8 {0};
   };
   static_assert(8 == sizeof(HashTable_t), "Alignment failure in HashTable_t");
   std::array<HashTable_t, TABLE_SIZE> _hashTable{};
@@ -236,14 +232,12 @@ namespace CaseSpace {
 CaseSpace_t::CaseSpace_t(File_t& in, File_t& out) noexcept
     : _in{in},  //
       _out{out},
-      _lzw{std::make_unique<LempelZivWelch_t>()} {
-  _char_freq.fill(0);
-}
+      _lzw{std::make_unique<LempelZivWelch_t>()} {}
 
 CaseSpace_t::~CaseSpace_t() noexcept = default;
 
-auto CaseSpace_t::charFrequency() const noexcept -> const int64_t* {
-  return _char_freq.data();
+auto CaseSpace_t::charFrequency() const noexcept -> std::array<int64_t, 256> {
+  return _char_freq;
 }
 
 auto CaseSpace_t::getQuote() const noexcept -> const std::string& {
@@ -275,12 +269,12 @@ void CaseSpace_t::Encode() noexcept {
   _original_length = _in.Size();
   _out.putVLI(_original_length);
 
-  Progress_t progress("CSE", true, *this);
+  const Progress_t progress("CSE", true, *this);
 
   bool set{false};
   int32_t ch;
   while (EOF != (ch = _in.getc())) {
-    _char_freq[static_cast<uint32_t>(ch)] += 1;
+    _char_freq[static_cast<size_t>(ch)] += 1;
 
     if (set) {
       set = false;
@@ -300,11 +294,12 @@ void CaseSpace_t::Encode() noexcept {
     } else {
       EncodeWord();
 
-      if ((WordType::ALL_SMALL == static_cast<WordType>(ch)) ||             //
-          (WordType::ALL_BIG == static_cast<WordType>(ch)) ||               //
-          (WordType::FIRST_BIG_REST_SMALL == static_cast<WordType>(ch)) ||  //
-          (WordType::ESCAPE_CHAR == static_cast<WordType>(ch)) ||           //
-          (WordType::CRLF_MARKER == static_cast<WordType>(ch))) {
+      const auto wt{static_cast<WordType>(ch)};
+      if ((WordType::ALL_SMALL == wt) ||             //
+          (WordType::ALL_BIG == wt) ||               //
+          (WordType::FIRST_BIG_REST_SMALL == wt) ||  //
+          (WordType::ESCAPE_CHAR == wt) ||           //
+          (WordType::CRLF_MARKER == wt)) {
         Encode(static_cast<int32_t>(WordType::ESCAPE_CHAR));
       }
       Encode(ch);
@@ -317,11 +312,11 @@ void CaseSpace_t::Encode() noexcept {
 }
 
 void CaseSpace_t::EncodeWord() noexcept {
-  auto wlength{static_cast<uint32_t>(_word.length())};
+  auto wlength{_word.length()};
   if (wlength > 0) {
-    uint32_t offset{0};
+    size_t offset{0};
     while (wlength > 0) {
-      uint32_t length{0};
+      size_t length{0};
       if (Utilities::is_lower(_word[offset + length])) {
         length++;
         while ((length < wlength) && Utilities::is_lower(_word[offset + length])) {
@@ -362,7 +357,7 @@ auto CaseSpace_t::Decode() noexcept -> int64_t {
   _original_length = _in.getVLI();
   assert(_original_length > 0);
 
-  Progress_t progress("CSD", false, *this);
+  const Progress_t progress("CSD", false, *this);
 
   int32_t ch;
   while (EOF != (ch = _in.getc())) {

@@ -93,12 +93,12 @@ auto Header_t::ScanPKZ(int32_t /*ch*/) noexcept -> Filter {
   //        |      | The field consists of a sequence of header and data pairs,
   //        |      | where the header has a 2 byte identifier and a 2 byte data size field.
 
-  if ((0 == _di.pkzippos) && ('PK\x3\x4' == m4(32)) && (8 == i2(32 - 8))) {
-    const int32_t nlen{i2(32 - 26) + i2(32 - 28)};
+  if ((0 == _di.pkzippos) && ('PK\x3\x4' == _buf.m4(32)) && (8 == _buf.i2(32 - 8))) {
+    const int32_t nlen{_buf.i2(32 - 26) + _buf.i2(32 - 28)};
     if ((nlen > 0) && (nlen < 256)) {
       _di.pkzippos = _buf.Pos() + static_cast<uint32_t>(nlen) - (_encode ? 3 : 2);
-      _di.pkziplen = static_cast<int32_t>(i4(32 - 18));
-      const int32_t usize{static_cast<int32_t>(i4(32 - 22))};
+      _di.pkziplen = static_cast<int32_t>(_buf.i4(32 - 18));
+      const int32_t usize{static_cast<int32_t>(_buf.i4(32 - 22))};
       if ((usize > 0) && (_di.pkziplen > 0) && (usize < _di.pkziplen)) {  // Normally compressed size is less then uncompressed size
         _di.pkzippos = 0;
         _di.pkziplen = 0;
@@ -123,9 +123,9 @@ PKZ_filter::~PKZ_filter() noexcept = default;
 
 auto PKZ_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if ((_di.pkzippos > 0) && (_buf.Pos() == _di.pkzippos)) {
-    int64_t safe_pos{_stream.Position()};
+    const int64_t safe_pos{_stream.Position()};
     _coder->Compress(ch);  // Encode last character
-    DecodeEncodeCompare(_stream, _coder, safe_pos, _di.pkziplen);
+    DecodeEncodeCompare(_stream, _coder, safe_pos, _di.pkziplen, 0);
     _di.pkzippos = 0;
     _di.pkziplen = 0;
     _di.filter_end = 0;

@@ -58,7 +58,7 @@ auto Header_t::ScanPBM(int32_t /*ch*/) noexcept -> Filter {
   static constexpr uint16_t P5{'P5'};
   static constexpr uint16_t P6{'P6'};
 
-  const auto sig{m2(offset - 0)};
+  const auto sig{_buf.m2(offset - 0)};
   if (((P4 == sig) || (P5 == sig) || (P6 == sig)) && is_white_space(_buf(offset - 2))) {
     uint32_t idx{offset - 3};
     while (is_white_space(_buf(idx)) && (idx >= 1)) {

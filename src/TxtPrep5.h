@@ -23,6 +23,10 @@
 #include <cstdint>
 class File_t;
 
+static constexpr auto TP5_ESCAPE_CHAR{4};     // 0x04
+static constexpr auto TP5_QUOTING_CHAR{42};   // 0x2A *
+static constexpr auto TP5_SEPARATE_CHAR{20};  // 0x14
+
 /**
  * Encode (text) data
  * @param in Reference to input stream

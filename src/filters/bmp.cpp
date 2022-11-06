@@ -83,24 +83,24 @@ auto Header_t::ScanBMP(int32_t /*ch*/) noexcept -> Filter {
 
   static constexpr uint32_t offset{54};
 
-  const auto sos{i4(offset - 14)};
+  const auto sos{_buf.i4(offset - 14)};
   if ((0x28 == sos) || (0x6C == sos) || (0x7C == sos)) {
-    const auto planes{i2(offset - 26)};
+    const auto planes{_buf.i2(offset - 26)};
     if (1 == planes) {
-      const auto bits_per_pixel{i2(offset - 28)};
+      const auto bits_per_pixel{_buf.i2(offset - 28)};
       if ((8 == bits_per_pixel) || (24 == bits_per_pixel) || (32 == bits_per_pixel)) {
-        const auto cmp{i4(offset - 30)};
+        const auto cmp{_buf.i4(offset - 30)};
         if ((0 == cmp) || (3 == cmp)) {  // RGB or BITFIELDS
-          const auto sig{m2(offset - 0)};
+          const auto sig{_buf.m2(offset - 0)};
           if ((('BA' == sig) || ('BM' == sig) || ('CI' == sig) || ('CP' == sig) || ('IC' == sig) || ('PT' == sig))) {
-            const auto width{i4(offset - 18)};
-            const auto height{i4(offset - 22)};
+            const auto width{_buf.i4(offset - 18)};
+            const auto height{_buf.i4(offset - 22)};
             if ((width > 0) && (width < 0x8000) && (height > 0) && (height < 0x8000)) {
               _di.bytes_per_pixel = bits_per_pixel / 8;  // 3 or 4 bytes
               _di.padding_bytes = (3 == _di.bytes_per_pixel) ? (width % 4) : 0;
               _di.image_width = width;
               _di.filter_end = static_cast<int32_t>((width * height * _di.bytes_per_pixel) + (_di.padding_bytes * height));
-              _di.offset_to_start = static_cast<int32_t>(i4(offset - 10) - offset);
+              _di.offset_to_start = static_cast<int32_t>(_buf.i4(offset - 10) - offset);
 #if 0
               fprintf(stderr, "BMP %ux%ux%u   \n", width, height, _di.bytes_per_pixel);
               fflush(stderr);

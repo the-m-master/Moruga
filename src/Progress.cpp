@@ -103,7 +103,7 @@ static auto consoleCol() noexcept -> int32_t {
   }
   try {
     static std::array<char, 4> result{{'8', '0', 0, 0}};
-    if (std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("tput cols 2>&1", "r"), pclose); nullptr != pipe) {
+    if (std::unique_ptr<FILE, decltype(&pclose)> const pipe(popen("tput cols 2>&1", "r"), pclose); nullptr != pipe) {
       if (const auto* const ptr{fgets(result.data(), int(result.size()), pipe.get())}; nullptr != ptr) {
         return std::stoi(result.data(), nullptr, 10);
       }
@@ -129,11 +129,11 @@ static uint32_t peakMemoryUse_{0};  // in KiB
 static volatile uint32_t nFilter_{0};
 
 static volatile uint32_t nBMP_{0};
+static volatile uint32_t nCAB_{0};
 static volatile uint32_t nELF_{0};
 static volatile uint32_t nEXE_{0};
 static volatile uint32_t nGIF_{0};
 static volatile uint32_t nGZP_{0};
-static volatile uint32_t nLZX_{0};
 static volatile uint32_t nPBM_{0};
 static volatile uint32_t nPDF_{0};
 static volatile uint32_t nPKZ_{0};
@@ -239,11 +239,11 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
     if (nFilter_) {
       std::string filters;
       FiltersToString(filters, nBMP_, "BMP");
+      FiltersToString(filters, nCAB_, "CAB");
       FiltersToString(filters, nELF_, "ELF");
       FiltersToString(filters, nEXE_, "EXE");
       FiltersToString(filters, nGIF_, "GIF");
-      FiltersToString(filters, nGZP_, "GZ");  //  GNU zip
-      FiltersToString(filters, nLZX_, "LZX");
+      FiltersToString(filters, nGZP_, "GZ");  // GNU zip
       FiltersToString(filters, nPBM_, "PBM");
       FiltersToString(filters, nPDF_, "PDF");
       FiltersToString(filters, nPKZ_, "PKZ");  // PKZip
@@ -281,9 +281,7 @@ static void ProgressBar(const volatile TraceProgress_t* const tracer) noexcept {
 
 static void MonitorWorker(const volatile TraceProgress_t* const tracer) noexcept {
   assert(tracer);
-#if !defined(_MSC_VER)
   pthread_setname_np(pthread_self(), __FUNCTION__);
-#endif
 
   for (auto count{1}; tracer->isRunning; ++count) {
     if (count >= 5) {  // Do every 5*50ms = 250ms something...
@@ -304,11 +302,11 @@ Progress_t::Progress_t(const std::string& workType, bool encode, const iMonitor_
       _monitor_worker{MonitorWorker, &_tracer} {
   nFilter_ = 0;
   nBMP_ = 0;
+  nCAB_ = 0;
   nELF_ = 0;
   nEXE_ = 0;
   nGIF_ = 0;
   nGZP_ = 0;
-  nLZX_ = 0;
   nPBM_ = 0;
   nPDF_ = 0;
   nPKZ_ = 0;
@@ -336,11 +334,11 @@ void Progress_t::FoundType(const Filter& type) noexcept {
   // clang-format off
   switch (type) {
     case Filter::BMP: nFilter_ = nFilter_ + 1; nBMP_ = nBMP_ + 1; break;
+    case Filter::CAB: nFilter_ = nFilter_ + 1; nCAB_ = nCAB_ + 1; break;
     case Filter::ELF: nFilter_ = nFilter_ + 1; nELF_ = nELF_ + 1; break;
     case Filter::EXE: nFilter_ = nFilter_ + 1; nEXE_ = nEXE_ + 1; break;
     case Filter::GIF: nFilter_ = nFilter_ + 1; nGIF_ = nGIF_ + 1; break;
     case Filter::GZP: nFilter_ = nFilter_ + 1; nGZP_ = nGZP_ + 1; break;
-    case Filter::LZX: nFilter_ = nFilter_ + 1; nLZX_ = nLZX_ + 1; break;
     case Filter::PBM: nFilter_ = nFilter_ + 1; nPBM_ = nPBM_ + 1; break;
     case Filter::PDF: nFilter_ = nFilter_ + 1; nPDF_ = nPDF_ + 1; break;
     case Filter::PKZ: nFilter_ = nFilter_ + 1; nPKZ_ = nPKZ_ + 1; break;

@@ -26,6 +26,8 @@
  *
  * https://github.com/the-m-master/Moruga
  */
+#include <getopt.h>
+#include <immintrin.h>
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -41,6 +43,7 @@
 #include <memory>
 #include <new>
 #include <string>
+#include <tuple>
 #include <utility>
 #include "Buffer.h"
 #include "File.h"
@@ -68,234 +71,57 @@ static auto MEM(const int32_t offset = 22) noexcept -> uint64_t {
 }
 
 // Global variables
-static bool verbose_{false};  // Set during application parameter parsing (not change during activity)
-static uint32_t bcount_{7};   // Bit processed (7..0) bcount_=7-bpos
-static uint32_t c0_{1};       // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
-static uint32_t c1_{0};       // Last two higher 4-bit nibbles
-static uint32_t c2_{0};       // Last two higher 4-bit nibbles
-static uint64_t cx_{0};       // Last 8 whole bytes (buf(8)..buf(1)), packed
-static uint64_t word_{0};     // checksum of last 0..9, a..z and A..Z, reset to zero otherwise
-static uint32_t fails_{0};    //
-static uint32_t tt_{0};       //
-static uint32_t w5_{0};       //
-static uint32_t x5_{0};       //
+static int32_t verbose_{0};  // Set during application parameter parsing (not change during activity)
+static uint32_t bcount_{7};  // Bit processed (7..0) bcount_=7-bpos
+static uint32_t c0_{1};      // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
+static uint32_t c1_{0};      // Last two higher 4-bit nibbles
+static uint32_t c2_{0};      // Last two higher 4-bit nibbles
+static uint64_t cx_{0};      // Last 8 whole bytes (buf(8)..buf(1)), packed
+static uint64_t word_{0};    // checksum of last 0..9, a..z and A..Z, reset to zero otherwise
+static uint32_t fails_{0};   //
+static uint32_t tt_{0};      //
+static uint32_t w5_{0};      //
+static uint32_t x5_{0};      //
 
-//#define DEBUG_WRITE_ANALYSIS_ENCODER
-//#define GENERATE_SQUASH_STRETCH
+// #define DEBUG_WRITE_ANALYSIS_ENCODER
+// #define GENERATE_SQUASH_STRETCH
+// #define TUNING
 
 #if defined(GENERATE_SQUASH_STRETCH)
 
-enum {
-  NBITS = 12,        // Construct 12 bit tables
-  TOP = 1 << NBITS,  // Top value
-  HTOP = TOP / 2     // Half way value
-};
-
-[[nodiscard]] static auto inverf(const double x) noexcept -> double {
-  double p;
-  double t{log(fma(x, 0.0 - x, 1.0))};
-  if (fabs(t) > 6.125) {
-    // clang-format off
-    p =            3.03697567e-10;
-    p = fma(p, t,  2.93243101e-8);
-    p = fma(p, t,  1.22150334e-6);
-    p = fma(p, t,  2.84108955e-5);
-    p = fma(p, t,  3.93552968e-4);
-    p = fma(p, t,  3.02698812e-3);
-    p = fma(p, t,  4.83185798e-3);
-    p = fma(p, t, -2.64646143e-1);
-    p = fma(p, t,  8.40016484e-1);
-  } else {
-    p =            5.43877832e-9;
-    p = fma(p, t,  1.43286059e-7);
-    p = fma(p, t,  1.22775396e-6);
-    p = fma(p, t,  1.12962631e-7);
-    p = fma(p, t, -5.61531961e-5);
-    p = fma(p, t, -1.47697705e-4);
-    p = fma(p, t,  2.31468701e-3);
-    p = fma(p, t,  1.15392562e-2);
-    p = fma(p, t, -2.32015476e-1);
-    p = fma(p, t,  8.86226892e-1);
-    // clang-format on
-  }
-  return p * x;
-}
-
-class Squash_t final {
-public:
-  explicit Squash_t(const double a = 756.1) noexcept {
-    std::array<double, TOP> table{};
-#  if 1
-    //
-    // Sigmoid: y(x) = erf(0.5 * sqrt(pi) * x)
-    //          y(x) = erf(x/a)
-    //
-    for (uint32_t n{0}; n < TOP; ++n) {
-      const double in{(double(n) - (HTOP - 1)) / a};  // Best when a=756.1 on enwik9
-      double tmp{std::erf(in)};
-      table[n] = (1.0 + tmp) / 2.0;
-
-#    if !defined(NDEBUG)  // Small validation: 'inverf(erf(x)) = x'
-      tmp = inverf(tmp);
-      assert(std::fabs(tmp - in) < 1e-6);
-#    endif
-    }
-    const double offset{table[0]};
-    const double scale{double(TOP - 1) / (table[(TOP - 1)] - offset)};
-    for (uint32_t n{0}; n < TOP; ++n) {
-      double tmp{(table[n] - offset) * scale};
-      _squash[n] = static_cast<uint16_t>(std::lround(tmp));
-    }
-#  elif 0
-    //                      1
-    // Sigmoid:  y(x) = ----------
-    //                       -ax
-    //                   1 + e
-    //
-    for (uint32_t n{0}; n < TOP; ++n) {
-      table[n] = 1.0 / (1.0 + exp(((HTOP - 1) - double(n)) / double(a)));  // Best when a=315 on enwik9
-    }
-    const double offset{table[0]};
-    const double scale{double(TOP - 1) / (table[(TOP - 1)] - offset)};
-    for (uint32_t n{0}; n < TOP; ++n) {
-      double tmp{(table[n] - offset) * scale};
-      _squash[n] = static_cast<uint16_t>(std::lround(tmp));
-    }
-#  else
-    (void)a;  // Not adjustable
-
-    static constexpr std::array<uint16_t, 33> ts{{1,    2,    3,    6,    10,   16,   27,   45,    //
-                                                  73,   120,  194,  310,  488,  747,  1101, 1546,  //
-                                                  2047, 2549, 2994, 3348, 3607, 3785, 3901, 3975,  //
-                                                  4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094}};
-    for (int32_t n{-(HTOP - 1)}; n < HTOP; ++n) {
-      const int32_t w{n & 127};
-      const int32_t d{(n >> 7) + 16};
-      _squash[n + 2047] = static_cast<uint16_t>((ts[d] * (128 - w) + ts[(d + 1)] * w + 64) >> 7);
-    }
-#  endif
-
-    File_t out("Squash.txt", "wb");
-    for (uint32_t n{0}; n < TOP; ++n) {
-      fprintf(out, "%d,", _squash[n]);
-      if (!((n + 1) % 16)) {
-        fprintf(out, "\n");
-      }
-    }
-  }
-
-  constexpr auto operator()(const int32_t d) const noexcept -> uint16_t {  // Conversion from -2048..2047 (clamped) into 0..4095
-    // clang-format off
-    if (d < ~0x7FF) { return 0x000; }
-    if (d >  0x7FF) { return 0xFFF; }
-    // clang-format on
-    return _squash[static_cast<uint32_t>(d + HTOP)];
-  }
-
-  Squash_t(const Squash_t&) = delete;
-  Squash_t(Squash_t&&) = delete;
-  auto operator=(const Squash_t&) -> Squash_t& = delete;
-  auto operator=(Squash_t&&) -> Squash_t& = delete;
-
-private:
-  std::array<uint16_t, TOP> _squash{};
-};
-
-static Squash_t* _squash{nullptr};
-
-class Stretch_t final {
-public:
-  explicit Stretch_t(const double a = 756.1) noexcept {
-#  if 1
-    // Inverse of sigmoid: y(x) = inverf(x)
-    //
-    std::array<double, TOP> table{};
-    for (uint32_t n{0}; n < TOP; ++n) {
-      table[n] = inverf((double(n) - double(HTOP)) / double(HTOP)) * a;
-    }
-    for (uint32_t n{0}; n < TOP; ++n) {
-      int32_t tmp{std::lround(table[n])};
-      _stretch[n] = static_cast<int16_t>(std::clamp(tmp, ~(HTOP - 1), (HTOP - 1)));
-    }
-#  else
-    (void)a;  // Not adjustable
-
-    // Inverse of sigmoid
-    //
-    uint32_t pi{0};
-    for (int32_t n{0}; n < TOP; ++n) {
-      const uint32_t i{(*_squash)(n - HTOP)};  // Conversion from -2048..2047 into 0..4095
-      for (uint32_t j{pi}; j <= i; ++j) {
-        _stretch[j] = static_cast<int16_t>(n - HTOP);
-      }
-      pi = i + 1;
-    }
-    _stretch[TOP - 1] = HTOP - 1;
-#  endif
-
-    File_t out("Stretch.txt", "wb");
-    for (uint32_t n{0}; n < TOP; ++n) {
-      fprintf(out, "%d,", _stretch[n]);
-      if (!((n + 1) % 16)) {
-        fprintf(out, "\n");
-      }
-    }
-  }
-
-  constexpr auto operator()(const uint32_t pr) const noexcept -> int16_t {  // Conversion from 0..4095 into -2048..2047
-    assert(pr < TOP);
-    return _stretch[pr];
-  }
-
-  Stretch_t(const Stretch_t&) = delete;
-  Stretch_t(Stretch_t&&) = delete;
-  auto operator=(const Stretch_t&) -> Stretch_t& = delete;
-  auto operator=(Stretch_t&&) -> Stretch_t& = delete;
-
-private:
-  std::array<int16_t, TOP> _stretch{};
-};
-
-static Stretch_t* _stretch{nullptr};
-
-static auto Squash(const int32_t d) noexcept -> uint16_t {  // Conversion from -2048..2047 (clamped) into 0..4095
-  return (*_squash)(d);
-}
-
-static auto Stretch(const uint32_t pr) noexcept -> int16_t {  // Conversion from 0..4095 into -2048..2047
-  return (*_stretch)(pr);
-}
-
-static auto Stretch256(const int32_t pr) noexcept -> int16_t {  // Conversion from 0..1048575 into -2048..2047
-  return Stretch(static_cast<uint32_t>(pr) / 256);
-}
+#  include "Generation.h"  // IWYU pragma: keep
 
 #else
 
 static constexpr std::array<uint16_t, 0x1000> __squash{{
-#  include "Squash.txt"
+#  include "Squash.txt"   // IWYU pragma: keep
 }};
 
-[[nodiscard]] ALWAYS_INLINE static constexpr auto Squash(const int32_t pr) noexcept -> uint16_t {  // Conversion from -2048..2047 (clamped) into 0..4095
-  // clang-format off
-  if (pr < ~0x7FF) { return 0x000; }
-  if (pr >  0x7FF) { return 0xFFF; }
-  // clang-format on
+[[nodiscard]] static constexpr auto Squash(const int32_t pr) noexcept -> uint16_t {  // Conversion from -2048..2047 (clamped) into 0..4095
+  if (pr < ~0x7FF) {
+    return 0x000;
+  }
+  if (pr > 0x7FF) {
+    return 0xFFF;
+  }
   return __squash[static_cast<size_t>(pr + 0x800)];
 }
 
-static constexpr std::array<int16_t, 0x1000> __stretch{{
-#  include "Stretch.txt"
+static constexpr std::array<int16_t, 0x800> __stretch{{
+#  include "Stretch.txt"  // IWYU pragma: keep
 }};
 
-[[nodiscard]] ALWAYS_INLINE static constexpr auto Stretch(const uint32_t pr) noexcept -> int16_t {  // Conversion from 0..4095 into -2048..2047
+[[nodiscard]] static constexpr auto Stretch(const uint32_t pr) noexcept -> int16_t {  // Conversion from 0..4095 into -2048..2047
   assert(pr < 0x1000);
-  return __stretch[pr];
+  if (pr <= 0x7FF) {
+    return -__stretch[0x7FF - pr];
+  }
+  return __stretch[pr - 0x800];
 }
 
 [[nodiscard]] ALWAYS_INLINE static constexpr auto Stretch256(const int32_t pr) noexcept -> int16_t {  // Conversion from 0..1048575 into -2048..2047
   const auto d{static_cast<uint32_t>(pr) / 256};
-#  if 0  // Does not help much, delta between stretch[d] and stretch[d+1] is around the edges small
+#  if 0                   // Does not help much, delta between stretch[d] and stretch[d+1] is around the edges small
   assert(d < 0x1000);
   const int32_t w{pr & 0xFF};
   const int32_t v{(__stretch[d] * (256 - w)) + (__stretch[d + 1] * w)};
@@ -306,13 +132,6 @@ static constexpr std::array<int16_t, 0x1000> __stretch{{
 }
 
 #endif  // GENERATE_SQUASH_STRETCH
-
-template <typename T>
-[[nodiscard]] ALWAYS_INLINE static constexpr auto clamp12(T val) noexcept -> int16_t {
-  constexpr T lo{~0x7FF};
-  constexpr T hi{0x7FF};
-  return static_cast<int16_t>((val < lo) ? lo : (hi < val) ? hi : val);
-}
 
 static auto getDimension(size_t size) noexcept -> std::string {
   std::string size_dim{"Byte"};
@@ -650,32 +469,36 @@ private:
   void Update(const bool bit, const std::array<int16_t, 0x400>& dt) noexcept {
     auto& map{_map[_ctx]};
     const auto count{map.count};
-    const auto err{((bit << 22) - map.prediction) >> 3};
+    const auto err{((bit << 22) - map.prediction) / 8};
     map.value += (static_cast<uint32_t>(err * dt[count]) & -0x400U) + (count < 0x3FF);
   }
 
   [[nodiscard]] auto Predict(const int32_t prediction, const uint32_t context) noexcept -> uint16_t {
-    assert((prediction >= -2048) && (prediction < 2048));
+    assert(prediction >= -2048);
+    assert(prediction < 2048);
     assert((context & _mask) < (N / 24));
-    const auto pr = static_cast<uint32_t>(prediction + 2048) * (24 - 1);  // Conversion from -2048..2047 into 0..94185
-    const auto weight{0xFFF & pr};                                        // interpolation weight of next element
-    const auto cx = (24 * (context & _mask)) + (pr / 4096);
+    const auto pr{static_cast<uint32_t>(prediction + 2048) * (24 - 1)};  // Conversion from -2048..2047 into 0..94185
+    const auto weight{0xFFF & pr};                                       // interpolation weight of next element
+    const auto cx{(24 * (context & _mask)) + (pr / 4096)};
     assert(cx < (N - 1));
     _ctx = cx;
     if (weight / 2048) {
       ++_ctx;
     }
     assert(_ctx < N);
-#if 1
-    const uint32_t vx{_map[cx + 0].prediction / 8U};
-    const uint32_t vy{_map[cx + 1].prediction / 8U};
+#if 0
+    const auto vx{_map[cx + 0].prediction / 8U};
+    const auto vy{_map[cx + 1].prediction / 8U};
     if ((0 == weight) || (vx == vy)) {
-      return uint16_t(vx / 128U);
+      return uint16_t(vx / 128);
     }
     const auto py{((vx * 4096) - ((vx - vy) * weight)) >> 19};  // Calculate new prediction
 #else
-    const uint64_t vx{_map[cx + 0].value};                      // Prediction is needed, count is shifted out later on
-    const uint64_t vy{_map[cx + 1].value};                      // Prediction is needed, count is shifted out later on
+    if (0 == weight) {                                          //
+      return static_cast<uint16_t>(_map[cx].value / 1048576);   //
+    }                                                           //
+    const auto vx{static_cast<uint64_t>(_map[cx + 0].value)};   // Prediction is needed, count is shifted out later on
+    const auto vy{static_cast<uint64_t>(_map[cx + 1].value)};   // Prediction is needed, count is shifted out later on
     const auto py{((vx * 4096) - ((vx - vy) * weight)) >> 32};  // Calculate new prediction, lose count
 #endif
     assert(py < 0x1000);
@@ -879,7 +702,6 @@ private:
                                                     9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3D0-3DF
                                                     9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   9,    // 3E0-3EF
                                                     9,    9,    9,    9,    9,    9,    9,   9,   9,   9,   9,   9,   9,   9,   9,   8}};  // 3F0-3FF
-
   union Map_t {
     struct {
       uint32_t count : 10;
@@ -911,6 +733,25 @@ APM_t::~APM_t() noexcept {
   return a + b;
 }
 
+template <typename T>
+[[nodiscard]] static constexpr auto clamp12(const T& val) noexcept -> int16_t {
+  return static_cast<int16_t>(std::clamp(val, T{~0x7FF}, T{0x7FF}));
+}
+
+// https://gcc.gnu.org/onlinedocs/gcc/Vector-Extensions.html
+// https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#
+union Exchange_t {
+  explicit Exchange_t(const int16_t* const __restrict p) noexcept : i16{p} {}
+  explicit Exchange_t(const int32_t* const __restrict p) noexcept : i32{p} {}
+  const int16_t* const __restrict i16;
+  const int32_t* const __restrict i32;
+  __m64* const __restrict m64;     // __MMX__
+  __v4hi* const __restrict i16x4;  // __MMX__
+  __m128i* const __restrict m128;  // __SSE2__
+  __v8hi* const __restrict i16x8;  // __SSE2__
+  __v8si* const __restrict i32x8;  // __AVX__
+};
+
 /**
  * @class Mixer_t
  * Combines models using neural networks
@@ -919,7 +760,7 @@ class Mixer_t final {
 public:
   static constexpr uint32_t N_LAYERS{9};  // Number of neurons in the input layer
 
-  static std::array<int16_t, N_LAYERS> tx_;
+  static std::array<int32_t, N_LAYERS> tx_;
 
   Mixer_t() noexcept {
     tx_.fill(0);
@@ -933,20 +774,13 @@ public:
   auto operator=(const Mixer_t&) -> Mixer_t& = delete;
   auto operator=(Mixer_t&&) -> Mixer_t& = delete;
 
-  void Update(const int32_t err) noexcept {  // train ...
+  void Update(const int32_t err) noexcept {
     assert((err + 4096) < 8192);
-    auto* const __restrict wx{&wx_[ctx_]};
-    for (auto n{N_LAYERS}; n--;) {
-      wx[n] += (((tx_[n] * err) >> 13) + 1) >> 1;
-    }
+    train(&tx_[0], &wx_[ctx_], err);
   }
 
-  [[nodiscard]] auto Predict() noexcept -> int16_t {  // dot product ...
-    const auto* const __restrict wx{&wx_[ctx_]};
-    auto sum{0};
-    for (auto n{N_LAYERS}; n--;) {
-      sum += wx[n] * tx_[n];
-    }
+  [[nodiscard]] auto Predict() noexcept -> int16_t {
+    const auto sum{dot_product(&tx_[0], &wx_[ctx_])};
     const auto pr{sum / (1 << dp_shift_)};
     return clamp12(pr);
   }
@@ -962,18 +796,66 @@ public:
   }
 
 private:
+  void train(const int32_t* const __restrict t, int32_t* const __restrict w, const int32_t err) const noexcept {
+#if 0  // defined(__AVX__) TODO
+    if (7 & ctx_) {
+      for (auto n{N_LAYERS}; n--;) {
+        w[n] += (((t[n] * err) >> 13) + 1) >> 1;
+      }
+    } else {
+      Exchange_t xt{t}, xw{w};
+      *xw.i32x8 += (((*xt.i32x8 * err) >> 13) + 1) >> 1;  // xw[0..7] += (((xt[0..7] * err) >> 13) + 1) >> 1
+      w[8] += (((t[8] * err) >> 13) + 1) >> 1;
+    }
+#else
+    for (auto n{N_LAYERS}; n--;) {
+      w[n] += (((t[n] * err) >> 13) + 1) >> 1;
+    }
+#endif
+  }
+
+  [[nodiscard]] auto dot_product(const int32_t* const __restrict t, const int32_t* const __restrict w) const noexcept -> int32_t {
+    int32_t sum{0};
+#if 0  // defined(__AVX__) TODO
+    if (7 & ctx_) {
+      for (auto n{N_LAYERS}; n--;) {
+        sum += w[n] * t[n];
+      }
+    } else {
+      Exchange_t xt{t}, xw{w};
+      auto x = *xw.i32x8 * *xt.i32x8;
+      sum = w[8] * t[8];
+      for (auto n{N_LAYERS}; n--;) {
+        sum += x[n];
+      }
+    }
+#else
+    for (auto n{N_LAYERS}; n--;) {
+      sum += w[n] * t[n];
+    }
+#endif
+    return sum;
+  }
+
+  alignas(32) std::array<int32_t, N_LAYERS * 1280> wx_{};
+
   uint32_t ctx_{0};
   int32_t : 32;  // Padding
   int32_t : 32;  // Padding
   int32_t : 32;  // Padding
-  alignas(16) std::array<int32_t, N_LAYERS * 1280> wx_{};
+  int32_t : 32;  // Padding
+  int32_t : 32;  // Padding
+  int32_t : 32;  // Padding
+  int32_t : 32;  // Padding
 };
 
-alignas(16) std::array<int16_t, Mixer_t::N_LAYERS> Mixer_t::tx_;
+alignas(32) std::array<int32_t, Mixer_t::N_LAYERS> Mixer_t::tx_;  // Range -2048..2047
 
 /**
  * @class Blend_t
- * Combines predictions using a neural network
+ * Combines predictions using a neural network using SSE/SSE2 when available
+ *
+ * See: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#
  */
 template <const uint32_t N_LAYERS>
 class Blend_t final {
@@ -985,7 +867,6 @@ public:
         _weights{static_cast<int16_t*>(std::calloc(n * N_LAYERS, sizeof(int16_t)))} {
     assert(ISPOWEROF2(n));
     assert((2 * N_LAYERS) < _pi.size());
-    _pi.fill(0);
     if (verbose_) {
       fprintf(stdout, "%s for Blend_t\n", getDimension(n * N_LAYERS * sizeof(int16_t)).c_str());
     }
@@ -1010,15 +891,71 @@ public:
 
   [[nodiscard]] auto Predict(const int32_t err, const uint32_t context) noexcept -> int16_t {
     if ((err < -16) || (err > 16)) {
-      train(_prev, &_weights[_ctx], err);
+      train(_prv, &_weights[_ctx], err);
     }
     _ctx = (context & _mask) * N_LAYERS;
     const int32_t sum{dot_product(_new, &_weights[_ctx])};
-    std::swap(_new, _prev);
+    std::swap(_new, _prv);
     return static_cast<int16_t>(sum >> 14);
   }
 
 private:
+  void train(const int16_t* const __restrict t, int16_t* const __restrict w, const int32_t err_) const noexcept {
+    assert((err_ >= SHRT_MIN) && (err_ <= SHRT_MAX));
+#if 0  // defined(__SSE2__)
+    const Exchange_t xt{t};
+    Exchange_t xw{w};
+    if constexpr (4 == N_LAYERS) {
+      static const auto one{_mm_set1_pi16(1)};                     //
+      const auto err{_mm_set1_pi16(static_cast<int16_t>(err_))};   //
+      auto var{_mm_mulhi_pi16(*xt.m64, err)};                      //              (t[0..3] * err) >> 16
+      var = _mm_adds_pi16(var, one);                               //             ((t[0..3] * err) >> 16) + 1
+      var = _mm_srai_pi16(var, 1);                                 //            (((t[0..3] * err) >> 16) + 1) >> 1
+      *xw.m64 = _mm_adds_pi16(*xw.m64, var);                       // w[0..3] + ((((t[0..3] * err) >> 16) + 1) >> 1)
+      _mm_empty();                                                 //
+    } else {                                                       //
+      static const auto one{_mm_set1_epi16(1)};                    //
+      const auto err{_mm_set1_epi16(static_cast<int16_t>(err_))};  //
+      auto var{_mm_mulhi_epi16(*xt.m128, err)};                    //              (t[0..7] * err) >> 16
+      var = _mm_adds_epi16(var, one);                              //             ((t[0..7] * err) >> 16) + 1
+      var = _mm_srai_epi16(var, 1);                                //            (((t[0..7] * err) >> 16) + 1) >> 1
+      *xw.m128 = _mm_adds_epi16(*xw.m128, var);                    // w[0..7] + ((((t[0..7] * err) >> 16) + 1) >> 1)
+    }
+#else
+    const auto err{static_cast<int16_t>(err_)};
+    for (auto n{N_LAYERS}; n--;) {
+      const int32_t wt{w[n] + ((((t[n] * err) >> 16) + 1) >> 1)};
+      w[n] = static_cast<int16_t>(std::clamp(wt, SHRT_MIN, SHRT_MAX));
+    }
+#endif
+  }
+
+  [[nodiscard]] auto dot_product(const int16_t* const __restrict t, const int16_t* const __restrict w) const noexcept -> int32_t {
+#if 0  // defined(__SSE2__)
+    const Exchange_t xt{t};
+    const Exchange_t xw{w};
+    if constexpr (4 == N_LAYERS) {
+      auto dp{_mm_madd_pi16(*xt.m64, *xw.m64)};       // (t[0] * w[0]) + ... + (t[3] * w[3])
+      dp = _mm_add_pi32(dp, _mm_srli_si64(dp, 32));   // Add sums together
+      const auto sum{_mm_cvtsi64_si32(dp)};           // Scale back to integer
+      _mm_empty();                                    //
+      return sum;                                     //
+    } else {                                          //
+      auto dp{_mm_madd_epi16(*xt.m128, *xw.m128)};    // (t[0] * w[0]) + ... + (t[7] * w[7])
+      dp = _mm_add_epi32(dp, _mm_srli_si128(dp, 8));  // Add sums together
+      dp = _mm_add_epi32(dp, _mm_srli_si128(dp, 4));  //
+      const auto sum{_mm_cvtsi128_si32(dp)};          // Scale back to integer
+      return sum;                                     //
+    }
+#else
+    auto sum{0};
+    for (auto n{N_LAYERS}; n--;) {
+      sum += w[n] * t[n];
+    }
+    return sum;
+#endif
+  }
+
   const uint32_t _mask;                       // n-1
   uint32_t _ctx{0};                           // Context of last prediction
   int16_t* const __restrict _weights;         // Weights
@@ -1026,22 +963,7 @@ private:
   int32_t : 32;                               // Padding
   alignas(16) std::array<int16_t, 64> _pi{};  // Prediction inputs
   int16_t* __restrict _new{&_pi[0]};          // New Inputs (alternating between _pi[0] and _pi[32])
-  int16_t* __restrict _prev{&_pi[32]};        // Previous Inputs (alternating between _pi[0] and _pi[32])
-
-  ALWAYS_INLINE void train(const int16_t* const __restrict t, int16_t* const __restrict w, const int32_t err) noexcept {
-    for (auto n{N_LAYERS}; n--;) {
-      const int32_t wt{w[n] + ((((t[n] * err) >> 16) + 1) >> 1)};
-      w[n] = static_cast<int16_t>(std::clamp(wt, -32768, 32767));
-    }
-  }
-
-  [[nodiscard]] ALWAYS_INLINE auto dot_product(const int16_t* const __restrict t, const int16_t* const __restrict w) noexcept -> int32_t {
-    int32_t sum{0};
-    for (auto n{N_LAYERS}; n--;) {
-      sum += w[n] * t[n];
-    }
-    return sum;
-  }
+  int16_t* __restrict _prv{&_pi[32]};         // Previous Inputs (alternating between _pi[32] and _pi[0])
 };
 
 class HashTable_t final {
@@ -1315,7 +1237,7 @@ public:
     _ctx_new = ctx << 8;
   }
 
-  auto Predict(const bool bit) noexcept -> std::array<int16_t, 3> {
+  auto Predict(const bool bit) noexcept -> std::tuple<int16_t, int16_t, int16_t> {
     const auto& state_table{bit ? state_table_y1_ : state_table_y0_};
 
     uint8_t* const __restrict st{&_state[_ctx_last_prediction][0]};
@@ -1327,14 +1249,15 @@ public:
     _ctx_last_prediction = (_ctx_new | ctx) & _mask;
 
     if constexpr (0 == RATE2) {
-      return {{_sm0.Update(bit, _state[_ctx_last_prediction][0]),  //
-               _sm1.Update(bit, _state[_ctx_last_prediction][1]),  //
-               0}};
-    } else {
-      return {{_sm0.Update(bit, _state[_ctx_last_prediction][0]),  //
-               _sm1.Update(bit, _state[_ctx_last_prediction][1]),  //
-               _sm2.Update(bit, _state[_ctx_last_prediction][2])}};
+      const auto p0{_sm0.Update(bit, _state[_ctx_last_prediction][0])};
+      const auto p1{_sm1.Update(bit, _state[_ctx_last_prediction][1])};
+      return {p0, p1, 0};
     }
+
+    const auto p0{_sm0.Update(bit, _state[_ctx_last_prediction][0])};
+    const auto p1{_sm1.Update(bit, _state[_ctx_last_prediction][1])};
+    const auto p2{_sm2.Update(bit, _state[_ctx_last_prediction][2])};
+    return {p0, p1, p2};
   }
 
 private:
@@ -1510,7 +1433,7 @@ public:
         _nodes{reinterpret_cast<Node*>(std::calloc(_max_size_bytes + sizeof(Node), sizeof(int8_t)))} {
     assert(0 == (_max_nodes >> 28));  // the top 4 bits must be unused by nx0 and nx1 for storing the 4+4 bits of the bit history state byte
     if (verbose_) {
-      fprintf(stdout, "%s for DMC_t\n", getDimension(_max_size_bytes + sizeof(Node)).c_str());
+      fprintf(stdout, "%s for DynamicMarkovModel_t\n", getDimension(_max_size_bytes + sizeof(Node)).c_str());
     }
     Flush();
   }
@@ -1525,49 +1448,98 @@ public:
     _cm.Set(tt_);
   }
 
-  // Adaptively increment a counter
-  template <typename T>
-  [[nodiscard]] ALWAYS_INLINE constexpr auto increment_counter(const T x, const T increment) const noexcept -> T {
-    constexpr uint16_t RATE{6};
-    return T((((x << RATE) - x) >> RATE) + (increment << (16 - RATE)));
-  }
-
   void Predict(const bool bit) noexcept {
     Node& curr{_nodes[_curr]};
 
     const auto n{curr.count[bit]};
 
-    if (bit) {
-      curr.count[0] = increment_counter(curr.count[0], ZERO);
-      curr.count[1] = increment_counter(curr.count[1], ONE);
+    {
+      constexpr uint16_t RATE{6};
 
-      curr.state = state_table_y1_[0][curr.state];
-    } else {
-      curr.count[0] = increment_counter(curr.count[0], ONE);
-      curr.count[1] = increment_counter(curr.count[1], ZERO);
+      auto AdaptivelyIncrement{[](uint16_t& count, const uint16_t increment) noexcept {  //
+        count = static_cast<uint16_t>((((count << RATE) - count) >> RATE) + (increment << (16 - RATE)));
+      }};
 
-      curr.state = state_table_y0_[0][curr.state];
+      if (bit) {
+        AdaptivelyIncrement(curr.count[0], 0);
+        AdaptivelyIncrement(curr.count[1], 1);
+
+        curr.state = state_table_y1_[0][curr.state];
+      } else {
+        AdaptivelyIncrement(curr.count[0], 1);
+        AdaptivelyIncrement(curr.count[1], 0);
+
+        curr.state = state_table_y0_[0][curr.state];
+      }
     }
 
     if (n > _threshold) {
       const auto next{static_cast<uint32_t>(bit ? curr.nx1 : curr.nx0)};
-      int32_t n0{_nodes[next].count[0]};
-      int32_t n1{_nodes[next].count[1]};
+      uint32_t n0{_nodes[next].count[0]};
+      uint32_t n1{_nodes[next].count[1]};
 
-      if (const auto nn{static_cast<uint32_t>(n0 + n1)}; nn > (n + _threshold)) {
-        const auto top_count0{MulDiv(static_cast<uint32_t>(n0), n, nn)};  // 16+16-16
-        assert(n0 >= top_count0);
+      if (const auto nn{n0 + n1}; nn > (n + _threshold)) {
+#if 1
+        if (_top > _max_nodes) {
+          _top = 0;
+        }
+        auto top{_top};
+        while (top < _max_nodes) {
+          if (0 == _nodes[top].state) {
+            break;
+          }
+          ++top;
+        }
+        if (top >= _max_nodes) {
+          Flush();
+        } else {
+          _top = top;
+        }
+#endif
 
-        const auto top_count1{MulDiv(static_cast<uint32_t>(n1), n, nn)};
-        assert(n1 >= top_count1);
+        if ((n + n) == nn) {
+          const auto rescale0{(n0 + 1) / 2};
+          const auto rescale1{(n1 + 1) / 2};
 
-        n0 -= top_count0;
-        n1 -= top_count1;
+          n0 -= rescale0;
+          n1 -= rescale1;
 
+          _nodes[_top].count[0] = uint16_t(rescale0);
+          _nodes[_top].count[1] = uint16_t(rescale1);
+        } else {
+          // '(x * y) / z' with rounding
+          auto MulDiv{[](const uint64_t x, const uint64_t y, const uint64_t z) noexcept -> uint16_t {
+            assert(z > 0);
+            return static_cast<uint16_t>(((2 * x * y) + z) / (2 * z));
+          }};
+
+          auto RescaleCount0{[&]() noexcept -> uint16_t {
+            if (n0) {
+              const auto rescale{MulDiv(n0, n, nn)};  // (1+16+16)-(1+17)
+              assert(n0 >= rescale);
+              n0 -= rescale;
+              return rescale;
+            }
+            return 0;
+          }};
+
+          auto RescaleCount1{[&]() noexcept -> uint16_t {
+            if (n1) {
+              const auto rescale{MulDiv(n1, n, nn)};  // (1+16+16)-(1+17)
+              assert(n1 >= rescale);
+              n1 -= rescale;
+              return rescale;
+            }
+            return 0;
+          }};
+
+          _nodes[_top].count[0] = RescaleCount0();
+          _nodes[_top].count[1] = RescaleCount1();
+        }
+
+        assert(n0 <= 0xFFFF);
+        assert(n1 <= 0xFFFF);
         assert((n0 + n1) > 0);
-
-        _nodes[_top].count[0] = top_count0;
-        _nodes[_top].count[1] = top_count1;
 
         _nodes[next].count[0] = static_cast<uint16_t>(n0);
         _nodes[next].count[1] = static_cast<uint16_t>(n1);
@@ -1580,9 +1552,12 @@ public:
           curr.nx0 = MASK_28_BITS & _top;
         }
 
-        if (++_top > _max_nodes) {
+        ++_top;
+#if 0
+        if (_top > _max_nodes) {
           Flush();
         }
+#endif
 
         if (_threshold < (47 * 256)) {  // Threshold of 47 is based on enwik9
           _threshold = ++_threshold_fine >> 11;
@@ -1601,14 +1576,14 @@ public:
     pr[3] = _sm4.Update(bit, (finalise64(word_, 32) << 8) | c0_);
     pr[4] = _sm5.Update(bit, (x5_ << 8) | c0_);
 
-    const auto pm{_cm.Predict(bit)};
-    pr[5] = pm[0];
-    pr[6] = pm[1];
-    pr[7] = pm[2];
+    const auto [p5, p6, p7]{_cm.Predict(bit)};
+    pr[5] = p5;
+    pr[6] = p6;
+    pr[7] = p7;
 
     const auto last_pr{Squash(Mixer_t::tx_[7])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
-    const int32_t err{((bit << 12) - last_pr) * 14};
+    const int32_t err{std::clamp(((bit << 12) - last_pr) * 10, SHRT_MIN, SHRT_MAX)};  // Scale of 10 is based on enwik9
     const auto px{_blend.Predict(err, ctx)};
     Mixer_t::tx_[7] = clamp12(px);
   }
@@ -1616,14 +1591,24 @@ public:
 private:
   [[nodiscard]] auto Predict() const noexcept -> int16_t {
     const auto n0{_nodes[_curr].count[0]};
+    const auto n1{_nodes[_curr].count[1]};
+    if (n0 == n1) {
+      return 0x000;
+    }
     if (!n0) {
       return 0x7FF;
     }
-    const auto n1{_nodes[_curr].count[1]};
     if (!n1) {
       return ~0x7FF;
     }
-    const auto pr{MulDiv(0xFFF, n1, n0 + n1)};  // (0xFFF * n1) / (n0 + n1)
+
+    // '(x * y) / z' with rounding
+    auto MulDiv{[](const uint32_t x, const uint32_t y, const uint32_t z) noexcept -> uint16_t {
+      assert(z > 0);
+      return static_cast<uint16_t>(((2 * x * y) + z) / (2 * z));
+    }};
+
+    const auto pr{MulDiv(0xFFF, n1, n0 + n1)};  // (0xFFF * n1) / (n0 + n1) with rounding  (1+12+12)-(1+13)
     return Stretch(pr);                         // Conversion from 0..4095 into -2048..2047
   }
 
@@ -1653,23 +1638,14 @@ private:
   static constexpr uint16_t ZERO{0};
   static constexpr uint16_t ONE{1};
 
-  /**
-   * '(x * y) / z' with rounding
-   * @param x Input 'x'
-   * @param y Input 'y'
-   * @param z Input 'z' can not be zero
-   * @return (x * y) / z
-   */
-  [[nodiscard]] ALWAYS_INLINE constexpr auto MulDiv(const uint32_t x, const uint32_t y, const uint32_t z) const noexcept -> uint16_t {
-    assert(z > 0);
-    return static_cast<uint16_t>(((2 * x * y) + z) / (2 * z));
-  }
-
   void Flush() noexcept {
     _threshold = THRESHOLD;
     _threshold_fine = THRESHOLD << 11;
     _top = 0;
     _curr = 0;
+    for (uint32_t n{0}; n < _max_nodes; ++n) {
+      _nodes[n].state = 0;
+    }
     for (uint32_t j{0}; j < 256; ++j) {                                 // 256 trees
       for (uint32_t i{0}; i < 255; ++i) {                               // 255 nodes in each tree
         if (i < 127) {                                                  // Internal tree nodes
@@ -1680,7 +1656,6 @@ private:
           _nodes[_top].nx0 = MASK_28_BITS & linked_tree_root;           // Left node -> root of tree 0,2,4,...
           _nodes[_top].nx1 = MASK_28_BITS & (linked_tree_root + 255u);  // Right node -> root of tree 1,3,5,...
         }
-        _nodes[_top].state = 0;
         _nodes[_top].count[0] = INIT_COUNT;
         _nodes[_top].count[1] = INIT_COUNT;
         _top++;
@@ -1693,8 +1668,8 @@ private:
   uint32_t _top{0};
   Node* const __restrict _nodes;
   uint32_t _curr{0};
-  uint32_t _threshold{0};
-  uint32_t _threshold_fine{0};
+  uint32_t _threshold{THRESHOLD};
+  uint32_t _threshold_fine{THRESHOLD << 11};
   int32_t : 32;                               // Padding
   int32_t : 32;                               // Padding
   int32_t : 32;                               // Padding
@@ -1717,7 +1692,7 @@ public:
         _ht{static_cast<uint32_t*>(std::calloc((UINT64_C(1) << _hashbits) + UINT64_C(1), sizeof(uint32_t)))} {
     assert(ISPOWEROF2(max_size));
     if (verbose_) {
-      fprintf(stdout, "%s for LZP_t\n", getDimension(((UINT64_C(1) << _hashbits) + UINT64_C(1)) * sizeof(uint32_t)).c_str());
+      fprintf(stdout, "%s for LempelZivPredict_t\n", getDimension(((UINT64_C(1) << _hashbits) + UINT64_C(1)) * sizeof(uint32_t)).c_str());
     }
   }
 
@@ -1813,7 +1788,7 @@ public:
 
     const auto last_pr{Squash(Mixer_t::tx_[0])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
-    const int32_t err{((bit << 12) - last_pr) * 14};
+    const int32_t err{std::clamp(((bit << 12) - last_pr) * 11, SHRT_MIN, SHRT_MAX)};  // Scale of 11 is based on enwik9
     const auto px{_blend.Predict(err, ctx)};
     Mixer_t::tx_[0] = clamp12(px);
 
@@ -1918,21 +1893,21 @@ public:
       pr[2] = _sm1.Update(bit, _buf(1), 4) / 8;  // Rate of 4, division of 8 are based on enwik9
     }
 
-    const auto pm0{_cm0.Predict(bit)};
-    pr[3] = pm0[0];
-    pr[4] = pm0[1];
-    pr[5] = pm0[2];
+    const auto [p3, p4, p5]{_cm0.Predict(bit)};
+    pr[3] = p3;
+    pr[4] = p4;
+    pr[5] = p5;
 
-    const auto pm1{_cm1.Predict(bit)};
-    pr[6] = pm1[0];
-    pr[7] = pm1[1];
+    const auto [p6, p7, p8]{_cm1.Predict(bit)};
+    pr[6] = p6;
+    pr[7] = p7;
 #if 0  // Disabled, to have length of 8 for blend
-    pr[8] = pm1[2];
+    pr[8] = p8;
 #endif
 
     const auto last_pr{Squash(Mixer_t::tx_[8])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
-    const int32_t err{((bit << 12) - last_pr) * 9};
+    const int32_t err{std::clamp(((bit << 12) - last_pr) * 9, SHRT_MIN, SHRT_MAX)};  // Scale of 9 is based on enwik9
     const auto px{_blend.Predict(err, ctx)};
     Mixer_t::tx_[8] = clamp12(px);
   }
@@ -2017,7 +1992,7 @@ public:
       }
     } else {
       // Detect dictionary indexes
-      if ((3 == bcount_) && (ESCAPE_CHAR != (0xFF & cx_)) && (0xC == (0xC & c0_))) {
+      if ((3 == bcount_) && (TP5_ESCAPE_CHAR != (0xFF & cx_)) && (0xC == (0xC & c0_))) {
         if (0xC == (0xE & c0_)) {
           // < MID
           //         C0      80 --> 2 bits prediction
@@ -2051,7 +2026,7 @@ public:
       }
 
       // Detect value transformation <escape><0xFx><0x8x>...<0x0x>
-      if ((5 == bcount_) && (ESCAPE_CHAR == (0xFF & (cx_ >> 8))) && (0xF0 == (0xF0 & cx_)) && (0x06 == c0_)) {
+      if ((5 == bcount_) && (TP5_ESCAPE_CHAR == (0xFF & (cx_ >> 8))) && (0xF0 == (0xF0 & cx_)) && (0x06 == c0_)) {
         const auto costs{0x0F & cx_};
         // clang-format off
         switch (costs) {
@@ -2138,8 +2113,6 @@ public:
   }
 
 private:
-  static constexpr int32_t ESCAPE_CHAR{4};  // 0x04
-
   void Shift() noexcept {
     _prdct += _prdct;
     _value += _value;
@@ -2185,15 +2158,56 @@ template <typename T>
 class SSE_t final {
 public:
   SSE_t() noexcept {
-    for (uint32_t pr{0x000}; pr <= 0xFFF; ++pr) {
-      const uint32_t n0{0xFFF - pr};
-      const uint32_t n1{pr};
-      _n0[pr] = n0;
-      _n1[pr] = n1;
-      assert(pr == ((0xFFF * n1) / (n0 + n1)));
+#if 0
+    for (uint32_t n{0x000}; n <= 0xFFF; ++n) {
+      const uint32_t n0{0xFFF - n};
+      const uint32_t n1{n};
+      _n0[n] = n0;  // 0xFFF ... 0x000
+      _n1[n] = n1;  // 0x000 ... 0xFFF
+      assert(n == ((0xFFF * n1) / (n0 + n1)));
+    }
+#else
+    static constexpr std::array<uint16_t, 33> ts{{0,   30,  70,  89,  97,   113,  133,  154,  //
+                                                  180, 214, 262, 313, 390,  496,  561,  653,  //
+                                                  796, 843, 807, 737, 717,  652,  625,  652,  //
+                                                  673, 712, 773, 874, 1039, 1236, 1560, 2169, 4095}};
+    for (uint32_t n{0x000}; n <= 0xFFF; ++n) {
+      const uint32_t w{n & 127};
+      const uint32_t d{n / 128};
+      const uint32_t p{((ts[d] * (127 - w)) + (ts[(d + 1)] * w) + 64) / 127};
+      _n0[0xFFF - n] = p;  // 0xFFF ... 0x000
+      _n1[n] = p;          // 0x000 ... 0xFFF
+    }
+#endif
+  }
+#if 0
+  ~SSE_t() noexcept {
+    {
+      File_t out("sse0.csv", "wb");
+      for (uint32_t n{0}; n < _n0.size(); ++n) {
+        fprintf(out, "%u,%u,%u\n", n, _n0[n], _n1[n]);
+      }
+    }
+    {
+      File_t out("sse1.csv", "wb");
+      uint64_t s0{0};
+      uint64_t s1{0};
+      for (uint32_t n{0}; n < _n0.size(); ++n) {
+        s0 += uint64_t(_n0[n]);
+        s1 += uint64_t(_n1[n]);
+        if (!((n + 1) % 128)) {
+          s0 = (s0 + 64) / 128;
+          s1 = (s1 + 64) / 128;
+          fprintf(out, "%u,%" PRIu64 ",%" PRIu64 "\n", n, s0, s1);
+          s0 = 0;
+          s1 = 0;
+        }
+      }
     }
   }
+#else
   ~SSE_t() noexcept = default;
+#endif
   SSE_t(const SSE_t&) = delete;
   SSE_t(SSE_t&&) = delete;
   auto operator=(const SSE_t&) -> SSE_t& = delete;
@@ -2212,16 +2226,28 @@ public:
       _n0[_sse] >>= 1;
       _n1[_sse] >>= 1;
     }
+    _sse = pr12;
 
     // Predict
-    _sse = pr12;
-    if (!_n0[_sse]) {
+    const auto n0{_n0[_sse]};
+    const auto n1{_n1[_sse]};
+    if (n0 == n1) {
+      return 0x8000;
+    }
+    if (!n0) {
       return 0xFFFF;
     }
-    if (!_n1[_sse]) {
-      return 1;
+    if (!n1) {
+      return 0x0001;
     }
-    const uint32_t pr{MulDiv(0xFFFF, _n1[_sse], _n0[_sse] + _n1[_sse])};
+
+    // '(x * y) / z' with rounding
+    auto MulDiv{[](const uint64_t x, const uint64_t y, const uint64_t z) noexcept -> uint32_t {
+      assert(z > 0);
+      return static_cast<uint32_t>(((2 * x * y) + z) / (2 * z));
+    }};
+
+    const auto pr{MulDiv(0xFFFF, n1, n0 + n1)};  // (0xFFFF * n1) / (n0 + n1) with rounding  (1+16+16)-(1+17)
     return pr + (pr < 32768);
   }
 
@@ -2229,23 +2255,7 @@ private:
   std::array<uint32_t, 4096> _n0{};
   std::array<uint32_t, 4096> _n1{};
   uint32_t _sse{0};
-
-  /**
-   * '(x * y) / z' with rounding
-   * @param x Input 'x'
-   * @param y Input 'y'
-   * @param z Input 'z' can not be zero
-   * @return (x * y) / z
-   */
-  [[nodiscard]] ALWAYS_INLINE constexpr auto MulDiv(const uint64_t x, const uint64_t y, const uint64_t z) const noexcept -> uint32_t {
-    assert(z > 0);
-    return static_cast<uint32_t>(((2 * x * y) + z) / (2 * z));
-  }
 };
-
-// static uint32_t XX{0xFC60};
-// static uint64_t XX{0x01190E131717261C};
-// static uint128_t XX{0x28000001D00000000000C14000000400_xxl};
 
 // Main model - predicts next bit probability from previous data
 class Predict_t final {
@@ -2297,10 +2307,9 @@ public:
     const auto p1{Balance(static_cast<uint16_t>(3), _a1.p3(bit, p0, c0_), p0)};  // Weight of 3 is based on enwik9
 
     uint32_t cz{(1 & _fails) ? UINT32_C(9) : UINT32_C(1)};
-    cz += 0xF & (0x7340 >> (4 * (3 & (_fails >> 5))));
-    cz += 0xF & (0xC660 >> (4 * (3 & (_fails >> 3))));
-    cz += 0xF & (0xFC60 >> (4 * (3 & (_fails >> 1))));
-    // cz += 0xF & (XX >> (4 * (3 & (_fails >> 1))));
+    cz += 0xFu & (0x7340u >> (4 * (3 & (_fails >> 5))));
+    cz += 0xFu & (0xC660u >> (4 * (3 & (_fails >> 3))));
+    cz += 0xFu & (0xFC60u >> (4 * (3 & (_fails >> 1))));
     cz = (std::min)(UINT32_C(9), (_failcount + cz) / 2);
 
     // clang-format off
@@ -2350,11 +2359,11 @@ public:
 
 private:
   Buffer_t& __restrict _buf;
-  Mixer_t _mixer{};
   uint32_t _add2order{0};
   uint32_t _fails{0};
   uint32_t _failz{0};
   uint32_t _failcount{0};
+  Mixer_t _mixer{};
   DynamicMarkovModel_t _dmc{MEM()};
   LempelZivPredict_t _lzp{_buf, MEM(20)};
   SparseMatchModel_t _smm{_buf};
@@ -2592,7 +2601,6 @@ private:
     // const auto MU{static_cast<int8_t>(INT64_C(0x091A1B14181C232E) >> (8 * bcount_))};  // based on lpaq9m
     // const auto MU{static_cast<int8_t>(INT64_C(0x0117081224254D3B) >> (8 * bcount_))};  // based on enwik8
     const auto MU{static_cast<int8_t>(INT64_C(0x01190E131717261C) >> (8 * bcount_))};  // based on enwik9
-                                                                                       // const auto MU{static_cast<int8_t>(XX >> (8 * bcount_))};  // based on enwik9
 #else
     //                                 2E  23  1C  18  14  1B  1A  9
     // static constexpr int8_t flaw[8]{46, 35, 28, 24, 20, 27, 26, 9};  // based on lpaq9m
@@ -2716,7 +2724,6 @@ private:
         if (!(ch & 0x80)) {
 #if 1
           static constexpr auto TxtFilter{0x28000001D00000000000C14000000400_xxl};
-          // const auto TxtFilter{XX};
           static constexpr auto ExeFilter{0x00000000000000000000000000008002_xxl};
 
           if (const auto filter{_is_binary ? ExeFilter : TxtFilter}; 1 & (filter >> ch)) {
@@ -3063,54 +3070,27 @@ Monitor_t::~Monitor_t() noexcept = default;
   return sum;
 }
 
-#if 0
-//                         ULLONG_MAX 18446744073709551615ULL
-static constexpr uint128_t P10_UINT64{10000000000000000000_xxl};  // 19 zeroes
-
-[[nodiscard]] static auto xxltostr(const uint128_t value) noexcept -> std::string {
-  std::array<char, 64> str{};
-  if (value > ULLONG_MAX) {
-    const uint64_t leading{static_cast<uint64_t>(value / P10_UINT64)};
-    const uint64_t trailing{static_cast<uint64_t>(value % P10_UINT64)};
-    snprintf(str.data(), str.size(), "%" PRIu64 "%.19" PRIu64, leading, trailing);
-  } else {
-    snprintf(str.data(), str.size(), "%" PRIu64, static_cast<uint64_t>(value));
-  }
-  return str.data();
-}
-
-[[nodiscard]] static auto strtoxxl(const char* __restrict src) noexcept -> uint128_t {
-  uint128_t value{0};
-  while (*src) {
-    value *= 10;
-    value += static_cast<uint128_t>(*src - '0');
-    ++src;
-  }
-  return value;
-}
+static constexpr std::array<char, 17> short_options{{"cdhvV0123456789x"}};
+static constexpr std::array<struct option, 10> long_options{{{"verbose", no_argument, &verbose_, 1},     //
+                                                             {"brief", no_argument, &verbose_, 0},       //
+                                                             {"compress", no_argument, nullptr, 'c'},    //
+                                                             {"decompress", no_argument, nullptr, 'd'},  //
+                                                             {"best", no_argument, nullptr, '9'},        //
+                                                             {"fast", no_argument, nullptr, '0'},        //
+                                                             {"help", no_argument, nullptr, 'h'},        //
+                                                             {"version", no_argument, nullptr, 'V'},     //
+#if defined(TUNING) || defined(GENERATE_SQUASH_STRETCH)
+                                                             {"xx", required_argument, nullptr, 'x'},
+#else
+                                                             {nullptr, no_argument, nullptr, 0},
 #endif
+                                                             {nullptr, no_argument, nullptr, 0}}};
 
 auto main(int32_t argc, char* const argv[]) -> int32_t {
   // clang-format off
   std::set_new_handler([]() { fprintf(stderr, "\nFailed to allocate memory!"); std::abort(); });
   std::set_terminate  ([]() { fprintf(stderr, "\nUnhandled exception");        std::abort(); });
   // clang-format on
-
-#if defined(GENERATE_SQUASH_STRETCH)
-  const double value{atof(argv[5])};
-  argc--;
-  fprintf(stdout, "\nValue : %g\n", value);
-
-  _squash = new Squash_t(/*value*/);
-  _stretch = new Stretch_t(/*value*/);
-#elif 0
-  if ((6 == argc) && !strncasecmp(argv[5], "--XX", 4)) {
-    extern int32_t XX;
-    XX = std::strtol(4 + argv[5], nullptr, 10);
-    argc--;
-    fprintf(stdout, "\nXX : %" PRIX32 "\n", XX);
-  }
-#endif
 
   fprintf(stdout,
           "Moruga compressor (C) 2022, M.W. Hessel.\n"
@@ -3119,46 +3099,72 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
           "https://github.com/the-m-master/Moruga/\n");
 
   level_ = DEFAULT_OPTION;
-  bool compress{false};
+  bool level_set{false};
+  bool help{false};
+  bool compress{true};
   const char* inFileName{nullptr};
   const char* outFileName{nullptr};
 
-  static const std::string verbose_str{"--verbose"};
-  static const std::string version_str{"--version"};
-
-  for (auto n{1}; n < argc; ++n) {
-    if (!verbose_str.compare(argv[n])) {
-      verbose_ = true;
-    } else if (!version_str.compare(argv[n])) {
-      return EXIT_SUCCESS;
-    } else if ((1 == strnlen(argv[n], 3)) && ('c' == argv[n][0])) {
-      compress = true;
-    } else if ((1 == strnlen(argv[n], 3)) && ('d' == argv[n][0])) {
-      compress = false;
-    } else if ((2 <= strnlen(argv[n], 3)) && ('-' == argv[n][0])) {
-      if ((argv[n][1] >= '0') && (argv[n][1] <= '9')) {
-        level_ = std::clamp(std::abs(std::stoi(argv[n], nullptr, 10)), 0, 12);
-      }
+  int32_t command{0};
+  while (-1 != (command = getopt_long(argc, argv, short_options.data(), long_options.data(), nullptr))) {
+    switch (command) {  // clang-format off
+      case 0:                     break;
+      case 'h':                          // --help
+      default: help = true;       break;
+      case 'c': compress = true;  break; // --compress
+      case 'd': compress = false; break; // --decompress
+      case 'v': verbose_ = 1;     break; // --verbose
+      case 'V': return EXIT_SUCCESS;     // --version
+      case '0':                          // --fast
+      case '1': case '2': case '3': case '4':
+      case '5': case '6': case '7': case '8':
+      case '9': {                        // --best
+        try {
+          const int32_t level{std::clamp(std::abs(std::stoi(argv[optind - 1], nullptr, 10)), 0, 12)};
+          if (!level_set) { compress = true; level_set = true; level_ = level; }
+        } catch(...) {
+          if (!level_set) { compress = true; level_set = true; level_ = command - '0'; }
+        }
+      } break;
+#if defined(GENERATE_SQUASH_STRETCH)
+      case 'x': {                        // --xx
+        const double value{double(std::stoi(optarg, nullptr, 10)) / 10.0};
+        fprintf(stdout, "\nValue : %g\n", value);
+        _squash = new Squash_t(value); // 756.1
+        //_stretch = new Stretch_t();    // 739.7
+      } break;
+#elif defined(TUNING)
+      case 'x': {                        // --xx 1578.7
+        XX = std::stoi(optarg, nullptr, 10);
+        fprintf(stdout, "\nValue : %d\n", XX);
+      } break;
+#endif
+    }  // clang-format on
+  }
+  while (optind < argc) {
+    if (nullptr != inFileName) {
+      outFileName = argv[optind++];
     } else {
-      if (nullptr != inFileName) {
-        outFileName = argv[n];
-      } else {
-        inFileName = argv[n];
-      }
+      inFileName = argv[optind++];
     }
   }
 
-  if (!((argc >= 4) && (argc <= 6)) || (nullptr == inFileName) || (nullptr == outFileName)) {
-    static constexpr std::array<uint32_t, 11> use{{90, 119, 177, 294, 526, 991, 1921, 3780, 7500, 13912, 25711}};  // TODO verify this
-    fprintf(stderr,
-            "\n\nUsage: Moruga <command> <infile> <outfile>\n"
-            "\n<Commands>\n"
-            "  c\t\tTo compress a file\n"
-            "  d\t\tTo decompress a file\n"
-            "  -0 to -10\tUses %" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 " or %" PRIu32
-            " MiB memory\n\t\tDefault is option %" PRIu32 ", uses %" PRIu32 " MiB of memory\n",
-            use[0], use[1], use[2], use[3], use[4], use[5], use[6], use[7], use[8], use[9], use[10], DEFAULT_OPTION, use[DEFAULT_OPTION]);
-    return EXIT_FAILURE;
+  if (help || (nullptr == inFileName) || (nullptr == outFileName)) {
+    static constexpr std::array<uint32_t, 11> use{{85, 115, 177, 303, 554, 1057, 1933, 3687, 7193, 14207, 27209}};  // TODO verify this base on ewik8
+    fprintf(stderr,                                                                                                 // clang-format off
+            "\nUsage: Moruga <option> <infile> <outfile>\n\n"
+            "  -c, --compress   Compress a file (default)\n"
+            "  -d, --decompress Decompress a file\n"
+            "  -h, --help       Display this short help and exit\n"
+            "  -v, --verbose    Verbose mode\n"
+            "  -V, --version    Display the version number and exit\n"
+            "  -0 ... -10       Uses about %" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",\n"
+            "                   %" PRIu32 ",%" PRIu32 ",%" PRIu32 " or %" PRIu32 " MiB memory\n"
+            "                   Default is option %" PRIu32 ", uses %" PRIu32 " MiB of memory\n", use[0], use[1], use[2], use[3], use[4], use[5], use[6],
+                                                                                                  use[7], use[8], use[9], use[10],
+                                                                                                  DEFAULT_OPTION, use[DEFAULT_OPTION]);
+    // clang-format on
+    return EXIT_SUCCESS;
   }
 
 #if defined(__linux__) || defined(_MSC_VER)
@@ -3234,8 +3240,8 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     csum = static_cast<uint8_t>(csum + checksum(reinterpret_cast<const uint8_t*>(&len), sizeof(len)));
     en.Compress(csum);
 
-    Monitor_t monitor{infile, outfile, len, iLen};
-    Progress_t progress{"ENC", true, monitor};
+    const Monitor_t monitor{infile, outfile, len, iLen};
+    const Progress_t progress{"ENC", true, monitor};
 
     en.SetBinary(!is_txtprep);
     en.SetDataPos(data_pos);
@@ -3318,10 +3324,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
       return EXIT_FAILURE;
     }
 
-    Monitor_t monitor{infile, outfile, len, iLen};
+    const Monitor_t monitor{infile, outfile, len, iLen};
 
     {
-      Progress_t progress{"DEC", false, monitor};
+      const Progress_t progress{"DEC", false, monitor};
 
       en.SetBinary(!is_txtprep);
       en.SetDataPos(static_cast<uint32_t>(data_pos));
@@ -3372,10 +3378,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement{INT64_C(135826235) - outfile.Size()};
+      const auto improvement{INT64_C(135815623) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
-      const auto improvement{INT64_C(17224404) - outfile.Size()};
+      const auto improvement{INT64_C(17214209) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     }
 #endif
@@ -3387,7 +3393,7 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
 
   const auto end_time{std::chrono::high_resolution_clock::now()};
   const std::chrono::high_resolution_clock::time_point delta_time{end_time - start_time};
-  const auto duration_ns = double(std::chrono::duration_cast<std::chrono::nanoseconds>(delta_time.time_since_epoch()).count());
+  const auto duration_ns{double(std::chrono::duration_cast<std::chrono::nanoseconds>(delta_time.time_since_epoch()).count())};
 
   fprintf(stdout, "\nTotal time %3.1f sec (%3.0f ns/byte)\n\n", duration_ns / 1e9, round(duration_ns / double(bytes_done)));
 
