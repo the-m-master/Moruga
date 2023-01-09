@@ -1,6 +1,6 @@
 /* IntegerXXL, large integer definition int128_t/uint128_t
  *
- * Copyright (c) 2022 Marwijn Hessel
+ * Copyright (c) 2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,16 +20,114 @@
  */
 #pragma once
 
-#include <cassert>
 #include <cinttypes>
 
-#if defined(__SIZEOF_INT128__)
+#if defined(__SIZEOF_INT128__) && !defined(_MSC_VER) && !defined(TEST_MSC_VER)
+
 typedef __int128 int128_t;
 typedef unsigned __int128 uint128_t;
-#else
-struct uint128_t;
-#endif  // __SIZEOF_INT128__
 
+#else
+
+#  include <ostream>
+#  include <string>
+#  include <string_view>
+
+#  if defined(__GNUC__) && defined(__SIZEOF_INT128__)
+typedef __int128 int128_v;
+typedef unsigned __int128 uint128_v;
+#  endif
+
+class uint128_t {
+public:
+  uint128_t() noexcept;
+  uint128_t(uint64_t lsb) noexcept;
+  uint128_t(uint64_t msb, uint64_t lsb) noexcept;
+  uint128_t(std::string_view) noexcept;
+
+  auto str() const noexcept -> std::string;
+
+  uint128_t& zero() noexcept;
+
+  int cmp(const uint128_t& b) const noexcept;
+
+  void div(const uint128_t& d, uint128_t& q, uint128_t& r) const noexcept;
+
+  explicit operator int8_t() const noexcept;
+  explicit operator uint8_t() const noexcept;
+  explicit operator int16_t() const noexcept;
+  explicit operator uint16_t() const noexcept;
+  explicit operator int32_t() const noexcept;
+  explicit operator uint32_t() const noexcept;
+  explicit operator int64_t() const noexcept;
+  explicit operator uint64_t() const noexcept;
+#  if defined(__GNUC__) && defined(__SIZEOF_INT128__)
+  explicit operator int128_v() const noexcept;
+  explicit operator uint128_v() const noexcept;
+#  endif
+
+  bool isNegative() const noexcept;
+
+  bool isZero() const noexcept;
+
+  uint128_t& negate() noexcept;
+
+  uint32_t bits() const noexcept;
+
+  char* asCharBufR(char* buf) const noexcept;
+
+  uint128_t operator-() const noexcept;
+
+  uint128_t& operator++() noexcept;
+  uint128_t operator++(int) noexcept;
+  uint128_t& operator--() noexcept;
+  uint128_t operator--(int) noexcept;
+  uint128_t& operator<<=(uint32_t i) noexcept;
+  uint128_t& operator>>=(uint32_t i) noexcept;
+  uint128_t& operator+=(const uint128_t& b) noexcept;
+  uint128_t& operator-=(const uint128_t& b) noexcept;
+  uint128_t& operator*=(const uint128_t& b) noexcept;
+  uint128_t& operator/=(const uint128_t& b) noexcept;
+  uint128_t& operator%=(const uint128_t& b) noexcept;
+  uint128_t& operator&=(const uint128_t& b) noexcept;
+  uint128_t& operator|=(const uint128_t& b) noexcept;
+  uint128_t& operator^=(const uint128_t& b) noexcept;
+
+private:
+  uint64_t m_hi{0};
+  uint64_t m_lo{0};
+};
+
+uint128_t operator+(uint128_t a, const uint128_t& b) noexcept;
+uint128_t operator-(uint128_t a, const uint128_t& b) noexcept;
+uint128_t operator*(uint128_t a, const uint128_t& b) noexcept;
+uint128_t operator/(uint128_t a, const uint128_t& b) noexcept;
+uint128_t operator%(uint128_t a, const uint128_t& b) noexcept;
+uint128_t operator&(uint128_t a, const uint128_t& b) noexcept;
+uint128_t operator|(uint128_t a, const uint128_t& b) noexcept;
+uint128_t operator^(uint128_t a, const uint128_t& b) noexcept;
+uint128_t operator<<(uint128_t a, uint32_t b) noexcept;
+uint128_t operator>>(uint128_t a, uint32_t b) noexcept;
+
+bool operator==(const uint128_t& a, const uint128_t& b) noexcept;
+bool operator!=(const uint128_t& a, const uint128_t& b) noexcept;
+bool operator<=(const uint128_t& a, const uint128_t& b) noexcept;
+bool operator>=(const uint128_t& a, const uint128_t& b) noexcept;
+bool operator<(const uint128_t& a, const uint128_t& b) noexcept;
+bool operator>(const uint128_t& a, const uint128_t& b) noexcept;
+
+std::ostream& operator<<(std::ostream&, const uint128_t&) noexcept;
+
+#endif  // __SIZEOF_INT128__ && !_MSC_VER && !TEST_MSC_VER
+
+#if !defined(_MSC_VER) && !defined(TEST_MSC_VER)
+
+/**
+ * @namespace integer_xxl
+ * @brief Area for handling 128 bit values
+ *
+ * Area for handling 128 bit values
+ */
 namespace integer_xxl {
   constexpr auto hexval(const char c) noexcept -> int32_t {
     return (c >= 'a') ? (10 + c - 'a') : (c >= 'A') ? (10 + c - 'A') : (c - '0');
@@ -121,3 +219,5 @@ static_assert(0x80000000000000000000000000000000_xxl >> 126 == 0b10, "IntegerXXL
 static_assert(0x80000000000000000000000000000000_xxl >> 127 == 0b01, "IntegerXXL error");
 static_assert(0xF000000000000000B000000000000000_xxl > 0xB000000000000000, "IntegerXXL error");
 // clang-format on
+
+#endif  // _MSC_VER && !TEST_MSC_VER

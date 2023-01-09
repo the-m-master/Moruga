@@ -1,7 +1,7 @@
 #===============================================================================
 # Moruga project
 #===============================================================================
-# Copyright (c) 2019-2022 Marwijn Hessel
+# Copyright (c) 2019-2023 Marwijn Hessel
 #
 # Moruga is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -49,9 +49,9 @@ LIB_DIRS :=
 #===============================================================================
 
 ifeq ($(UNAME), Linux)
-  LIBS := z
+  LIBS := z bz2
 else
-  LIBS := psapi z
+  LIBS := psapi z bz2
 endif
 
 #===============================================================================
@@ -118,17 +118,17 @@ endif
 # c\c++ compiler flags
 #===============================================================================
 
-CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native -pthread -fdata-sections -ffunction-sections
+CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native -pthread
 
 ifeq ($(MODE),debug)
   CCFLAGS += -g3 -O0
   ifeq ($(UNAME), Linux)
-    CCFLAGS += -fsanitize=address -fsanitize=undefined
+    CCFLAGS += -fsanitize=address
   else
     CCFLAGS += -fstack-protector-strong
   endif
 else
-  CCFLAGS += -O3 -flto=auto -fno-rtti -fno-asm -ftree-vectorize
+  CCFLAGS += -O3 -flto=auto -fno-rtti
   ifneq ($(TOOLCHAIN),llvm)
     CCFLAGS += -ffat-lto-objects
   endif
@@ -191,12 +191,12 @@ else
              -Wshadow \
              -Wsign-conversion \
              -Wstack-protector \
+             -Wstack-usage=16384 \
              -Wswitch-default \
              -Wswitch-enum \
              -Wundef \
              -Wuninitialized \
-             -Wwrite-strings \
-             -fgcse-sm
+             -Wwrite-strings
 endif
 
 #===============================================================================
@@ -220,14 +220,12 @@ endif
 
 ifeq ($(MODE),iwyu)
   CCFLAGS := -w
-  CXXFLAGS := -Xiwyu --no_comment -std=c++20 -m64 -ggdb -O1
+  CXXFLAGS := -Xiwyu --no_comment -std=c++20 -m64 -g3 -O1
 endif
 
 #===============================================================================
 # linker flags
 #===============================================================================
-
-LDFLAGS := -Wl,--gc-sections
 
 ifeq ($(TOOLCHAIN),llvm)
   ifneq ($(MODE),debug)
@@ -252,9 +250,10 @@ endif
 CD    := @cd
 CP    := @cp
 ECHO  := @echo
+GPROF := gprof
 MKDIR := @mkdir -p
 RM    := @rm -rf
-TIDY  := clang-tidy
+TIDY  := @~/llvm/llvm/build/bin/clang-tidy
 
 #===============================================================================
 # list all sources, objects & dependencies
@@ -339,15 +338,34 @@ ifeq ($(MODE),profile)
 endif
 
 #===============================================================================
-# Handle guided build
+# Profile-Guided Optimizations (PGO)
 #===============================================================================
 .PHONY: guided
 guided:
 	$(MAKE) MODE=profile clean
 	$(MAKE) MODE=profile all
-	@$(BUILD_DIR)/Moruga -6 c enwik8 enwik8.dat
+	@$(BUILD_DIR)/Moruga -6 enwik8 enwik8.dat
 	$(MAKE) clean
 	$(MAKE) MODE=guided all
+
+#===============================================================================
+# Binary Optimization and Layout Tool (Bolt)
+#===============================================================================
+.PHONY: bolt
+bolt:
+	$(MAKE) MODE=release TOOLCHAIN=llvm clean
+	$(MAKE) LDFLAGS=-Wl,--emit-relocs MODE=release TOOLCHAIN=llvm all -j8
+	sudo perf record -e cycles:u -j any,u -o $(BUILD_DIR)/perf.data -- $(BUILD_DIR)/Moruga -6 enwik8 enwik8.dat
+	sudo chmod a+rw $(BUILD_DIR)/perf.data
+	perf2bolt -p $(BUILD_DIR)/perf.data -o $(BUILD_DIR)/perf.fdata $(BUILD_DIR)/Moruga
+	llvm-bolt $(BUILD_DIR)/Moruga -o $(BUILD_DIR)/Moruga.bolt \
+	                              -data=$(BUILD_DIR)/perf.fdata \
+	                              -reorder-blocks=ext-tsp \
+	                              -reorder-functions=hfsort \
+	                              -split-functions \
+	                              -split-all-cold \
+	                              -split-eh \
+	                              -dyno-stats
 
 #===============================================================================
 # Remove the build artifacts

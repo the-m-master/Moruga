@@ -1,6 +1,6 @@
 /* iMonitor, monitor interface for progress bar handling
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,12 +22,18 @@
 
 #include <cstdint>
 
+/**
+ * @class iMonitor_t
+ * @brief Interface class for progress monitoring
+ *
+ * Interface class for progress monitoring
+ */
 class iMonitor_t {
 public:
   virtual ~iMonitor_t() noexcept;
 
-  [[nodiscard]] virtual int64_t inputLength() const noexcept = 0;
-  [[nodiscard]] virtual int64_t outputLength() const noexcept = 0;
-  [[nodiscard]] virtual int64_t workLength() const noexcept = 0;
-  [[nodiscard]] virtual int64_t layoutLength() const noexcept = 0;
+  [[nodiscard]] virtual auto InputLength() const noexcept -> int64_t = 0;
+  [[nodiscard]] virtual auto OutputLength() const noexcept -> int64_t = 0;
+  [[nodiscard]] virtual auto WorkLength() const noexcept -> int64_t = 0;
+  [[nodiscard]] virtual auto LayoutLength() const noexcept -> int64_t = 0;
 };

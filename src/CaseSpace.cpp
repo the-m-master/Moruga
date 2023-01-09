@@ -1,6 +1,6 @@
 /* CaseSpace, is a text preparation for text compressing/decompressing
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,87 +19,68 @@
  * https://github.com/the-m-master/Moruga
  */
 #include "CaseSpace.h"
-#include <algorithm>
 #include <cassert>
-#include <cinttypes>
 #include <cstdio>
 #include <utility>
-#include <vector>
 #include "File.h"
 #include "Progress.h"
 #include "Utilities.h"
+#include "ska/ska.h"
 
 // #define DEBUG_WRITE_DICTIONARY
-#if !defined(CLANG_TIDY)
-#  define USE_BYTELL_HASH_MAP  // Enable the fastest hash table by Malte Skarupke
-#endif
 
-#if defined(USE_BYTELL_HASH_MAP)
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Waggregate-return"
-#  pragma GCC diagnostic ignored "-Wc++98-c++11-compat-binary-literal"
-#  pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
-#  pragma GCC diagnostic ignored "-Wconversion"
-#  pragma GCC diagnostic ignored "-Wdeprecated"
-#  pragma GCC diagnostic ignored "-Weffc++"
-#  pragma GCC diagnostic ignored "-Wpadded"
-#  pragma GCC diagnostic ignored "-Wshadow"
-#  pragma GCC diagnostic ignored "-Wsign-conversion"
-#  include "ska/bytell_hash_map.hpp"
-#  pragma GCC diagnostic pop
-#else
-#  include <unordered_map>
-#endif
-
-#if defined(USE_BYTELL_HASH_MAP)
-using map_string2uint_t = ska::bytell_hash_map<std::string, uint32_t>;
-#else
-using map_string2uint_t = std::unordered_map<std::string, uint32_t>;
-#endif
-
+namespace {
 #define BITS UINT32_C(19)
 
 #if BITS == 24
-static constexpr auto TABLE_SIZE{UINT32_C(16777259)};
+  constexpr auto TABLE_SIZE{UINT32_C(16777259)};
 #elif BITS == 23
-static constexpr auto TABLE_SIZE{UINT32_C(8388617)};
+  constexpr auto TABLE_SIZE{UINT32_C(8388617)};
 #elif BITS == 22
-static constexpr auto TABLE_SIZE{UINT32_C(4194319)};
+  constexpr auto TABLE_SIZE{UINT32_C(4194319)};
 #elif BITS == 21
-static constexpr auto TABLE_SIZE{UINT32_C(2097169)};
+  constexpr auto TABLE_SIZE{UINT32_C(2097169)};
 #elif BITS == 20
-static constexpr auto TABLE_SIZE{UINT32_C(1048583)};
+  constexpr auto TABLE_SIZE{UINT32_C(1048583)};
 #elif BITS == 19
-static constexpr auto TABLE_SIZE{UINT32_C(524309)};
+  constexpr auto TABLE_SIZE{UINT32_C(524309)};
 #elif BITS == 18
-static constexpr auto TABLE_SIZE{UINT32_C(262147)};
+  constexpr auto TABLE_SIZE{UINT32_C(262147)};
 #elif BITS == 17
-static constexpr auto TABLE_SIZE{UINT32_C(131101)};
+  constexpr auto TABLE_SIZE{UINT32_C(131101)};
 #elif BITS == 16
-static constexpr auto TABLE_SIZE{UINT32_C(65537)};
+  constexpr auto TABLE_SIZE{UINT32_C(65537)};
 #elif BITS == 15
-static constexpr auto TABLE_SIZE{UINT32_C(32771)};
+  constexpr auto TABLE_SIZE{UINT32_C(32771)};
 #elif BITS == 14
-static constexpr auto TABLE_SIZE{UINT32_C(18041)};
+  constexpr auto TABLE_SIZE{UINT32_C(18041)};
 #elif BITS == 13
-static constexpr auto TABLE_SIZE{UINT32_C(9029)};
+  constexpr auto TABLE_SIZE{UINT32_C(9029)};
 #elif BITS == 12
-static constexpr auto TABLE_SIZE{UINT32_C(5021)};
+  constexpr auto TABLE_SIZE{UINT32_C(5021)};
 #elif BITS == 11
-static constexpr auto TABLE_SIZE{UINT32_C(2053)};
+  constexpr auto TABLE_SIZE{UINT32_C(2053)};
 #elif BITS == 10
-static constexpr auto TABLE_SIZE{UINT32_C(1031)};
+  constexpr auto TABLE_SIZE{UINT32_C(1031)};
 #elif BITS <= 9
-static constexpr auto TABLE_SIZE{UINT32_C(521)};
+  constexpr auto TABLE_SIZE{UINT32_C(521)};
 #endif
 
-static constexpr auto MAX_VALUE{(UINT32_C(1) << BITS) - UINT32_C(1)};
-static constexpr auto MAX_CODE{MAX_VALUE - UINT32_C(1)};
-static constexpr auto UNUSED{UINT32_C(~0)};
+  constexpr auto MIN_FREQUENCY{UINT32_C(2048)};  // Default 2048
+  constexpr auto MIN_WORD_SIZE{UINT32_C(32)};    // Default 32
+  constexpr auto MAX_WORD_SIZE{UINT32_C(256)};   // Default 256
 
-static constexpr auto MIN_FREQUENCY{UINT32_C(2048)};
-static constexpr auto MIN_WORD_SIZE{UINT32_C(32)};
+  constexpr auto MAX_VALUE{(UINT32_C(1) << BITS) - UINT32_C(1)};
+  constexpr auto MAX_CODE{MAX_VALUE - UINT32_C(1)};
+  constexpr auto UNUSED{UINT32_C(~0)};
+};  // namespace
 
+/**
+ * @class LempelZivWelch_t
+ * @brief Lempel-Ziv-Welch model for detection of high-frequency long sentences
+ *
+ * Lempel-Ziv-Welch model for detection of high-frequency long sentences
+ */
 class LempelZivWelch_t final {
 public:
   explicit LempelZivWelch_t() noexcept = default;
@@ -110,63 +91,62 @@ public:
   auto operator=(const LempelZivWelch_t&) -> LempelZivWelch_t& = delete;
   auto operator=(LempelZivWelch_t&&) -> LempelZivWelch_t& = delete;
 
-  void append(const int32_t ch) noexcept {
+  void Append(const int32_t ch) noexcept {
     _word.push_back(static_cast<char>(ch));
 
-    const auto key{find_match(_string_code, ch)};
+    const auto [found, offset]{FindMatch(_string_code, ch)};
+    if (found) {
+      _string_code = _hashTable[offset].code_value;
 
-    if (HashTable_t & ht{_hashTable[key]}; UNUSED != ht.code_value) {
-      _string_code = ht.code_value;
-
-      if (const auto length{_word.length()}; (length >= MIN_WORD_SIZE) && (length < 256)) {
-        if (auto it{_esteem.find(_word)}; it != _esteem.end()) {
+      if (const auto length{_word.length()}; (length >= MIN_WORD_SIZE) && (length < MAX_WORD_SIZE)) {
+        if (auto it{_appraisal.find(_word)}; it != _appraisal.end()) {
           it->second += 1;  // Increase frequency
         } else {
-          _esteem[_word] = 0;  // Start with frequency is zero
+          _appraisal.emplace(_word, 0);  // Start with frequency is zero
         }
       }
     } else {
       _word.clear();
 
-      ht.code_value = _next_code++;
-      ht.prefix_code = 0x00FFFFFFu & _string_code;
-      ht.append_character = static_cast<uint8_t>(ch);
+      HashTable_t& key{_hashTable[offset]};
+      key.code_value = _next_code++;
+      key.prefix_code = 0x00FFFFFFu & _string_code;
+      key.append_character = static_cast<uint8_t>(ch);
 
       _string_code = 0xFF & ch;
 
-      if (_next_code > MAX_CODE) {
-        // Reset
+      if (_next_code > MAX_CODE) {  // Reset
         _next_code = 256;
-        for (uint32_t n{TABLE_SIZE}; n--;) {
-          _hashTable[n].code_value = UNUSED;
+        for (auto& node : _hashTable) {
+          node.code_value = UNUSED;
         }
       }
     }
   }
 
-  auto finish() noexcept -> std::string {
-    std::vector<CaseSpace_t::Dictionary_t> dictionary{};
-    std::for_each(_esteem.begin(), _esteem.end(), [&dictionary](const auto& entry) noexcept {
-      if (const auto frequency{entry.second}; frequency > MIN_FREQUENCY) {
-        dictionary.emplace_back(CaseSpace_t::Dictionary_t(entry.first, entry.second));
+  auto Finish() noexcept -> std::string {
+    std::string_view max_word_view{};
+
+    size_t max_peek_freq{0};
+    for (const auto& [word, frequency] : _appraisal) {
+      if (frequency > MIN_FREQUENCY) {
+        const size_t peek_freq{word.length() * frequency};
+        if (peek_freq > max_peek_freq) {
+          max_peek_freq = peek_freq;
+          max_word_view = word;
+        }
       }
-    });
-    _esteem.clear();
-#if defined(USE_BYTELL_HASH_MAP)
-    _esteem.shrink_to_fit();  // Release memory
-#endif
+    }
 
-    std::stable_sort(dictionary.begin(), dictionary.end(), [](const auto& a, const auto& b) noexcept -> bool {  //
-      return (a.frequency * a.word.length()) > (b.frequency * b.word.length());
-    });
-
-    if (!dictionary.empty()) {
 #if defined(DEBUG_WRITE_DICTIONARY)
-      File_t txt("dictionary.txt", "wb+");
-      for (const auto& dic : dictionary) {
-        fprintf(txt, "%2" PRIu64 " %8" PRIu32 " %8" PRIu64 " ", dic.word.length(), dic.frequency, dic.frequency * dic.word.length());
-        auto* str{dic.word.c_str()};
-        auto length{dic.word.length()};
+    File_t txt{"dictionary.txt", "wb+"};
+    for (auto it : _appraisal) {
+      std::string_view word{it.first};
+      const uint32_t frequency{it.second};
+      if (frequency > MIN_FREQUENCY) {
+        fprintf(txt, "%2" PRIu64 " %8" PRIu32 " %8" PRIu64 " ", word.length(), frequency, frequency * word.length());
+        auto* str{word.data()};
+        auto length{word.length()};
         while (length--) {
           if (isprint(*str)) {
             fprintf(txt, "%c", *str);
@@ -177,95 +157,114 @@ public:
         }
         fprintf(txt, "\n");
       }
+    }
 #endif
 
-      return dictionary[0].word;
-    }
+    std::string max_word{max_word_view.data(), max_word_view.size()};
 
-    return "";
+    _appraisal.clear();
+#if defined(USE_BYTELL_HASH_MAP)
+    _appraisal.shrink_to_fit();  // Release memory
+#endif
+
+    return max_word;
+  }
+
+  void Reserve() noexcept {
+    _word.reserve(MAX_WORD_SIZE * 2);
+    _appraisal.reserve(1u << 18);
   }
 
 private:
-  auto find_match(const uint32_t prefix_code, const int32_t append_character) noexcept -> uint32_t {
-    uint32_t offset{(Utilities::PHI32 * ((prefix_code << 8) | (0xFF & append_character))) >> (32 - BITS)};
-    const uint32_t stride{(0 == offset) ? 1 : (TABLE_SIZE - offset)};
-    for (;;) {
-      assert(offset < TABLE_SIZE);
-      const HashTable_t& ht{_hashTable[offset]};
-
-      if (UNUSED == ht.code_value) {
-        return offset;
-      }
-
-      if ((prefix_code == ht.prefix_code) && (append_character == ht.append_character)) {
-        return offset;
-      }
-
-      offset -= stride;
-      if (static_cast<int32_t>(offset) < 0) {
-        offset += TABLE_SIZE;
-      }
-    }
-  }
-
   uint32_t _next_code{256};
   uint32_t _string_code{0};
   std::string _word{};
-  map_string2uint_t _esteem{};
-  struct HashTable_t {
+  map_string2uint_t _appraisal{};
+
+  /**
+   * @struct HashTable_t
+   * @brief LZW hash table implementation
+   *
+   * LZW hash table implementation
+   */
+  struct HashTable_t final {
     uint32_t code_value{UNUSED};
     uint32_t prefix_code : 24 {0};
     uint32_t append_character : 8 {0};
   };
   static_assert(8 == sizeof(HashTable_t), "Alignment failure in HashTable_t");
   std::array<HashTable_t, TABLE_SIZE> _hashTable{};
+
+  [[nodiscard]] auto FindMatch(const uint32_t prefix_code, const int32_t append_character) const noexcept -> std::pair<bool, uint32_t> {
+    uint32_t offset{(Utilities::PHI32 * ((prefix_code << 8) | (0xFF & append_character))) >> (32 - BITS)};
+    for (const auto stride{(offset > 0) ? (TABLE_SIZE - offset) : 1};;) {
+      assert(offset < TABLE_SIZE);
+      const HashTable_t& key{_hashTable[offset]};
+
+      if (UNUSED == key.code_value) {
+        return {false, offset};  // Not found or unused
+      }
+      if ((prefix_code == key.prefix_code) && (static_cast<uint32_t>(append_character) == key.append_character)) {
+        return {true, offset};  // Found and verified
+      }
+
+      offset -= stride;
+      if (offset >= TABLE_SIZE) {
+        offset += TABLE_SIZE;
+      }
+    }
+  }
 };
 LempelZivWelch_t::~LempelZivWelch_t() noexcept = default;
 
-namespace CaseSpace {
+namespace {
   template <typename T>
   ALWAYS_INLINE constexpr auto is_word_char(const T ch) noexcept -> bool {
     return Utilities::is_upper(ch) || Utilities::is_lower(ch);
   }
-}  // namespace CaseSpace
+}  // namespace
 
 CaseSpace_t::CaseSpace_t(File_t& in, File_t& out) noexcept
     : _in{in},  //
       _out{out},
-      _lzw{std::make_unique<LempelZivWelch_t>()} {}
+      _lzw{std::make_unique<LempelZivWelch_t>()} {
+  _word.reserve(MAX_WORD_SIZE * 2);
+}
 
 CaseSpace_t::~CaseSpace_t() noexcept = default;
 
-auto CaseSpace_t::charFrequency() const noexcept -> std::array<int64_t, 256> {
+auto CaseSpace_t::CharFrequency() const noexcept -> const std::array<int64_t, 256>& {
   return _char_freq;
 }
 
-auto CaseSpace_t::getQuote() const noexcept -> const std::string& {
+auto CaseSpace_t::GetQuote() const noexcept -> const std::string_view {
   return _quote;
 }
 
-auto CaseSpace_t::inputLength() const noexcept -> int64_t {
+auto CaseSpace_t::InputLength() const noexcept -> int64_t {
   return _in.Position();
 }
 
-auto CaseSpace_t::outputLength() const noexcept -> int64_t {
+auto CaseSpace_t::OutputLength() const noexcept -> int64_t {
   return _out.Position();
 }
 
-auto CaseSpace_t::workLength() const noexcept -> int64_t {
+auto CaseSpace_t::WorkLength() const noexcept -> int64_t {
   return _original_length;
 }
 
-auto CaseSpace_t::layoutLength() const noexcept -> int64_t {
+auto CaseSpace_t::LayoutLength() const noexcept -> int64_t {
   return _original_length;
 }
 
 void CaseSpace_t::Encode(const int32_t ch) noexcept {
   _out.putc(ch);
-  _lzw->append(ch);
+  _lzw->Append(ch);
 }
 
 void CaseSpace_t::Encode() noexcept {
+  _lzw->Reserve();
+
   _original_length = _in.Size();
   _out.putVLI(_original_length);
 
@@ -289,7 +288,7 @@ void CaseSpace_t::Encode() noexcept {
       continue;
     }
 
-    if (CaseSpace::is_word_char(ch)) {  // a..z || A..Z
+    if (is_word_char(ch)) {  // a..z || A..Z
       _word.push_back(static_cast<char>(ch));
     } else {
       EncodeWord();
@@ -308,49 +307,49 @@ void CaseSpace_t::Encode() noexcept {
 
   EncodeWord();
 
-  _quote = _lzw->finish();
+  _out.Sync();
+
+  _quote = _lzw->Finish();
 }
 
 void CaseSpace_t::EncodeWord() noexcept {
-  auto wlength{_word.length()};
-  if (wlength > 0) {
-    size_t offset{0};
-    while (wlength > 0) {
-      size_t length{0};
-      if (Utilities::is_lower(_word[offset + length])) {
-        length++;
-        while ((length < wlength) && Utilities::is_lower(_word[offset + length])) {
-          length++;
+  const std::string_view word{_word};
+  auto word_length{word.length()};
+  for (size_t offset{0}; word_length > 0;) {
+    size_t length{0};
+    if (Utilities::is_lower(word[offset + length])) {
+      ++length;
+      while ((length < word_length) && Utilities::is_lower(word[offset + length])) {
+        ++length;
+      }
+      _wtype = WordType::ALL_SMALL;
+    } else {
+      ++length;
+      if (Utilities::is_upper(_word[offset + length])) {
+        while ((length < word_length) && Utilities::is_upper(word[offset + length])) {
+          ++length;
         }
-        _wtype = WordType::ALL_SMALL;
+        _wtype = WordType::ALL_BIG;
       } else {
-        length++;
-        if (Utilities::is_upper(_word[offset + length])) {
-          while ((length < wlength) && Utilities::is_upper(_word[offset + length])) {
-            length++;
-          }
-          _wtype = WordType::ALL_BIG;
-        } else {
-          while ((length < wlength) && Utilities::is_lower(_word[offset + length])) {
-            length++;
-          }
-          _wtype = WordType::FIRST_BIG_REST_SMALL;
+        while ((length < word_length) && Utilities::is_lower(word[offset + length])) {
+          ++length;
         }
-      }
-
-      if ((0 != offset) || (WordType::ALL_SMALL != _wtype)) {
-        Encode(static_cast<int32_t>(_wtype));
-      }
-
-      wlength -= length;
-      while (length-- > 0) {
-        const auto ch{_word[offset++]};
-        Encode(Utilities::to_lower(ch));
+        _wtype = WordType::FIRST_BIG_REST_SMALL;
       }
     }
 
-    _word.clear();
+    if ((0 != offset) || (WordType::ALL_SMALL != _wtype)) {
+      Encode(static_cast<int32_t>(_wtype));
+    }
+
+    word_length -= length;
+    while (length--) {
+      const auto ch{word[offset++]};
+      Encode(Utilities::to_lower(ch));
+    }
   }
+
+  _word.clear();
 }
 
 auto CaseSpace_t::Decode() noexcept -> int64_t {
@@ -384,7 +383,7 @@ auto CaseSpace_t::Decode() noexcept -> int64_t {
         break;
 
       default:
-        if (CaseSpace::is_word_char(ch)) {  // a..z || A..Z
+        if (is_word_char(ch)) {  // a..z || A..Z
           _word.push_back(static_cast<char>(ch));
         } else {
           DecodeWord();
@@ -397,33 +396,32 @@ auto CaseSpace_t::Decode() noexcept -> int64_t {
 
   DecodeWord();
 
+  _out.Sync();
+
   return _original_length;
 }
 
 void CaseSpace_t::DecodeWord() noexcept {
-  if (_word.length() > 0) {
-    switch (const char* __restrict str{_word.c_str()}; _wtype) {
+  auto length{_word.length()};
+  if (length > 0) {
+    switch (const auto* __restrict str{_word.data()}; _wtype) {
       case WordType::ALL_BIG:
-        while (*str) {
-          const auto ch{*str++};
-          _out.putc(Utilities::to_upper(ch));
+        while (length--) {
+          _out.putc(Utilities::to_upper(*str++));
         }
         break;
 
       case WordType::FIRST_BIG_REST_SMALL:
-        if (*str) {
-          const auto ch{*str++};
-          _out.putc(Utilities::to_upper(ch));
-        }
+        --length;
+        _out.putc(Utilities::to_upper(*str++));
         [[fallthrough]];
 
       default:
       case WordType::ALL_SMALL:
       case WordType::CRLF_MARKER:
       case WordType::ESCAPE_CHAR:
-        while (*str) {
-          const auto ch{*str++};
-          _out.putc(ch);
+        while (length--) {
+          _out.putc(*str++);
         }
         break;
     }

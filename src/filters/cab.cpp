@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,14 +19,12 @@
  * https://github.com/the-m-master/Moruga
  */
 #include "cab.h"
-#include <cassert>
 #include <climits>
 #include <cstdint>
-#include <cstdio>
+#include "Buffer.h"
 #include "File.h"
 #include "filter.h"
 #include "gzip.h"
-#include "iEncoder.h"
 
 auto Header_t::ScanCAB(int32_t /*ch*/) noexcept -> Filter {
   // ------------------------------------------------------------------------
@@ -73,8 +71,9 @@ auto Header_t::ScanCAB(int32_t /*ch*/) noexcept -> Filter {
       _di.cflags = _buf.i2(offset - 30);
       _di.offset_to_start = 0;
       _di.filter_end = INT_MAX;  // end never..
-
-      return Filter::CAB;
+#  if 0
+      return Filter::CAB; // TODO does not work yet
+#  endif
     }
   }
 #endif
@@ -330,14 +329,17 @@ auto CAB_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
               _stream.Seek(safe_pos);
             }
 #endif
+            DecodeEncodeCompare(_stream, _coder, safe_pos, data_.compressedDataLength, data_.uncompressedDataLength);
+#if 0
             if (0 == DecodeEncodeCompare(_stream, _coder, safe_pos, data_.compressedDataLength, data_.uncompressedDataLength)) {
               for (int32_t n{data_.compressedDataLength - 2}; n--;) {
                 const int32_t c{_stream.getc()};
                 _coder->Compress(c);
               }
             }
-            // const int64_t done{_stream.Position()};
-            // assert((done - safe_pos) == data_.compressedDataLength);
+             const int64_t done{_stream.Position()};
+             assert((done - safe_pos) == data_.compressedDataLength);
+#endif
           } else {
             _di.filter_end = 0;  // Wrong header end filter
           }

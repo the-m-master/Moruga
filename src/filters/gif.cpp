@@ -1,6 +1,6 @@
 /* GIF, encoding and decoding gif-lzw
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,7 +33,9 @@ Gif_t::Gif_t(File_t& in, File_t& out) noexcept : _in{in}, _out{out} {}
 
 Gif_t::~Gif_t() noexcept = default;
 
-static constexpr int32_t marker{0x10FFF};
+namespace {
+  constexpr int32_t marker{0x10FFF};
+};  // namespace
 
 auto Gif_t::Decode() noexcept -> int64_t {
   _codeSize = _in.getc();
@@ -200,19 +202,18 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
   _bsize = 0xFF & _bsizes[static_cast<size_t>(_bsize_index++)];
 
   int32_t curDiff{0};
-  std::array<int32_t, 4096> diffPos;
   int32_t maxcode{(1 << codesize) + 1};
   int32_t input{0};
 
   _table.fill(-1);
 
   for (uint32_t n{0}; n < static_cast<uint32_t>(header_size); ++n) {
-    diffPos[n] = _in.getc();
-    diffPos[n] = (diffPos[n] << 8) + _in.getc();
-    diffPos[n] = (diffPos[n] << 8) + _in.getc();
-    diffPos[n] = (diffPos[n] << 8) + _in.getc();
+    _diff_pos[n] = _in.getc();
+    _diff_pos[n] = (_diff_pos[n] << 8) + _in.getc();
+    _diff_pos[n] = (_diff_pos[n] << 8) + _in.getc();
+    _diff_pos[n] = (_diff_pos[n] << 8) + _in.getc();
     if (n > 0) {
-      diffPos[n] += diffPos[n - 1];
+      _diff_pos[n] += _diff_pos[n - 1];
     }
   }
 
@@ -231,7 +232,7 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
     putc(codesize, _out);
   }
 
-  if ((0 == header_size) || (0 != diffPos[0])) {
+  if ((0 == header_size) || (0 != _diff_pos[0])) {
     if (WriteCode(1 << codesize, compare)) {
       return 0;  // Failure
     }
@@ -245,7 +246,7 @@ auto Gif_t::Encode(int64_t size, const bool compare) noexcept -> int64_t {
     const int32_t index{(last < 0) ? input : FindMatch(key)};
     _code = index;
 
-    if ((curDiff < header_size) && (static_cast<int32_t>(total - size) > diffPos[static_cast<uint32_t>(curDiff)])) {
+    if ((curDiff < header_size) && (static_cast<int32_t>(total - size) > _diff_pos[static_cast<uint32_t>(curDiff)])) {
       curDiff++;
       _code = -1;
     }
@@ -419,7 +420,7 @@ GIF_filter::GIF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, 
       _coder{coder},
       _di{di} {}
 
-auto GIF_filter::read_sub_blocks(bool& eof) const noexcept -> int32_t {
+auto GIF_filter::ReadSubBlocks(bool& eof) const noexcept -> int32_t {
   auto data_length{0};
 
   for (;;) {
@@ -446,7 +447,7 @@ auto GIF_filter::read_sub_blocks(bool& eof) const noexcept -> int32_t {
 
 GIF_filter::~GIF_filter() noexcept = default;
 
-auto GIF_filter::get_frame(bool& eof) const noexcept -> int32_t {
+auto GIF_filter::GetFrame(bool& eof) const noexcept -> int32_t {
   Frames_t frame_type{Frames_t(_stream.getc())};
   if (EOF == static_cast<int32_t>(frame_type)) {
     eof = true;
@@ -484,7 +485,7 @@ auto GIF_filter::get_frame(bool& eof) const noexcept -> int32_t {
           return -1;  // Failure
       }
 
-      if (read_sub_blocks(eof) < 0) {
+      if (ReadSubBlocks(eof) < 0) {
         return -1;  // Failure
       }
     } else {
@@ -517,7 +518,7 @@ auto GIF_filter::Handle(int32_t /*ch*/) noexcept -> bool {  // encoding
   uint32_t frame{0};
   bool eof{false};
   int32_t ret;  // 1 got new frame, 0 end of frames, -1 failure
-  for (; 1 == (ret = get_frame(eof)); ++frame) {
+  for (; 1 == (ret = GetFrame(eof)); ++frame) {
     fseek(_stream, 8, SEEK_CUR);  // x,y,w,h
 
     const uint8_t fisrz{static_cast<uint8_t>(_stream.getc())};

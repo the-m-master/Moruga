@@ -1,7 +1,7 @@
 #===============================================================================
 # Moruga project
 #===============================================================================
-# Copyright (c) 2019-2022 Marwijn Hessel
+# Copyright (c) 2019-2023 Marwijn Hessel
 #
 # Moruga is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 # https://github.com/the-m-master/Moruga
 #===============================================================================
 
-# PNG to ICO done using: https://icoconvert.com/
+# PNG to ICO done using: https://redketchup.io/icon-converter
+# Size 16 24 32 48 256 (image format PNG)
 
 windres Moruga.rc -O coff -o Moruga.res

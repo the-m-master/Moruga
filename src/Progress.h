@@ -1,6 +1,6 @@
 /* Progress, simple progress bar handling
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,12 +21,18 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
+#include <string_view>
 #include <thread>
 class iMonitor_t;
 
 enum class Filter;
 
+/**
+ * @struct TraceProgress_t
+ * @brief Container for track and trace information
+ *
+ * Container for track and trace information
+ */
 #pragma pack(push, 1)
 struct TraceProgress_t {
   bool isRunning;
@@ -39,9 +45,15 @@ struct TraceProgress_t {
 };
 #pragma pack(pop)
 
+/**
+ * @class Progress_t
+ * @brief Progress monitoring, display as text
+ *
+ * Progress monitoring, display as text
+ */
 class Progress_t final {
 public:
-  explicit Progress_t(const std::string& workType, bool encode, const iMonitor_t& monitor) noexcept;
+  explicit Progress_t(std::string_view workType, bool encode, const iMonitor_t& monitor) noexcept;
   virtual ~Progress_t() noexcept;
 
   [[nodiscard]] static auto PeakMemoryUse() noexcept -> uint32_t;  // in KiB

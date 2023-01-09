@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,8 +34,8 @@ auto Header_t::ScanPNG(int32_t /*ch*/) noexcept -> Filter {
   // -------+------+---------------------------------------------------------
   // offset | size | description
   // -------+------+---------------------------------------------------------
-  //      0 |   4  | The signature of the header. This is always '%PNG\r\n^Z\n'.
-  //     12 |   4  | IHDR
+  //      0 |   8  | The signature of the header. This is always '%PNG\r\n^Z\n'.
+  //      8 |   4  | IHDR Length
   //     16 |   4  | Image width in pixels
   //     20 |   4  | Image height in pixels
   //     24 |   1  | Bit Depth
@@ -78,7 +78,7 @@ auto Header_t::ScanPNG(int32_t /*ch*/) noexcept -> Filter {
 
   static constexpr uint32_t offset{32};
 
-  if ((0x89504E47u == _buf.m4(offset - 0)) && (0x0D0A1A0Au == _buf.m4(offset - 4)) && ('IHDR' == _buf.m4(offset - 12))) {
+  if ((UINT64_C(0x89504E470D0A1A0A) == _buf.m8(offset - 0)) && (0x0D == _buf.m4(offset - 8) && ('IHDR' == _buf.m4(offset - 12)))) {
     _di.offset_to_start = 0;   // start now!
     _di.filter_end = INT_MAX;  // end never..
     return Filter::PNG;

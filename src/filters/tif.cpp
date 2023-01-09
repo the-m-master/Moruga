@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
  */
 #include "tif.h"
 #include <cstdint>
+#include "Buffer.h"
 #include "File.h"
 #include "filter.h"
 #include "iEncoder.h"
@@ -290,33 +291,35 @@ static auto encodeLzw(File_t& in, File_t& out, const bool compare, uint64_t& dif
 
 #endif
 
-static constexpr uint32_t offset{512};
+namespace {
+  constexpr uint32_t offset{512};
 
-static auto Validation(const uint32_t width,   //
-                       const uint32_t height,  //
-                       const uint32_t bps,     //
-                       const uint32_t cmp,     //
-                       const uint32_t rgb,     //
-                       int32_t ots,            //
-                       DataInfo_t& _di) noexcept -> Filter {
-  if ((width > 0) && (width < 0x30000) &&              //
-      (height > 0) && (height < 0x10000) &&            //
-      (0 != bps) &&                                    //
-      ((1 == cmp) /*|| (5 == cmp)*/) &&                //  1=none, 5=lzw
-      (/*(0 == rgb) || (1 == rgb) ||*/ (2 == rgb)) &&  //  0/1=grey, 2=rgb
-      (/*(1 == _di.bytes_per_pixel) ||*/ (3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
-    /*_di.lzw_encoded = 5 == cmp;*/
-    _di.filter_end = static_cast<int32_t>(width * height * _di.bytes_per_pixel);
-    ots -= static_cast<int32_t>(offset);
-    _di.offset_to_start = (ots < 0) ? 0 : ots;
+  auto Validation(const uint32_t width,   //
+                  const uint32_t height,  //
+                  const uint32_t bps,     //
+                  const uint32_t cmp,     //
+                  const uint32_t rgb,     //
+                  int32_t ots,            //
+                  DataInfo_t& _di) noexcept -> Filter {
+    if ((width > 0) && (width < 0x30000) &&              //
+        (height > 0) && (height < 0x10000) &&            //
+        (0 != bps) &&                                    //
+        ((1 == cmp) /*|| (5 == cmp)*/) &&                //  1=none, 5=lzw
+        (/*(0 == rgb) || (1 == rgb) ||*/ (2 == rgb)) &&  //  0/1=grey, 2=rgb
+        (/*(1 == _di.bytes_per_pixel) ||*/ (3 == _di.bytes_per_pixel) || (4 == _di.bytes_per_pixel))) {
+      /*_di.lzw_encoded = 5 == cmp;*/
+      _di.filter_end = static_cast<int32_t>(width * height * _di.bytes_per_pixel);
+      ots -= static_cast<int32_t>(offset);
+      _di.offset_to_start = (ots < 0) ? 0 : ots;
 #if 0
     fprintf(stderr, "TIF %ux%ux%u  \n", width, height, _di.bytes_per_pixel);
     fflush(stderr);
 #endif
-    return Filter::TIF;
+      return Filter::TIF;
+    }
+    return Filter::NOFILTER;
   }
-  return Filter::NOFILTER;
-}
+};  // namespace
 
 auto Header_t::ScanTIF(int32_t /*ch*/) noexcept -> Filter {
   // ------------------------------------------------------------------------

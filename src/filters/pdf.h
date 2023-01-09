@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,14 +21,19 @@
 #pragma once
 
 #include <cstdint>
-#include "Buffer.h"
 #include "filter.h"
 class File_t;
 class iEncoder_t;
 
+/**
+ * @class PDF_filter
+ * @brief Handling the PDF filter
+ *
+ * Handling the PDF filter
+ */
 class PDF_filter final : public iFilter_t {
 public:
-  explicit PDF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf) noexcept;
+  explicit PDF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept;
   virtual ~PDF_filter() noexcept override;
 
   PDF_filter() = delete;
@@ -41,7 +46,6 @@ public:
   virtual auto Handle(int32_t ch, int64_t& pos) noexcept -> bool final;  // decoding
 
 private:
-  const Buffer_t& __restrict _buf;
   File_t& _stream;
   iEncoder_t* const _coder;
   DataInfo_t& _di;

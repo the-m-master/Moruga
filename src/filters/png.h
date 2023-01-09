@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,11 +21,17 @@
 #pragma once
 
 #include <cstdint>
-#include "Buffer.h"
 #include "filter.h"
+class Buffer_t;
 class File_t;
 class iEncoder_t;
 
+/**
+ * @class PNG_filter
+ * @brief Handling the PNG filter
+ *
+ * Handling the PNG filter
+ */
 class PNG_filter final : public iFilter_t {
 public:
   explicit PNG_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf) noexcept;

@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,29 +21,44 @@
 #pragma once
 
 #include <cstdint>
-#include "Buffer.h"
-#include "IntegerXXL.h"
+#if !defined(_MSC_VER)
+#  include "IntegerXXL.h"
+#endif
+class Buffer_t;
 class File_t;
 class iEncoder_t;
 
+/**
+ * @enum Filter
+ * @brief Filter classification values
+ *
+ * Filter classification values
+ */
 enum class Filter {
-  NOFILTER = 0,
-  BMP,
-  CAB,
-  ELF,
-  EXE,
-  GIF,
-  GZP,
-  PBM,
-  PDF,
-  PKZ,
-  PNG,
-  SGI,
-  TGA,
-  TIF,
-  WAV,
+  NOFILTER = 0,  ///< NOFILTER
+  BMP,           ///< BMP
+  BZ2,           ///< BZ2
+  CAB,           ///< CAB
+  ELF,           ///< ELF
+  EXE,           ///< EXE
+  GIF,           ///< GIF
+  GZP,           ///< GZP
+  PBM,           ///< PBM
+  PDF,           ///< PDF
+  PKZ,           ///< PKZ
+  PNG,           ///< PNG
+  SGI,           ///< SGI
+  TGA,           ///< TGA
+  TIF,           ///< TIF
+  WAV,           ///< WAV
 };
 
+/**
+ * @class iFilter_t
+ * @brief General filter interface
+ *
+ * General filter interface
+ */
 class iFilter_t {
 public:
   explicit iFilter_t() noexcept = default;
@@ -61,8 +76,16 @@ public:
   static const auto _DEADBEEF{UINT32_C(0xDEADBEEF)};
 };
 
-struct DataInfo_t {
+/**
+ * @struct DataInfo_t
+ * @brief For transporting filter information
+ *
+ * For transporting filter information
+ */
+struct DataInfo_t final {
+#if !defined(_MSC_VER)
   uint128_t tag{0};
+#endif
 
   int32_t offset_to_start{0};
   int32_t filter_end{0};
@@ -91,10 +114,16 @@ struct DataInfo_t {
   uint16_t cfiles{0};    // CAB files
   uint16_t cflags{0};    // CAB flags
 
-  int32_t uncompressedLength;  // LZX
-  int32_t compressedLength;    // LZX
+  int32_t : 32;  // Padding
+  int32_t : 32;  // Padding
 };
 
+/**
+ * @struct Header_t
+ * @brief Detection file headers and creating the corresponding filter
+ *
+ * Detection file headers and creating the corresponding filter
+ */
 class Header_t final {
 public:
   explicit Header_t(const Buffer_t& __restrict buf, DataInfo_t& __restrict di, const bool encode) noexcept;
@@ -107,6 +136,7 @@ public:
   Header_t& operator=(Header_t&&) = delete;
 
   auto ScanBMP(int32_t ch) noexcept -> Filter;
+  auto ScanBZ2(int32_t ch) noexcept -> Filter;
   auto ScanCAB(int32_t ch) noexcept -> Filter;
   auto ScanELF(int32_t ch) noexcept -> Filter;
   auto ScanEXE(int32_t ch) noexcept -> Filter;
@@ -130,6 +160,12 @@ private:
   int32_t : 32;  // Padding
 };
 
+/**
+ * @struct Filter_t
+ * @brief Handling the created filter and clean-up when done
+ *
+ * Handling the created filter and clean-up when done
+ */
 class Filter_t final {
 public:
   explicit Filter_t(const Buffer_t& __restrict buf, const int64_t original_length, File_t& stream, iEncoder_t* encoder) noexcept;

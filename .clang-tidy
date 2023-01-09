@@ -5,6 +5,7 @@ Checks: >
   llvm-*,
   misc-*,
   modernize-*,
+  performance-*,
   -clang-diagnostic-c++98-*,
   -clang-diagnostic-covered-switch-default,
   -clang-diagnostic-exit-time-destructors,
@@ -14,5 +15,7 @@ Checks: >
   -clang-diagnostic-nested-anon-types,
   -clang-diagnostic-pre-*,
   -clang-diagnostic-reserved-identifier,
+  -clang-diagnostic-unsafe-buffer-usage,
   -clang-diagnostic-used-but-marked-unused,
-  -llvm-include-order
+  -llvm-include-order,
+  -misc-non-private-member-variables-in-classes

@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -229,9 +229,15 @@ enum {
   EM_CSKY = 252,           // C-SKY 32-bit processor
 };
 
+/**
+ * @struct Elf_id_t
+ * @brief ELF header information with magic number
+ *
+ * ELF header information with magic number
+ */
 struct Elf_id_t {
   union {
-    std::array<uint8_t, 16> ident;  // ELF "magic number"
+    std::array<uint8_t, 16> ident;  ///< ELF "magic number"
     struct {
       uint8_t _mag0;   // 7F
       uint8_t _mag1;   //'E'
@@ -250,11 +256,17 @@ struct Elf_id_t {
 };
 static_assert(24 == sizeof(Elf_id_t), "Alignment issue in Elf_id_t");
 
+/**
+ * @struct Elf32_entry_t
+ * @brief Entry for 32 bits applications
+ *
+ * Entry for 32 bits applications
+ */
 struct Elf32_entry_t {
   Elf_id_t id;
-  uint32_t entry;  // Entry point
-  uint32_t phoff;  // Program header table file offset
-  uint32_t shoff;  // Section header table file offset
+  uint32_t entry;  ///< Entry point virtual address
+  uint32_t phoff;  ///< Program header table file offset
+  uint32_t shoff;  ///< Section header table file offset
   uint32_t flags;
   uint16_t ehsize;
   uint16_t phentsize;
@@ -265,11 +277,17 @@ struct Elf32_entry_t {
 };
 static_assert(52 == sizeof(Elf32_entry_t), "Alignment issue in Elf32_entry_t");
 
+/**
+ * @struct Elf64_entry_t
+ * @brief Entry for 64 bits applications
+ *
+ * Entry for 64 bits applications
+ */
 struct Elf64_entry_t {
   Elf_id_t id;
-  uint64_t entry;  // Entry point virtual address
-  uint64_t phoff;  // Program header table file offset
-  uint64_t shoff;  // Section header table file offset
+  uint64_t entry;  ///< Entry point virtual address
+  uint64_t phoff;  ///< Program header table file offset
+  uint64_t shoff;  ///< Section header table file offset
   uint32_t flags;
   uint16_t ehsize;
   uint16_t phentsize;
@@ -280,38 +298,52 @@ struct Elf64_entry_t {
 };
 static_assert(64 == sizeof(Elf64_entry_t), "Alignment issue in Elf64_entry_t");
 
+/**
+ * @struct Elf32_section_t
+ * @brief Section information for 32 bit applications
+ *
+ * Section information for 32 bit applications
+ */
 struct Elf32_section_t {
-  uint32_t name;       // Section name, index in string tbl
-  uint32_t type;       // Type of section
-  uint32_t flags;      // Miscellaneous section attributes
-  uint32_t addr;       // Section virtual addr at execution
-  uint32_t offset;     // Section file offset
-  uint32_t size;       // Size of section in bytes
-  uint32_t link;       // Index of another section
-  uint32_t info;       // Additional section information
-  uint32_t addralign;  // Section alignment
-  uint32_t entsize;    // Entry size if section holds table
+  uint32_t name;       ///< Section name, index in string tbl
+  uint32_t type;       ///< Type of section
+  uint32_t flags;      ///< Miscellaneous section attributes
+  uint32_t addr;       ///< Section virtual addr at execution
+  uint32_t offset;     ///< Section file offset
+  uint32_t size;       ///< Size of section in bytes
+  uint32_t link;       ///< Index of another section
+  uint32_t info;       ///< Additional section information
+  uint32_t addralign;  ///< Section alignment
+  uint32_t entsize;    ///< Entry size if section holds table
 };
 static_assert(40 == sizeof(Elf32_section_t), "Alignment issue in Elf32_section_t");
 
+/**
+ * @struct Elf64_section_t
+ * @brief Section information for 64 bit applications
+ *
+ * Section information for 64 bit applications
+ */
 struct Elf64_section_t {
-  uint32_t name;       // Section name, index in string tbl
-  uint32_t type;       // Type of section
-  uint64_t flags;      // Miscellaneous section attributes
-  uint64_t addr;       // Section virtual addr at execution
-  int64_t offset;      // Section file offset
-  int64_t size;        // Size of section in bytes
-  uint32_t link;       // Index of another section
-  uint32_t info;       // Additional section information
-  uint64_t addralign;  // Section alignment
-  uint64_t entsize;    // Entry size if section holds table
+  uint32_t name;       ///< Section name, index in string tbl
+  uint32_t type;       ///< Type of section
+  uint64_t flags;      ///< Miscellaneous section attributes
+  uint64_t addr;       ///< Section virtual addr at execution
+  int64_t offset;      ///< Section file offset
+  int64_t size;        ///< Size of section in bytes
+  uint32_t link;       ///< Index of another section
+  uint32_t info;       ///< Additional section information
+  uint64_t addralign;  ///< Section alignment
+  uint64_t entsize;    ///< Entry size if section holds table
 };
 static_assert(64 == sizeof(Elf64_section_t), "Alignment issue in Elf64_section_t");
 
-static constexpr uint32_t offset{64};
+namespace {
+  constexpr uint32_t offset{64};
 
-static const Elf32_entry_t* entry_32{nullptr};
-static const Elf64_entry_t* entry_64{nullptr};
+  const Elf32_entry_t* entry_32{nullptr};
+  const Elf64_entry_t* entry_64{nullptr};
+};  // namespace
 
 auto Header_t::ScanELF(int32_t /*ch*/) noexcept -> Filter {
   if (0x7F454C46 == _buf.m4(offset - 0)) {  // \x7FELF
@@ -352,7 +384,7 @@ ELF_filter::ELF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) 
       _coder{coder},
       _di{di} {}
 
-auto ELF_filter::update_mru(int32_t* const mru, const int32_t addr) const noexcept -> int32_t {
+auto ELF_filter::UpdateMRU(int32_t* const mru, const int32_t addr) const noexcept -> int32_t {
   int32_t index{0};
   int32_t needle{mru[0]};
   mru[_call_mru.size() - 1] = addr;
@@ -365,7 +397,7 @@ auto ELF_filter::update_mru(int32_t* const mru, const int32_t addr) const noexce
 
 ELF_filter::~ELF_filter() noexcept = default;
 
-void ELF_filter::detect(const int32_t ch) noexcept {
+void ELF_filter::Detect(const int32_t ch) noexcept {
   if ((0xE8 == ch) || (0xE9 == ch) || ((0x80 == (0xF0 & ch)) && (0x0F == _oldc))) {
     _transform = true;
   }
@@ -431,7 +463,7 @@ auto ELF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
     _stream.Seek(origin);
   }
 
-  detect(ch);
+  Detect(ch);
 
   if (_transform) {
     _addr[_length++] = static_cast<uint8_t>(ch);
@@ -447,7 +479,7 @@ auto ELF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
         int32_t addr{(_addr[4] << 24) | (_addr[3] << 16) | (_addr[2] << 8) | _addr[1]};
 
         int32_t* __restrict const mru{(0xE8 == _addr[0]) ? &_call_mru[0] : &_jump_mru[0]};
-        const auto index{update_mru(mru, addr)};
+        const auto index{UpdateMRU(mru, addr)};
 
         if (static_cast<int32_t>(_call_mru.size() - 1) != index) {
           _addr[1] = 0xFF;
@@ -500,7 +532,7 @@ auto ELF_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
     }
   }
 
-  detect(ch);
+  Detect(ch);
 
   if (_transform) {
     _addr[_length++] = static_cast<uint8_t>(ch);
@@ -532,7 +564,7 @@ auto ELF_filter::Handle(int32_t ch, int64_t& pos) noexcept -> bool {  // decodin
         }
 
         if (valid) {
-          update_mru(mru, addr);
+          UpdateMRU(mru, addr);
 
           _addr[1] = static_cast<uint8_t>(addr);
           _addr[2] = static_cast<uint8_t>(addr >> 8);

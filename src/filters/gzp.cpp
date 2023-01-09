@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -182,8 +182,8 @@ auto GZP_filter::Handle_GZ_flags(int32_t ch) noexcept -> bool {
 auto GZP_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if (Handle_GZ_flags(ch)) {
     const int64_t safe_pos{_stream.Position()};
-    _coder->Compress(ch);                                                 // Encode last character
-    DecodeEncodeCompare(_stream, _coder, safe_pos, _original_length, 0);  // TODO
+    _coder->Compress(ch);  // Encode last character
+    DecodeEncodeCompare(_stream, _coder, safe_pos, _original_length, 0);
     _di.pkziplen = 0;
     _di.filter_end = 0;
     return true;

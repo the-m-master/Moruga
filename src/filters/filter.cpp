@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "filter.h"
 #include "Progress.h"
 #include "bmp.h"
+#include "bz2.h"
 #include "cab.h"
 #include "elf.h"
 #include "exe.h"
@@ -45,8 +46,9 @@ Header_t::Header_t(const Buffer_t& __restrict buf, DataInfo_t& __restrict di, co
 Header_t::~Header_t() noexcept = default;
 
 auto Header_t::Scan(int32_t ch) noexcept -> Filter {
-  Filter type{ScanBMP(ch)};
   // clang-format off
+                           Filter type { ScanBMP(ch)  };
+  if (Filter::NOFILTER == type) { type = ScanBZ2(ch); }
   if (Filter::NOFILTER == type) { type = ScanCAB(ch); }
   if (Filter::NOFILTER == type) { type = ScanELF(ch); }
   if (Filter::NOFILTER == type) { type = ScanEXE(ch); }
@@ -84,13 +86,14 @@ auto Filter_t::Create(const Filter& type) noexcept -> iFilter_t* {
   switch (type) {
     // clang-format off
     case Filter::BMP: return new BMP_filter(_stream, _encoder, _di);
+    case Filter::BZ2: return new BZ2_filter(_stream, _encoder, _di, _original_length);
     case Filter::CAB: return new CAB_filter(_stream, _encoder, _di);
     case Filter::ELF: return new ELF_filter(_stream, _encoder, _di);
     case Filter::EXE: return new EXE_filter(_stream, _encoder, _di);
     case Filter::GIF: return new GIF_filter(_stream, _encoder, _di, _buf, _original_length);
     case Filter::GZP: return new GZP_filter(_stream, _encoder, _di, _original_length);
     case Filter::PBM: return new PBM_filter(_stream, _encoder, _di);
-    case Filter::PDF: return new PDF_filter(_stream, _encoder, _di, _buf);
+    case Filter::PDF: return new PDF_filter(_stream, _encoder, _di);
     case Filter::PKZ: return new PKZ_filter(_stream, _encoder, _di, _buf);
     case Filter::PNG: return new PNG_filter(_stream, _encoder, _di, _buf);
     case Filter::SGI: return new SGI_filter(_stream, _encoder, _di);

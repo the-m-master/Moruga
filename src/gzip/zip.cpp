@@ -19,7 +19,7 @@
 #include "gzip.h"
 
 namespace gzip {
-  auto file_read(void* buf, uint32_t size) noexcept -> int32_t {
+  auto FileRead(void* buf, uint32_t size) noexcept -> int32_t {
     if (size < insize) {
       insize -= size;
     } else {
@@ -37,7 +37,7 @@ namespace gzip {
     return int32_t(len);
   }
 
-  auto zip(FILE* const in, const uint32_t size, FILE* const out, const int32_t clevel) noexcept -> int32_t {
+  auto Zip(FILE* const in, const uint32_t size, FILE* const out, const int32_t clevel) noexcept -> int32_t {
     uint16_t attr = 0; /* ASCII/binary flag */
 
     ifd = in;
@@ -47,9 +47,9 @@ namespace gzip {
     level = clevel;
     bytes_in = 0;
 
-    bi_init();
-    ct_init(&attr);
-    deflate(level);
+    BitsInit();
+    CtInit(&attr);
+    Deflate(level);
     flush_outbuf();
     return GZip_OK;
   }

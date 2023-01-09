@@ -1,6 +1,6 @@
 /* Utilities for Moruga file compressor
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 
 #if !defined(NDEBUG)
 #  define ALWAYS_INLINE
@@ -39,6 +40,15 @@
 #  define strcasecmp _stricmp
 #endif
 
+auto GetInFileName() noexcept -> const char*;
+auto GetOutFileName() noexcept -> const char*;
+
+/**
+ * @namespace Utilities
+ * @brief Namespace for some global utilities
+ *
+ * Namespace for some global utilities
+ */
 namespace Utilities {
   // Fibonacci constants for a number of bits b
   // floor(2^(b)/ ((1 + sqrt(5))/2))
@@ -79,5 +89,19 @@ namespace Utilities {
   template <typename T>
   ALWAYS_INLINE constexpr auto to_lower(const T ch) noexcept -> T {
     return is_upper(ch) ? ch - 'A' + 'a' : ch;
+  }
+
+  template <typename T>
+  [[nodiscard]] auto safe_add(const T& a, const T& b) noexcept -> T {
+    if (a >= 0) {
+      if (b > (std::numeric_limits<T>::max() - a)) {
+        return std::numeric_limits<T>::max();  // handle overflow
+      }
+    } else {
+      if (b < (std::numeric_limits<T>::min() - a)) {
+        return std::numeric_limits<T>::min();  // handle underflow
+      }
+    }
+    return a + b;
   }
 }  // namespace Utilities

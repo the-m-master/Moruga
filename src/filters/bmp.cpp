@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "bmp.h"
 #include <cassert>
 #include <cstdint>
+#include "Buffer.h"
 #include "File.h"
 #include "filter.h"
 #include "iEncoder.h"
@@ -122,7 +123,6 @@ BMP_filter::BMP_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t
       _di{di} {}
 
 BMP_filter::~BMP_filter() noexcept {
-  assert(_di.padding_bytes == _length);
   if (nullptr != _coder) {  // encoding
     for (uint32_t n{0}; n < _length; ++n) {
       _coder->Compress(_rgba[n]);

@@ -1,7 +1,7 @@
 /*===============================================================================
  * Moruga project
  *===============================================================================
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -98,23 +98,23 @@ namespace gzip {
   extern void* this_pointer;                         // Optional helper pointer
   extern write_buffer_t omem;                        // Write output data to memory
 
-  extern auto bi_reverse(uint32_t value, int32_t length) noexcept -> uint32_t;
-  extern auto ct_tally(int32_t dist, int32_t lc) noexcept -> int32_t;
-  extern auto deflate(int32_t pack_level) noexcept -> int32_t;
-  extern auto file_read(void* buf, uint32_t size) noexcept -> int32_t;
+  extern auto BitsReverse(uint32_t value, int32_t length) noexcept -> uint32_t;
+  extern auto CtTally(int32_t dist, int32_t lc) noexcept -> int32_t;
+  extern auto Deflate(int32_t pack_level) noexcept -> int32_t;
+  extern auto FileRead(void* buf, uint32_t size) noexcept -> int32_t;
   extern auto fill_inbuf(int32_t eof_ok) noexcept -> int32_t;
-  extern auto flush_block(char* buf, uint32_t stored_len, int32_t pad, int32_t eof) noexcept -> int32_t;
-  extern auto inflate() noexcept -> int32_t;
+  extern auto FlushBlock(char* buf, uint32_t stored_len, int32_t pad, int32_t eof) noexcept -> int32_t;
+  extern auto Inflate() noexcept -> int32_t;
   extern auto read_buffer(FILE* fd, void* buf, uint32_t cnt) noexcept -> uint32_t;
-  extern void bi_init() noexcept;
-  extern void bi_windup() noexcept;
-  extern void copy_block(char* buf, uint32_t len, int32_t header) noexcept;
-  extern void ct_init(uint16_t* attr) noexcept;
+  extern void BitsInit() noexcept;
+  extern void BitsWindup() noexcept;
+  extern void CopyBlock(char* buf, uint32_t len, int32_t header) noexcept;
+  extern void CtInit(uint16_t* attr) noexcept;
   extern void flush_outbuf() noexcept;
   extern void flush_window() noexcept;
-  extern void send_bits(int32_t value, int32_t length) noexcept;
+  extern void SendBits(int32_t value, int32_t length) noexcept;
 
-  inline static void put_byte(uint8_t c) noexcept {
+  inline static void PutByte(uint8_t c) noexcept {
     outbuf[outcnt++] = c;
     if (outcnt == OUTBUFSIZ) {
       flush_outbuf();
@@ -122,24 +122,24 @@ namespace gzip {
   }
 
   /* Output a 16 bit value, lsb first */
-  inline static void put_short(uint16_t w) noexcept {
+  inline static void PutShort(uint16_t w) noexcept {
     if (outcnt < OUTBUFSIZ - 2) {
       outbuf[outcnt++] = uint8_t(w & 0xFF);
       outbuf[outcnt++] = uint8_t(w >> 8);
     } else {
-      put_byte(uint8_t(w & 0xFF));
-      put_byte(uint8_t(w >> 8));
+      PutByte(uint8_t(w & 0xFF));
+      PutByte(uint8_t(w >> 8));
     }
   }
 
   /* Output a 32 bit value to the bit stream, lsb first */
-  inline static void put_long(uint32_t n) noexcept {
-    put_short(uint16_t(n & 0xFFFF));
-    put_short(uint16_t(n >> 16));
+  inline static void PutLong(uint32_t n) noexcept {
+    PutShort(uint16_t(n & 0xFFFF));
+    PutShort(uint16_t(n >> 16));
   }
 
-  auto zip(FILE* const in, const uint32_t size, FILE* const out, const int32_t level) noexcept -> int32_t;
+  auto Zip(FILE* const in, const uint32_t size, FILE* const out, const int32_t level) noexcept -> int32_t;
 
-  auto unzip(FILE* const in, FILE* const out, uint32_t& ilength) noexcept -> int32_t;
-  auto unzip(const uint8_t* const in, const uint32_t ilength, write_buffer_t out, void* const ptr) noexcept -> int32_t;
+  auto Unzip(FILE* const in, FILE* const out, uint32_t& ilength) noexcept -> int32_t;
+  auto Unzip(const uint8_t* const in, const uint32_t ilength, write_buffer_t out, void* const ptr) noexcept -> int32_t;
 };  // namespace gzip

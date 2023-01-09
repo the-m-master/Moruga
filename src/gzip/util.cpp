@@ -82,32 +82,34 @@ namespace gzip {
     return 0;  // EOF
   }
 
-  static auto write_buffer(FILE* fd, void* buf, uint32_t cnt) noexcept -> uint32_t {
-    if (INT_MAX < cnt) {
-      cnt = INT_MAX;
-    }
-    if (fd) {
-      return uint32_t(fwrite(buf, sizeof(char), cnt, fd));
-    }
-    if (omem) {
-      bytes_out += cnt;
-      return omem(buf, cnt, this_pointer);
-    }
-    return 0;  // Failure
-  }
-
-  static void write_buf(FILE* fd, void* buf, uint32_t cnt) {
-    bytes_out += cnt;
-
-    uint32_t n;
-    while ((n = write_buffer(fd, buf, cnt)) != cnt) {
-      if (n == uint32_t(EOF)) {
-        return;  // write_error();
+  namespace {
+    auto write_buffer(FILE* fd, void* buf, uint32_t cnt) noexcept -> uint32_t {
+      if (INT_MAX < cnt) {
+        cnt = INT_MAX;
       }
-      cnt -= n;
-      buf = static_cast<void*>(static_cast<char*>(buf) + n);
+      if (fd) {
+        return uint32_t(fwrite(buf, sizeof(char), cnt, fd));
+      }
+      if (omem) {
+        bytes_out += cnt;
+        return omem(buf, cnt, this_pointer);
+      }
+      return 0;  // Failure
     }
-  }
+
+    void write_buf(FILE* fd, void* buf, uint32_t cnt) noexcept {
+      bytes_out += cnt;
+
+      uint32_t n{0};
+      while ((n = write_buffer(fd, buf, cnt)) != cnt) {
+        if (n == uint32_t(EOF)) {
+          return;  // write_error();
+        }
+        cnt -= n;
+        buf = static_cast<void*>(static_cast<char*>(buf) + n);
+      }
+    }
+  };  // namespace
 
   /* ===========================================================================
    * Write the output buffer outbuf[0..outcnt-1] and update bytes_out.

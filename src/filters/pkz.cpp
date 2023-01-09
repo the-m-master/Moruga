@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,10 @@
 #include "filter.h"
 #include "gzip.h"
 #include "iEncoder.h"
+
+namespace {
+  constexpr uint32_t offset{32};
+};  // namespace
 
 auto Header_t::ScanPKZ(int32_t /*ch*/) noexcept -> Filter {
   // ------------------------------------------------------------------------
@@ -93,12 +97,12 @@ auto Header_t::ScanPKZ(int32_t /*ch*/) noexcept -> Filter {
   //        |      | The field consists of a sequence of header and data pairs,
   //        |      | where the header has a 2 byte identifier and a 2 byte data size field.
 
-  if ((0 == _di.pkzippos) && ('PK\x3\x4' == _buf.m4(32)) && (8 == _buf.i2(32 - 8))) {
-    const int32_t nlen{_buf.i2(32 - 26) + _buf.i2(32 - 28)};
+  if ((0 == _di.pkzippos) && ('PK\x3\x4' == _buf.m4(offset)) && (8 == _buf.i2(offset - 8))) {
+    const int32_t nlen{_buf.i2(offset - 26) + _buf.i2(offset - 28)};
     if ((nlen > 0) && (nlen < 256)) {
       _di.pkzippos = _buf.Pos() + static_cast<uint32_t>(nlen) - (_encode ? 3 : 2);
-      _di.pkziplen = static_cast<int32_t>(_buf.i4(32 - 18));
-      const int32_t usize{static_cast<int32_t>(_buf.i4(32 - 22))};
+      _di.pkziplen = static_cast<int32_t>(_buf.i4(offset - 18));
+      const int32_t usize{static_cast<int32_t>(_buf.i4(offset - 22))};
       if ((usize > 0) && (_di.pkziplen > 0) && (usize < _di.pkziplen)) {  // Normally compressed size is less then uncompressed size
         _di.pkzippos = 0;
         _di.pkziplen = 0;

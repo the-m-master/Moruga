@@ -1,6 +1,6 @@
 /* File, fast file handling
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,10 @@
 #include <cstdlib>
 #include <string>
 #include "Utilities.h"
+
+#if !defined(_MSC_VER)
+#  include <unistd.h>
+#endif
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 #  include <windows.h>
@@ -60,6 +64,12 @@ static std::string getTempFileLocation() noexcept {
 #  endif  // !defined(__CYGWIN__)
 #endif    // defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 
+/**
+ * @class File_t
+ * @brief General file handling for fast reading and writing
+ *
+ * General file handling for fast reading and writing
+ */
 class File_t final {
 public:
 #if defined(__linux__) || defined(__CYGWIN__)
@@ -69,8 +79,8 @@ public:
 #endif
 
   explicit File_t(const char* const path, const std::string& mode) noexcept : _stream{path ? fopen(path, mode.c_str()) : std::tmpfile()} {
-    if (!_stream) {
-      fprintf(stderr, "Cannot open file '%s'\n", path);
+    if (nullptr == _stream) {
+      fprintf(stderr, "Cannot open file '%s'\n", path ? path : "<nullptr>");
       exit(EXIT_FAILURE);
     }
   }
@@ -112,7 +122,7 @@ public:
 #if defined(__CYGWIN__)
     struct stat fileInfo;
     fstat(fileno_unlocked(_stream), &fileInfo);
-#elif defined(_MSC_VER)
+#elif !defined(__linux__) && defined(_MSC_VER)
     struct _stat64 fileInfo;
     _fstat64(_fileno(_stream), &fileInfo);
 #else
@@ -129,7 +139,7 @@ public:
   [[nodiscard]] auto Position() const noexcept -> int64_t {
 #if defined(__CYGWIN__)
     return ftell(_stream);
-#elif defined(_MSC_VER)
+#elif !defined(__linux__) && defined(_MSC_VER)
     return _ftelli64(_stream);
 #else
     if (fpos_t pos{}; !fgetpos(_stream, &pos)) {
@@ -158,6 +168,12 @@ public:
 
   auto Flush() const noexcept -> int32_t {
     return fflush_unlocked(_stream);
+  }
+
+  void Sync() noexcept {
+#if defined(_POSIX_FSYNC)
+    fsync(fileno_unlocked(_stream));
+#endif
   }
 
   void Close() noexcept {

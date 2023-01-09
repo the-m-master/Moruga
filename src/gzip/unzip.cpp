@@ -18,25 +18,26 @@
 #include <cstdio>
 #include "gzip.h"
 
-namespace gzip {
-
-  static void flush() noexcept {
+namespace {
+  void Flush() noexcept {
 #if 0
     inbuf.fill(0);
     outbuf.fill(0);
     window.fill(0);
 #endif
   }
+};  // namespace
 
-  auto unzip(FILE* const in, FILE* const out, uint32_t& ilength) noexcept -> int32_t {
+namespace gzip {
+  auto Unzip(FILE* const in, FILE* const out, uint32_t& ilength) noexcept -> int32_t {
     if (in && out && (ilength > 0)) {
-      flush();
+      Flush();
       ifd = in;
       ofd = out;
       imem = nullptr;
       ifile_size = ilength;
       omem = nullptr;
-      const int32_t res{inflate()};
+      const int32_t res{Inflate()};
       ilength = bytes_in;
       return res;
     }
@@ -44,16 +45,16 @@ namespace gzip {
     return GZip_ERROR;
   }
 
-  auto unzip(const uint8_t* const in, const uint32_t ilength, write_buffer_t out, void* const ptr) noexcept -> int32_t {
+  auto Unzip(const uint8_t* const in, const uint32_t ilength, write_buffer_t out, void* const ptr) noexcept -> int32_t {
     if (in && (ilength > 0) && out) {
-      flush();
+      Flush();
       ifd = nullptr;
       ofd = nullptr;
       imem = in;
       ifile_size = ilength;
       omem = out;
       this_pointer = ptr;
-      const int32_t res{inflate()};
+      const int32_t res{Inflate()};
       omem = nullptr;
       return res;
     }

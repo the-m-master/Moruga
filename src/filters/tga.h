@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,12 @@
 class File_t;
 class iEncoder_t;
 
+/**
+ * @class TGA_filter
+ * @brief Handling the TGA filter
+ *
+ * Handling the TGA filter
+ */
 class TGA_filter final : public iFilter_t {
 public:
   explicit TGA_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t& di) noexcept;

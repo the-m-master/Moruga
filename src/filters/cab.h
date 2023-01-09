@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,11 +21,17 @@
 #pragma once
 
 #include <cstdint>
-#include "Buffer.h"
+#include <string>
 #include "filter.h"
 class File_t;
 class iEncoder_t;
 
+/**
+ * @class CAB_filter
+ * @brief Handling CAB files
+ *
+ * Handling CAB files
+ */
 class CAB_filter final : public iFilter_t {
 public:
   explicit CAB_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept;
@@ -47,14 +53,14 @@ private:
   uint32_t byte_counter_{0};
   uint32_t skip_counter_{0};
 
-  struct ReserveHeader_t {
+  struct ReserveHeader_t final {
     uint16_t headerReserveSize;
     uint8_t folderReserveSize;
     uint8_t fileReserveSize;
   };
   ReserveHeader_t reserveHeader_{};
 
-  struct FolderHeader_t {
+  struct FolderHeader_t final {
     uint32_t offset;
     uint16_t nBlocks;
     uint16_t format;
@@ -62,7 +68,7 @@ private:
   uint16_t cfolder_{0};
   FolderHeader_t folderHeader_{};
 
-  struct FileHeader_t {
+  struct FileHeader_t final {
     uint32_t length;
     uint32_t offset;
     uint16_t id;
@@ -75,7 +81,7 @@ private:
   uint16_t cfile_{0};
   FileHeader_t fileHeader_{};
 
-  struct Data_t {
+  struct Data_t final {
     uint32_t crc;
     uint16_t compressedDataLength;
     uint16_t uncompressedDataLength;
@@ -84,4 +90,5 @@ private:
   Data_t data_{};
 
   uint16_t header_{};
+  int32_t : 16;  // Padding
 };

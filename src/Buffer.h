@@ -1,6 +1,6 @@
 /* Buffer, history handling using buffer
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,12 @@
 
 #define ISPOWEROF2(x) (((x) > 0) && (!((x) & ((x)-1))))
 
+/**
+ * @class Buffer_t
+ * @brief Handling the read source information
+ *
+ * Handling the read source information
+ */
 class Buffer_t final {
 public:
   explicit Buffer_t() noexcept

@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,12 @@
 class File_t;
 class iEncoder_t;
 
+/**
+ * @class ELF_filter
+ * @brief Handling the ELF filter
+ *
+ * Handling the ELF filter
+ */
 class ELF_filter final : public iFilter_t {
 public:
   explicit ELF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept;
@@ -43,9 +49,9 @@ public:
 private:
   static constexpr uint8_t mru_escape{0xFE};  // May NOT be 0x00 or 0xFF
 
-  auto update_mru(int32_t* const mru, const int32_t addr) const noexcept -> int32_t;
+  auto UpdateMRU(int32_t* const mru, const int32_t addr) const noexcept -> int32_t;
 
-  void detect(const int32_t ch) noexcept;
+  void Detect(const int32_t ch) noexcept;
 
   File_t& _stream;
   iEncoder_t* const _coder;

@@ -1,6 +1,6 @@
 /* CaseSpace, is a text preparation for text compressing/decompressing
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,71 +24,56 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <utility>
+#include <string_view>
 #include "iMonitor.h"
 class File_t;
 class LempelZivWelch_t;
 
+/**
+ * @class CaseSpace_t
+ * @brief Transforming capital letters into small letters
+ *
+ * Transforming capital letters into small letters
+ */
 class CaseSpace_t final : public iMonitor_t {
 public:
   explicit CaseSpace_t(File_t& in, File_t& out) noexcept;
   virtual ~CaseSpace_t() noexcept override;
 
-  struct Dictionary_t final {
-    explicit Dictionary_t() = delete;
-    explicit Dictionary_t(const std::string& w, uint32_t f) noexcept : word{std::move(w)}, frequency{f} {}
-    explicit Dictionary_t(const Dictionary_t& other) noexcept : word{other.word}, frequency{other.frequency} {}
-    Dictionary_t(Dictionary_t&& other) noexcept : word{std::move(other.word)}, frequency{std::move(other.frequency)} {}
-
-    auto& operator=(const Dictionary_t& other) noexcept {
-      if (this != &other) {  // Self-assignment detection
-        word = other.word;
-        frequency = other.frequency;
-      }
-      return *this;
-    }
-
-    auto& operator=(Dictionary_t&& other) noexcept {
-      if (this != &other) {  // Self-assignment detection
-        word = std::move(other.word);
-        frequency = std::move(other.frequency);
-      }
-      return *this;
-    }
-
-    std::string word;
-    uint32_t frequency;
-    int32_t : 32;  // Padding
-  };
-
-  void Encode() noexcept;
-  [[nodiscard]] auto Decode() noexcept -> int64_t;
-
-  [[nodiscard]] auto charFrequency() const noexcept -> std::array<int64_t, 256>;
-  [[nodiscard]] auto getQuote() const noexcept -> const std::string&;
-
-private:
   CaseSpace_t(const CaseSpace_t&) = delete;
   CaseSpace_t(CaseSpace_t&&) = delete;
   CaseSpace_t& operator=(const CaseSpace_t&) = delete;
   CaseSpace_t& operator=(CaseSpace_t&&) = delete;
 
+  void Encode() noexcept;
+  [[nodiscard]] auto Decode() noexcept -> int64_t;
+
+  [[nodiscard]] auto CharFrequency() const noexcept -> const std::array<int64_t, 256>&;
+  [[nodiscard]] auto GetQuote() const noexcept -> const std::string_view;
+
+private:
+  /**
+   * @enum WordType
+   * @brief Word type escape values
+   *
+   * Word type escape values
+   */
   enum struct WordType {
-    ALL_SMALL = 60,             // 0x3C <
-    ALL_BIG = 94,               // 0x5E ^
-    FIRST_BIG_REST_SMALL = 64,  // 0x40 @
-    ESCAPE_CHAR = 12,           // 0x0C
-    CRLF_MARKER = 28            // 0x1C
+    ALL_SMALL = 60,             ///< 0x3C <
+    ALL_BIG = 94,               ///< 0x5E ^
+    FIRST_BIG_REST_SMALL = 64,  ///< 0x40 @
+    ESCAPE_CHAR = 12,           ///< 0x0C
+    CRLF_MARKER = 28            ///< 0x1C
   };
 
   void Encode(int32_t ch) noexcept;
   void EncodeWord() noexcept;
   void DecodeWord() noexcept;
 
-  [[nodiscard]] auto inputLength() const noexcept -> int64_t final;
-  [[nodiscard]] auto outputLength() const noexcept -> int64_t final;
-  [[nodiscard]] auto workLength() const noexcept -> int64_t final;
-  [[nodiscard]] auto layoutLength() const noexcept -> int64_t final;
+  [[nodiscard]] auto InputLength() const noexcept -> int64_t final;
+  [[nodiscard]] auto OutputLength() const noexcept -> int64_t final;
+  [[nodiscard]] auto WorkLength() const noexcept -> int64_t final;
+  [[nodiscard]] auto LayoutLength() const noexcept -> int64_t final;
 
   File_t& _in;
   File_t& _out;

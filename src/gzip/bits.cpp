@@ -17,27 +17,32 @@
 #include <cstdint>
 #include "gzip.h"
 
+/**
+ * @namespace gzip
+ * @brief Area for GZIP handling
+ *
+ * Area for GZIP handling
+ */
 namespace gzip {
-
-  static uint16_t bi_buf{0};
-  /* Output buffer. bits are inserted starting at the bottom (least significant
-   * bits).
-   */
+  namespace {
+    uint16_t bi_buf{0};
+    /* Output buffer. bits are inserted starting at the bottom (least significant bits). */
 
 #define Buf_size (8 * 2)
-  /* Number of bits used within bi_buf. (bi_buf might be implemented on
-   * more than 16 bits on some systems.)
-   */
+    /* Number of bits used within bi_buf. (bi_buf might be implemented on
+     * more than 16 bits on some systems.)
+     */
 
-  static int32_t bi_valid{0};
-  /* Number of valid bits in bi_buf.  All bits above the last valid bit
-   * are always zero.
-   */
+    int32_t bi_valid{0};
+    /* Number of valid bits in bi_buf.  All bits above the last valid bit
+     * are always zero.
+     */
+  };  // namespace
 
   /* ===========================================================================
    * Initialise the bit string routines.
    */
-  void bi_init() noexcept {
+  void BitsInit() noexcept {
     bi_buf = 0;
     bi_valid = 0;
   }
@@ -46,18 +51,18 @@ namespace gzip {
    * Send a value on a given number of bits.
    * IN assertion: length <= 16 and value fits in length bits.
    */
-  void send_bits(int32_t value, int32_t length) noexcept {
+  void SendBits(int32_t value, int32_t length) noexcept {
     /* If not enough room in bi_buf, use (valid) bits from bi_buf and
      * (16 - bi_valid) bits from value, leaving (width - (16-bi_valid))
      * unused bits in value.
      */
     if (bi_valid > (Buf_size - length)) {
-      bi_buf |= (value << bi_valid);
-      put_short(bi_buf);
-      bi_buf = uint16_t(value) >> (Buf_size - bi_valid);
+      bi_buf |= uint16_t(value << bi_valid);
+      PutShort(bi_buf);
+      bi_buf = uint16_t(value >> (Buf_size - bi_valid));
       bi_valid += length - Buf_size;
     } else {
-      bi_buf |= value << bi_valid;
+      bi_buf |= uint16_t(value << bi_valid);
       bi_valid += length;
     }
   }
@@ -67,7 +72,7 @@ namespace gzip {
    * method would use a table)
    * IN assertion: 1 <= len <= 15
    */
-  auto bi_reverse(uint32_t code, int32_t len) noexcept -> uint32_t {
+  auto BitsReverse(uint32_t code, int32_t len) noexcept -> uint32_t {
     uint32_t res = 0;
     do {
       res |= code & 1;
@@ -80,11 +85,11 @@ namespace gzip {
   /* ===========================================================================
    * Write out any remaining bits in an incomplete byte.
    */
-  void bi_windup() noexcept {
+  void BitsWindup() noexcept {
     if (bi_valid > 8) {
-      put_short(bi_buf);
+      PutShort(bi_buf);
     } else if (bi_valid > 0) {
-      put_byte(uint8_t(bi_buf));
+      PutByte(uint8_t(bi_buf));
     }
     bi_buf = 0;
     bi_valid = 0;
@@ -94,15 +99,15 @@ namespace gzip {
    * Copy a stored block to the zip file, storing first the length and its
    * one's complement if requested.
    */
-  void copy_block(char* buf, uint32_t len, int32_t header) noexcept {
-    bi_windup(); /* align on byte boundary */
+  void CopyBlock(char* buf, uint32_t len, int32_t header) noexcept {
+    BitsWindup(); /* align on byte boundary */
 
     if (header) {
-      put_short(uint16_t(len));
-      put_short(uint16_t(~len));
+      PutShort(uint16_t(len));
+      PutShort(uint16_t(~len));
     }
     while (len--) {
-      put_byte(uint8_t(*buf++));
+      PutByte(uint8_t(*buf++));
     }
   }
 };  // namespace gzip

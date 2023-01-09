@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,8 +29,14 @@
 #if defined(__linux__)
 #  define IMAGE_SIZEOF_SHORT_NAME 8
 #  define IMAGE_NUMBEROF_DIRECTORY_ENTRIES 16
+#else
+#  include <minwindef.h>
 #endif
 
+/**
+ * @struct IMAGE_FILE_HEADER_t
+ * @brief Image file header
+ */
 struct IMAGE_FILE_HEADER_t {
   uint16_t Machine;
   uint16_t NumberOfSections;
@@ -42,12 +48,20 @@ struct IMAGE_FILE_HEADER_t {
 };
 static_assert(20 == sizeof(IMAGE_FILE_HEADER_t), "Alignment issue in IMAGE_FILE_HEADER_t");
 
+/**
+ * @struct IMAGE_DATA_DIRECTORY_t
+ * @brief Image data directory
+ */
 struct IMAGE_DATA_DIRECTORY_t {
   uint32_t VirtualAddress;
   uint32_t Size;
 };
 static_assert(8 == sizeof(IMAGE_DATA_DIRECTORY_t), "Alignment issue in IMAGE_DATA_DIRECTORY_t");
 
+/**
+ * @struct IMAGE_OPTIONAL_HEADER32_t
+ * @brief Image optional header for 32 bits applications
+ */
 struct IMAGE_OPTIONAL_HEADER32_t {
   uint16_t Magic;
   uint8_t MajorLinkerVersion;
@@ -83,6 +97,10 @@ struct IMAGE_OPTIONAL_HEADER32_t {
 };
 static_assert(224 == sizeof(IMAGE_OPTIONAL_HEADER32_t), "Alignment issue in IMAGE_OPTIONAL_HEADER32_t");
 
+/**
+ * @struct IMAGE_NT_HEADERS32_t
+ * @brief Image NT header for 32 bits applications
+ */
 struct IMAGE_NT_HEADERS32_t {
   uint32_t Signature;
   IMAGE_FILE_HEADER_t FileHeader;
@@ -90,6 +108,10 @@ struct IMAGE_NT_HEADERS32_t {
 };
 static_assert(248 == sizeof(IMAGE_NT_HEADERS32_t), "Alignment issue in IMAGE_NT_HEADERS32_t");
 
+/**
+ * @struct IMAGE_OPTIONAL_HEADER64_t
+ * @brief Image optional header for 64 bits applications
+ */
 struct IMAGE_OPTIONAL_HEADER64_t {
   uint16_t Magic;
   uint8_t MajorLinkerVersion;
@@ -124,6 +146,10 @@ struct IMAGE_OPTIONAL_HEADER64_t {
 };
 static_assert(240 == sizeof(IMAGE_OPTIONAL_HEADER64_t), "Alignment issue in IMAGE_OPTIONAL_HEADER64_t");
 
+/**
+ * @struct IMAGE_NT_HEADERS64_t
+ * @brief Image NT header for 64 bits applications
+ */
 struct IMAGE_NT_HEADERS64_t {
   uint32_t Signature;
   IMAGE_FILE_HEADER_t FileHeader;
@@ -131,6 +157,10 @@ struct IMAGE_NT_HEADERS64_t {
 };
 static_assert(264 == sizeof(IMAGE_NT_HEADERS64_t), "Alignment issue in IMAGE_NT_HEADERS64_t");
 
+/**
+ * @struct IMAGE_SECTION_HEADER_t
+ * @brief Image section header
+ */
 struct IMAGE_SECTION_HEADER_t {
   std::array<uint8_t, IMAGE_SIZEOF_SHORT_NAME> Name;
   union {
@@ -257,7 +287,7 @@ EXE_filter::EXE_filter(File_t& stream, iEncoder_t* const coder, const DataInfo_t
 
 EXE_filter::~EXE_filter() noexcept = default;
 
-void EXE_filter::detect(const int32_t ch) noexcept {
+void EXE_filter::Detect(const int32_t ch) noexcept {
   if (!_transform) {
     if ((0xE8 == ch) || (0xE9 == ch) || ((0x0F == _oldc) && (0x80 == (0xF0 & ch)))) {
       _transform = true;
@@ -269,7 +299,7 @@ void EXE_filter::detect(const int32_t ch) noexcept {
 auto EXE_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   bool status{false};
 
-  detect(ch);
+  Detect(ch);
 
   if (_transform) {
     _addr[_length++] = static_cast<uint8_t>(ch);
@@ -310,7 +340,7 @@ auto EXE_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
 auto EXE_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // decoding
   bool status{false};
 
-  detect(ch);
+  Detect(ch);
 
   if (_transform) {
     _addr[_length++] = static_cast<uint8_t>(ch);

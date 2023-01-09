@@ -1,6 +1,6 @@
 /* GIF, encoding and decoding gif-lzw
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,12 @@ class Buffer_t;
 class File_t;
 class iEncoder_t;
 
+/**
+ * @class Gif_t
+ * @brief Container for handling GIF file encoding and decoding
+ *
+ * Container for handling GIF file encoding and decoding
+ */
 class Gif_t final {
 public:
   explicit Gif_t(File_t& in, File_t& out) noexcept;
@@ -73,9 +79,15 @@ private:
   std::array<int32_t, 4096> _dict{};
   std::array<int32_t, LZW_TABLE_SIZE> _table{};
   std::array<uint8_t, 4096> _output{};
-  int32_t : 32;  // Padding
+  std::array<int32_t, 4096> _diff_pos{};
 };
 
+/**
+ * @class GIF_filter
+ * @brief Handling the GIF filter
+ *
+ * Handling the GIF filter
+ */
 class GIF_filter final : public iFilter_t {
 public:
   explicit GIF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf, const int64_t original_length);
@@ -91,6 +103,12 @@ public:
   virtual auto Handle(int32_t ch, int64_t& pos) noexcept -> bool final;  // decoding
 
 private:
+  /**
+   * @enum Frames_t
+   * @brief GIF frame control values
+   *
+   * GIF frame control values
+   */
   enum Frames_t {
     PLAINTEXT_EXTENSION = 0x01,
     GRAPHIC_CONTROL = 0xF9,
@@ -102,8 +120,8 @@ private:
     TRAILER = 0x3B                // ;
   };
 
-  auto read_sub_blocks(bool& eof) const noexcept -> int32_t;
-  auto get_frame(bool& eof) const noexcept -> int32_t;
+  auto ReadSubBlocks(bool& eof) const noexcept -> int32_t;
+  auto GetFrame(bool& eof) const noexcept -> int32_t;
 
   const Buffer_t& __restrict _buf;
   const int64_t _original_length;

@@ -1,6 +1,6 @@
 /* TxtPrep5, is a text preparation for text encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,11 @@
 #pragma once
 
 #include <cstdint>
+#include <tuple>
 class File_t;
 
 static constexpr auto TP5_ESCAPE_CHAR{4};     // 0x04
+static constexpr auto TP5_NEGATIVE_CHAR{64};  // 0x40 @
 static constexpr auto TP5_QUOTING_CHAR{42};   // 0x2A *
 static constexpr auto TP5_SEPARATE_CHAR{20};  // 0x14
 
@@ -33,7 +35,7 @@ static constexpr auto TP5_SEPARATE_CHAR{20};  // 0x14
  * @param out Reference to output stream
  * @return Position where encoded data starts (zero when failure)
  */
-auto encode_txt(File_t& in, File_t& out) noexcept -> int64_t;
+auto EncodeText(File_t& in, File_t& out) noexcept -> std::tuple<int64_t, int64_t, int64_t, int64_t>;
 
 /**
  * Decode (text) data
@@ -41,4 +43,4 @@ auto encode_txt(File_t& in, File_t& out) noexcept -> int64_t;
  * @param out Reference to output stream
  * @return Original file length
  */
-auto decode_txt(File_t& in, File_t& out) noexcept -> int64_t;
+auto DecodeText(File_t& in, File_t& out) noexcept -> int64_t;

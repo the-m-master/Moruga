@@ -15,8 +15,8 @@ BEGIN
       VALUE "FileDescription", "High Performance Data Compression"
       VALUE "FileVersion", "1.0"
       VALUE "InternalName", "Moruga"
-      VALUE "LegalCopyright", "Copyright © 2013-2022 M.W. Hessel"
-      VALUE "LegalTrademarks", "Copyright (C) 2013-2022 M.W. Hessel"
+      VALUE "LegalCopyright", "Copyright \xA9 2013-2023 M.W. Hessel"
+      VALUE "LegalTrademarks", "Copyright (C) 2013-2023 M.W. Hessel"
       VALUE "OriginalFilename", "Moruga.exe"
       VALUE "ProductName", "Moruga"
       VALUE "ProductVersion", "1.0"
@@ -25,6 +25,6 @@ BEGIN
 
   BLOCK "VarFileInfo"
   BEGIN
-    VALUE "Translation", 0x809, 1252
+    VALUE "Translation", 0x0809, 0x04E4
   END
 END

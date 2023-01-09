@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,26 +49,32 @@
  * There shall not be any extra bytes, other than white space,
  * between endstream and endobj
  */
-// clang-format off
-static constexpr uint128_t stream0A       {0x00000A73747265616D0A_xxl}; // '\nstream\n'
-static constexpr uint128_t stream0A_mask  {0x0000FFFFFFFFFFFFFFFF_xxl};
+namespace {
+  // clang-format off
+  constexpr uint128_t stream0A          {0x00000000000000000073747265616D0A_xxl}; // 'stream\n'
+  constexpr uint128_t stream0A_mask     {0x000000000000000000FFFFFFFFFFFFFF_xxl};
 
-static constexpr uint128_t stream0D0A     {0x0D0A73747265616D0D0A_xxl}; // '\r\nstream\r\n'
-static constexpr uint128_t stream0D0A_mask{0xFFFFFFFFFFFFFFFFFFFF_xxl};
+  constexpr uint128_t stream0D0A        {0x000000000000000073747265616D0D0A_xxl}; // 'stream\r\n'
+  constexpr uint128_t stream0D0A_mask   {0x0000000000000000FFFFFFFFFFFFFFFF_xxl};
 
-static constexpr uint128_t endstream0A    {0x656E6473747265616D0A_xxl}; // 'endstream\n'
-static constexpr uint128_t endstream0D    {0x656E6473747265616D0D_xxl}; // 'endstream\r'
-static constexpr uint128_t endstream_mask {0xFFFFFFFFFFFFFFFFFFFF_xxl};
+  constexpr uint128_t endstream0A       {0x000000000000656E6473747265616D0A_xxl}; // 'endstream\n'
+  constexpr uint128_t endstream0A_mask  {0x000000000000FFFFFFFFFFFFFFFFFFFF_xxl};
 
-static constexpr uint128_t endobj0A       {0x000000656E646F626A0A_xxl}; // 'endobj\n'
-static constexpr uint128_t endobj0D       {0x000000656E646F626A0D_xxl}; // 'endobj\r'
-static constexpr uint128_t endobj_mask    {0x000000FFFFFFFFFFFFFF_xxl};
-// clang-format on
+  constexpr uint128_t endstream0D0A     {0x0000000000656E6473747265616D0D0A_xxl}; // 'endstream\r\n'
+  constexpr uint128_t endstream0D0A_mask{0x0000000000FFFFFFFFFFFFFFFFFFFFFF_xxl};
+
+  constexpr uint128_t endobj0A          {0x000000000000000000656E646F626A0A_xxl}; // 'endobj\n'
+  constexpr uint128_t endobj0A_mask     {0x000000000000000000FFFFFFFFFFFFFF_xxl};
+
+  constexpr uint128_t endobj0D0A        {0x0000000000000000656E646F626A0D0A_xxl}; // 'endobj\r\n'
+  constexpr uint128_t endobj0D0A_mask   {0x0000000000000000FFFFFFFFFFFFFFFF_xxl};
+  // clang-format on
+};  // namespace
 
 auto Header_t::ScanPDF(int32_t ch) noexcept -> Filter {
   _di.tag = (_di.tag << 8) | static_cast<uint128_t>(ch);
   if (((stream0A == (stream0A_mask & _di.tag)) || (stream0D0A == (stream0D0A_mask & _di.tag))) &&  //
-      (endstream0A != (endstream_mask & _di.tag)) && (endstream0D != (endstream_mask & _di.tag))) {
+      (endstream0A != (endstream0A_mask & _di.tag)) && (endstream0D0A != (endstream0D0A_mask & _di.tag))) {
     _di.tag = 0;
     _di.offset_to_start = 0;   // start now!
     _di.filter_end = INT_MAX;  // end never..
@@ -78,9 +84,8 @@ auto Header_t::ScanPDF(int32_t ch) noexcept -> Filter {
   return Filter::NOFILTER;
 }
 
-PDF_filter::PDF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di, const Buffer_t& __restrict buf) noexcept
-    : _buf{buf},  //
-      _stream{stream},
+PDF_filter::PDF_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) noexcept
+    : _stream{stream},  //
       _coder{coder},
       _di{di} {}
 
@@ -89,25 +94,24 @@ PDF_filter::~PDF_filter() noexcept = default;
 auto PDF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   const int64_t safe_pos{_stream.Position()};
 
-  int64_t block_length{0};
+  int64_t compressed_data_length{0};
   int32_t c;
   while (EOF != (c = _stream.getc())) {
     _di.tag = (_di.tag << 8) | static_cast<uint128_t>(c);
-    if ((endobj0A == (endobj_mask & _di.tag)) ||                                                     //
-        (endobj0D == (endobj_mask & _di.tag)) ||                                                     //
-        ((stream0A == (stream0A_mask & _di.tag)) && (endstream0A != (endstream_mask & _di.tag))) ||  //
-        ((stream0D0A == (stream0D0A_mask & _di.tag)) && (endstream0D != (endstream_mask & _di.tag)))) {
+    if ((endobj0A == (endobj0A_mask & _di.tag)) || (endobj0D0A == (endobj0D0A_mask & _di.tag)) ||      //
+        ((stream0A == (stream0A_mask & _di.tag)) && (endstream0A != (endstream0A_mask & _di.tag))) ||  //
+        ((stream0D0A == (stream0D0A_mask & _di.tag)) && (endstream0D0A != (endstream0D0A_mask & _di.tag)))) {
       // This shouldn't happen, but just in case...
       break;
     }
-    if (endstream0A == (endstream_mask & _di.tag)) {
+    if (endstream0A == (endstream0A_mask & _di.tag)) {
       const int64_t pos{_stream.Position()};
-      block_length = pos - safe_pos - 10;  // sub 10 bytes length of endstream
+      compressed_data_length = pos - safe_pos - 10;  // sub 10 bytes length of endstream
       break;
     }
-    if (endstream0D == (endstream_mask & _di.tag)) {
+    if (endstream0D0A == (endstream0D0A_mask & _di.tag)) {
       const int64_t pos{_stream.Position()};
-      block_length = pos - safe_pos - 11;  // sub 10 bytes length of endstream, and one extra
+      compressed_data_length = pos - safe_pos - 11 - 1;  // sub 10 bytes length of endstream, and one extra
       break;
     }
   }
@@ -115,7 +119,7 @@ auto PDF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   _di.filter_end = 0;
 
   _coder->Compress(ch);  // Encode last character
-  DecodeEncodeCompare(_stream, _coder, safe_pos, block_length, 0);
+  DecodeEncodeCompare(_stream, _coder, safe_pos, compressed_data_length, 0);
   return true;
 }
 

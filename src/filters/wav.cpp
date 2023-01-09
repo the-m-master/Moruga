@@ -1,6 +1,6 @@
 /* Filter, is a binary preparation for encoding/decoding
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
  */
 #include "wav.h"
 #include <cstdint>
+#include "Buffer.h"
 #include "File.h"
 #include "filter.h"
 #include "iEncoder.h"
@@ -80,7 +81,7 @@ WAV_filter::WAV_filter(File_t& stream, iEncoder_t* const coder, DataInfo_t& di) 
 
 WAV_filter::~WAV_filter() noexcept = default;
 
-void WAV_filter::seekData(const int32_t c) noexcept {
+void WAV_filter::SeekData(const int32_t c) noexcept {
   _data = (_data << 8) | static_cast<uint32_t>(c);
   if (_getLength) {
     --_getLength;
@@ -104,7 +105,7 @@ void WAV_filter::seekData(const int32_t c) noexcept {
 
 auto WAV_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if (_di.seekdata) {
-    seekData(ch);
+    SeekData(ch);
     _coder->Compress(ch);
   } else {
     const auto org{static_cast<int8_t>(ch)};
@@ -120,7 +121,7 @@ auto WAV_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
 
 auto WAV_filter::Handle(int32_t ch, int64_t& /*pos*/) noexcept -> bool {  // decoding
   if (_di.seekdata) {
-    seekData(ch);
+    SeekData(ch);
     _stream.putc(ch);
   } else {
     const auto org{static_cast<int8_t>(int8_t(ch) + _delta[_cycle])};

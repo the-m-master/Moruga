@@ -1,6 +1,6 @@
 /* iEncoder_t, Encoder interface to encode or decode data
  *
- * Copyright (c) 2019-2022 Marwijn Hessel
+ * Copyright (c) 2019-2023 Marwijn Hessel
  *
  * Moruga is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,12 @@
  */
 #pragma once
 
+/**
+ * @class iEncoder_t
+ * @brief General interface to arithmetic encoder/decoder
+ *
+ * General interface to arithmetic encoder/decoder
+ */
 class iEncoder_t {
 public:
   virtual ~iEncoder_t() noexcept;
@@ -84,4 +90,22 @@ public:
    * @param state True to enforce forecast model
    */
   virtual void SetStart(const bool state) noexcept = 0;
+
+  /**
+   * Set length of dictionary in case of TXT encoding, otherwise ignored
+   * @param dictionary_length Length of dictionary
+   */
+  virtual void SetDicStartOffset(const int64_t dictionary_length) noexcept = 0;
+
+  /**
+   * Set offset of dictionary in case of TXT encoding, otherwise ignored
+   * @param dictionary_offset Offset of dictionary
+   */
+  virtual void SetDicEndOffset(const int64_t dictionary_offset) noexcept = 0;
+
+  /**
+   * Number of words in the dictionary
+   * @param number_of_words Number of words
+   */
+  virtual void SetDicWords(const int64_t number_of_words) noexcept = 0;
 };
