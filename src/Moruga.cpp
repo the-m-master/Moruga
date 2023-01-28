@@ -109,10 +109,10 @@ namespace {
   }};
 
   [[nodiscard]] constexpr auto Squash(const int32_t pr) noexcept -> uint32_t {  // Conversion from -2048..2047 (clamped) into 0..4095
-    if (pr < ~0x7FF) {
+    if (pr <= ~0x7FF) {
       return 0x000;
     }
-    if (pr > 0x7FF) {
+    if (pr >= 0x7FF) {
       return 0xFFF;
     }
     return __squash[static_cast<size_t>(pr + 0x800)];
@@ -125,9 +125,9 @@ namespace {
   [[nodiscard]] constexpr auto Stretch(const uint32_t pr) noexcept -> int32_t {  // Conversion from 0..4095 into -2048..2047
     assert(pr < 0x1000);
     if (pr <= 0x7FF) {
-      return -__stretch[0x7FF - pr];
+      return -__stretch[pr ^ 0x7FF];  // 0x7FF - pr
     }
-    return __stretch[pr - 0x800];
+    return __stretch[pr & 0x7FF];  // pr - 0x800
   }
 
   [[nodiscard]] constexpr auto Stretch256(const int32_t pr) noexcept -> int32_t {  // Conversion from 0..1048575 into -2048..2047
@@ -715,12 +715,14 @@ public:
 
   [[nodiscard]] auto Predict(const int32_t err, const uint32_t context) noexcept -> int32_t {
     if ((err < -16) || (err > 16)) {
-      train(_prv, &_weights[_ctx], err);
+      const auto mismatch{std::clamp(err, SHRT_MIN, SHRT_MAX)};
+      train(_prv, &_weights[_ctx], mismatch);
     }
     _ctx = (context & _mask) * N_LAYERS;
     const auto sum{dot_product(_new, &_weights[_ctx])};
     std::swap(_new, _prv);
-    return sum >> 14;
+    const auto pr{clamp12(sum >> 14)};
+    return pr;
   }
 
 private:
@@ -773,7 +775,7 @@ private:
       return sum;                                     //
     }
 #else
-    auto sum{0};
+    int32_t sum{0};
     const auto* __restrict tt{t};
     const auto* __restrict ww{w};
     for (auto n{N_LAYERS}; n--;) {
@@ -1276,12 +1278,12 @@ public:
     _cp = _hashmap[context];
   }
 
-  [[nodiscard]] auto Predict() noexcept -> int32_t {  // predict next bit
+  [[nodiscard]] auto Predict() noexcept -> int16_t {  // predict next bit
     const uint8_t expected_byte{_cp->value};
     if ((expected_byte | 0x100u) >> (1 + bcount_) == c0_) {
       const int32_t expected_bit{1 & (expected_byte >> bcount_)};
       const auto prediction{((expected_bit * 2) - 1) * ilog[_cp->count]};
-      return prediction;
+      return static_cast<int16_t>(prediction);
     }
     return 0;  // No or misprediction
   }
@@ -1431,10 +1433,9 @@ public:
 
     const auto last_pr{Squash(Mixer_t::tx_[7])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
-    const int32_t mismatch{((bit << 12) - static_cast<int32_t>(last_pr)) * 10};  // Scale of 10 is based on enwik9
-    const auto err{std::clamp(mismatch, SHRT_MIN, SHRT_MAX)};
+    const int32_t err{((bit << 12) - static_cast<int32_t>(last_pr)) * 10};  // Scale of 10 is based on enwik9
     const auto px{_blend.Predict(err, ctx)};
-    Mixer_t::tx_[7] = clamp12(px);
+    Mixer_t::tx_[7] = px;
   }
 
 private:
@@ -1638,18 +1639,17 @@ public:
 
     const auto py{static_cast<int16_t>(_ltp1.Update(bit, (ctx0 << 8) | c0_, 4))};  // 6+8=14 bits | Rate of 4 is based on enwik9
     pr[2] = ctx0 ? py : 0;
-    pr[3] = static_cast<int16_t>(_rc0.Predict());
-    pr[4] = static_cast<int16_t>(_rc1.Predict());
-    pr[5] = static_cast<int16_t>(_rc2.Predict());
-    pr[6] = static_cast<int16_t>(_rc3.Predict());
-    pr[7] = static_cast<int16_t>(_rc4.Predict());
+    pr[3] = _rc0.Predict();
+    pr[4] = _rc1.Predict();
+    pr[5] = _rc2.Predict();
+    pr[6] = _rc3.Predict();
+    pr[7] = _rc4.Predict();
 
     const auto last_pr{Squash(Mixer_t::tx_[0])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
-    const int32_t mismatch{((bit << 12) - static_cast<int32_t>(last_pr)) * 11};  // Scale of 11 is based on enwik9
-    const auto err{std::clamp(mismatch, SHRT_MIN, SHRT_MAX)};
+    const int32_t err{((bit << 12) - static_cast<int32_t>(last_pr)) * 11};  // Scale of 11 is based on enwik9
     const auto px{_blend.Predict(err, ctx)};
-    Mixer_t::tx_[0] = clamp12(px);
+    Mixer_t::tx_[0] = px;
 
     return order;
   }
@@ -1679,7 +1679,7 @@ private:
   StateMap_t<0x8000> _ltp0{};             // Length to prediction
   StateMap_t<0x4000> _ltp1{};             // (curved) Length to prediction
   RunContextMap_t _rc0{14, 23};           // match_length|c1_ | scale of 23 is based on enwik9
-  RunContextMap_t _rc1{16 + level_, 49};  //              w5_ | scale of 54 is based on enwik9 | not part of model, just an improvement
+  RunContextMap_t _rc1{16 + level_, 49};  //              w5_ | scale of 49 is based on enwik9 | not part of model, just an improvement
   RunContextMap_t _rc2{16 + level_, 51};  //              x5_ | scale of 51 is based on enwik9 | not part of model, just an improvement
   RunContextMap_t _rc3{16 + level_, 32};  //              tt_ | scale of 32 is based on enwik9 | not part of model, just an improvement
   RunContextMap_t _rc4{16 + level_, 26};  //            word_ | scale of 26 is based on enwik9 | not part of model, just an improvement
@@ -1773,10 +1773,9 @@ public:
 
     const auto last_pr{Squash(Mixer_t::tx_[8])};  // Conversion from -2048..2047 (clamped) into 0..4095
     const auto ctx{(w5_ << 3) | bcount_};
-    const int32_t mismatch{((bit << 12) - static_cast<int32_t>(last_pr)) * 9};  // Scale of 9 is based on enwik9
-    const auto err{std::clamp(mismatch, SHRT_MIN, SHRT_MAX)};
+    const int32_t err{((bit << 12) - static_cast<int32_t>(last_pr)) * 9};  // Scale of 9 is based on enwik9
     const auto px{_blend.Predict(err, ctx)};
-    Mixer_t::tx_[8] = clamp12(px);
+    Mixer_t::tx_[8] = px;
   }
 
 private:
@@ -2350,11 +2349,12 @@ public:
     cz = (std::min)(UINT32_C(9), (_failcount + cz) / 2);
 
     // clang-format off
-    const auto p2{_a2.Predict(bit,         p0s,           Finalise64(Hash(  8*c0_, 0x7FF & _failz                         ), 27))}; // hash bits of 27 is based on enwik9
-    const auto p3{_a3.Predict(bit,         p0s,           Finalise64(Hash( 32*c0_, 0x80FFFF & x5_                         ), 25))}; // hash bits of 25 is based on enwik9
-    const auto p4{_a4.Predict(bit, Stretch(p1), (2*c0_) ^ Finalise64(Hash(_buf(1), 0xFF & (x5_ >> 8), 0x80FF & (x5_ >> 16)), 57))}; // hash bits of 57 is based on enwik9
-    const auto p5{_a5.Predict(bit, Stretch(p2),           Finalise64(Hash(    c0_, w5_                                    ), 24))}; // hash bits of 24 is based on enwik9
-    const auto p6{_a6.Predict(bit, Stretch(p4), (4*c0_) ^ Finalise64(Hash(    cz, 0x0080FF & x5_                          ), 57))}; // hash bits of 57 is based on enwik9
+    const auto p2{_a2.Predict(bit,         p0s, Finalise64(Hash(  8*c0_, 0x7FF & _failz                         ), 27))};           // hash bits of 27 is based on enwik9
+    const auto p3{_a3.Predict(bit,         p0s, Finalise64(Hash( 32*c0_, 0x80FFFF & x5_                         ), 25))};           // hash bits of 25 is based on enwik9
+    const auto p4{_a4.Predict(bit, Stretch(p1), Finalise64(Hash(_buf(1), 0xFF & (x5_ >> 8), 0x80FF & (x5_ >> 16)), 57) ^ (2*c0_))}; // hash bits of 57 is based on enwik9
+    const auto p4s{Stretch(p4)};
+    const auto p5{_a5.Predict(bit, Stretch(p2), Finalise64(Hash(    c0_, w5_                                    ), 24))};           // hash bits of 24 is based on enwik9
+    const auto p6{_a6.Predict(bit,         p4s, Finalise64(Hash(    cz, 0x0080FF & x5_                          ), 57) ^ (4*c0_))}; // hash bits of 57 is based on enwik9
     // clang-format on
 
     auto& pr{_blend.Get()};
@@ -2366,7 +2366,7 @@ public:
       pr[3] = no_model_pr;
     } else {
       pr[0] = static_cast<int16_t>(Stretch(p3));  // Conversions from 0..4095 into -2048..2047
-      pr[1] = static_cast<int16_t>(Stretch(p4));
+      pr[1] = static_cast<int16_t>(p4s);
       pr[2] = static_cast<int16_t>(Stretch(p5));
       pr[3] = static_cast<int16_t>(Stretch(p6));
     }
@@ -3206,8 +3206,8 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
           const auto chg{uint8_t(XX)};
           WRT_mtt[idx]=chg;
 #else
-          XX = std::stoul(optarg, nullptr, 10);
-          fprintf(stdout, "\nValue : %" PRIu32 "\n", XX);
+          XX = std::stol(optarg, nullptr, 10);
+          fprintf(stdout, "\nValue : %" PRId32 "\n", XX);
 #endif
       } break;
 #endif
