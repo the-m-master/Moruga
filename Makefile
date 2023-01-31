@@ -74,12 +74,12 @@ PROFILE_DIR := Profile
 ifeq ($(TOOLCHAIN),llvm)
   CC          := clang
   CXX         := clang++
-  OBJDUMP     := llvm-objdump
+  OBJDUMP     := llvm-objdump --no-show-raw-insn
   CXX_VERSION := $(shell expr `$(CXX) -dumpversion | cut -f1 -d.` \>= 11)
 else
   CC          := gcc
   CXX         := g++
-  OBJDUMP     := objdump
+  OBJDUMP     := objdump --no-addresses --no-show-raw-insn
   CXX_VERSION := $(shell expr `$(CXX) -dumpversion | cut -f1 -d.` \>= 10)
 endif
 
@@ -298,7 +298,7 @@ all:
 #===============================================================================
 $(BUILD_DIR)/$(BIN_FILE): $(OBJECTS)
 	$(CXX) $(LDFLAGS) $(CCFLAGS) $(_LIB_DIRS) $(OBJECTS) $(_LIBS) -o $(BUILD_DIR)/$(BIN_FILE)
-#	$(OBJDUMP) --no-addresses --no-show-raw-insn -S $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
+	@$(OBJDUMP) --source $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
 
 #===============================================================================
 # Build all c files
