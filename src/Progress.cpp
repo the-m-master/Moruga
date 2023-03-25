@@ -51,6 +51,8 @@
 iMonitor_t::~iMonitor_t() noexcept = default;
 
 namespace {
+  using namespace std::literals;
+
   constexpr auto POW10_2{INT64_C(100)};
   constexpr auto POW10_6{INT64_C(1000000)};
   constexpr auto MIN_TIME{INT64_C(0)};
@@ -58,8 +60,8 @@ namespace {
   constexpr auto MIN_BAR_LENGTH{2};
   constexpr auto MAX_BAR_LENGTH{256};
 
-  constexpr std::array<const char* const, 4> SPEED_DIMS{{"B/s", "KiB/s", "MiB/s", "GiB/s"}};
-  constexpr std::array<const char* const, 3> MEM_DIMS{{"KiB", "MiB", "GiB"}};
+  constexpr std::array<const std::string_view, 4> SPEED_DIMS{{"B/s"sv, "KiB/s"sv, "MiB/s"sv, "GiB/s"sv}};
+  constexpr std::array<const std::string_view, 3> MEM_DIMS{{"KiB"sv, "MiB"sv, "GiB"sv}};
   constexpr std::array<const char, 4> ANIMATION{{'\\', '|', '/', '-'}};
 
   // static_cast<int32_t>(ceil(log(double(layoutLength | 1)) / log(10.0)))
@@ -264,24 +266,24 @@ namespace {
               ((workPosition * POW10_2) / workLength));
       if (state_.nFilters) {
         std::string filters;
-        FiltersToString(filters, state_.nBMP, "BMP");
-        FiltersToString(filters, state_.nBZ2, "BZ2");
-        FiltersToString(filters, state_.nCAB, "CAB");
-        FiltersToString(filters, state_.nELF, "ELF");
-        FiltersToString(filters, state_.nEXE, "EXE");
-        FiltersToString(filters, state_.nGIF, "GIF");
-        FiltersToString(filters, state_.nGZP, "GZ");  // GNU zip
-        FiltersToString(filters, state_.nPBM, "PBM");
-        FiltersToString(filters, state_.nPDF, "PDF");
-        FiltersToString(filters, state_.nPKZ, "PKZ");  // PKZip
-        FiltersToString(filters, state_.nPNG, "PNG");
-        FiltersToString(filters, state_.nSGI, "SGI");
-        FiltersToString(filters, state_.nTGA, "TGA");
-        FiltersToString(filters, state_.nTIF, "TIF");
-        FiltersToString(filters, state_.nWAV, "WAV");
+        FiltersToString(filters, state_.nBMP, "BMP"sv);
+        FiltersToString(filters, state_.nBZ2, "BZ2"sv);
+        FiltersToString(filters, state_.nCAB, "CAB"sv);
+        FiltersToString(filters, state_.nELF, "ELF"sv);
+        FiltersToString(filters, state_.nEXE, "EXE"sv);
+        FiltersToString(filters, state_.nGIF, "GIF"sv);
+        FiltersToString(filters, state_.nGZP, "GZ"sv);  // GNU zip
+        FiltersToString(filters, state_.nPBM, "PBM"sv);
+        FiltersToString(filters, state_.nPDF, "PDF"sv);
+        FiltersToString(filters, state_.nPKZ, "PKZ"sv);  // PKZip
+        FiltersToString(filters, state_.nPNG, "PNG"sv);
+        FiltersToString(filters, state_.nSGI, "SGI"sv);
+        FiltersToString(filters, state_.nTGA, "TGA"sv);
+        FiltersToString(filters, state_.nTIF, "TIF"sv);
+        FiltersToString(filters, state_.nWAV, "WAV"sv);
         fprintf(stdout, "\r\n%*s[Filter: %.*s]\r", tracer->digits + tracer->digits + length + 39, " ", barLength, filters.c_str());
 
-        static constexpr std::array<const char, 5> cursor_up_one_line{{"\033[1A"}};
+        static constexpr std::string_view cursor_up_one_line = "\033[1A"sv;
 #if defined(__linux__)
         fputs(cursor_up_one_line.data(), stdout);
 #else

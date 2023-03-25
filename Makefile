@@ -220,7 +220,7 @@ endif
 
 ifeq ($(MODE),iwyu)
   CCFLAGS := -w
-  CXXFLAGS := -Xiwyu --no_comment -std=c++20 -m64 -g3 -O1
+  CXXFLAGS := -Xiwyu --no_comment -std=c++20 -m64 -O1
 endif
 
 #===============================================================================
@@ -253,7 +253,7 @@ ECHO  := @echo
 GPROF := gprof
 MKDIR := @mkdir -p
 RM    := @rm -rf
-TIDY  := @~/llvm/llvm/build/bin/clang-tidy
+TIDY  := @clang-tidy
 
 #===============================================================================
 # list all sources, objects & dependencies
