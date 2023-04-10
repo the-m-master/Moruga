@@ -990,94 +990,83 @@ private:
     }
   }
 
-  void PreLiteral(const std::string_view literal) noexcept {
-    const auto length{literal.length()};
-    if (length >= MIN_SHORTER_WORD_SIZE) {
-      const std::string word{literal.substr(0, length)};
-      const auto [found, frequency]{_dictionary.word2frequency(word)};
-      if (found) {
-        WriteBytes(frequency);
-        return;
-      }
-    }
-    Literal(literal);
-  }
-
-  void EncodeWord(const std::string& word) noexcept {
+  void TryFindShorterSolution(const std::string& word) noexcept {
     const auto wlength{word.length()};
-
-    if (wlength >= MIN_WORD_SIZE) {
-      if (const auto [found, frequency]{_dictionary.word2frequency(word)}; found) {
-        WriteBytes(frequency);
-        return;
+    if (wlength >= MIN_SHORTER_WORD_SIZE) {
+      {
+        const auto [found, frequency]{_dictionary.word2frequency(word)};
+        if (found) {
+          WriteBytes(frequency);
+          return;
+        }
       }
 
-      if (wlength > MIN_SHORTER_WORD_SIZE) {
-        // Try to find a shorter word, start shortening at the end of the word
-        size_t offset_end{0};
-        size_t frequency_end{0};
-        for (size_t offset{wlength - 1}; offset >= MIN_SHORTER_WORD_SIZE; --offset) {
-          const std::string shorter{word.substr(0, offset)};
-          if (const auto [found, frequency]{_dictionary.word2frequency(shorter)}; found) {
-            offset_end = offset;
-            frequency_end = frequency;
-            break;
-          }
+      // Try to find a shorter word, start shortening at the end of the word
+      size_t offset_end{0};
+      size_t frequency_end{0};
+      for (size_t offset{wlength - 1}; offset >= MIN_SHORTER_WORD_SIZE; --offset) {
+        const std::string shorter{word.substr(0, offset)};
+        if (const auto [found, frequency]{_dictionary.word2frequency(shorter)}; found) {
+          offset_end = offset;
+          frequency_end = frequency;
+          break;
         }
+      }
 
-        // Try to find a shorter word, start shortening at the beginning of the word
-        size_t offset_begin{0};
-        size_t frequency_begin{0};
-        for (size_t offset{1}; (wlength - offset) >= MIN_SHORTER_WORD_SIZE; ++offset) {
-          const std::string shorter{word.substr(offset, wlength - offset)};
-          if (const auto [found, frequency]{_dictionary.word2frequency(shorter)}; found) {
-            offset_begin = offset;
-            frequency_begin = frequency;
-            break;
-          }
+      // Try to find a shorter word, start shortening at the beginning of the word
+      size_t offset_begin{0};
+      size_t frequency_begin{0};
+      for (size_t offset{1}; (wlength - offset) >= MIN_SHORTER_WORD_SIZE; ++offset) {
+        const std::string shorter{word.substr(offset, wlength - offset)};
+        if (const auto [found, frequency]{_dictionary.word2frequency(shorter)}; found) {
+          offset_begin = offset;
+          frequency_begin = frequency;
+          break;
         }
+      }
 
-        bool write_begin_word{false};
-        bool write_end_word{false};
+      bool write_begin_word{false};
+      bool write_end_word{false};
 
-        if (0 != offset_end) {
-          if (0 != offset_begin) {
-            if ((wlength - offset_end) <= offset_begin) {
-              write_end_word = true;
-            } else {
-              write_begin_word = true;
-            }
-          } else {
+      if (0 != offset_end) {
+        if (0 != offset_begin) {
+          if ((wlength - offset_end) <= offset_begin) {
             write_end_word = true;
-          }
-        } else {
-          if (0 != offset_begin) {
+          } else {
             write_begin_word = true;
           }
+        } else {
+          write_end_word = true;
         }
+      } else {
+        if (0 != offset_begin) {
+          write_begin_word = true;
+        }
+      }
 
-        if (write_begin_word) {
-          PreLiteral(word.substr(0, offset_begin));
-          WriteBytes(static_cast<uint32_t>(frequency_begin));
-          return;
-        }
-        if (write_end_word) {
-          WriteBytes(static_cast<uint32_t>(frequency_end));
-          PreLiteral(word.substr(offset_end, wlength - offset_end));
-          return;
-        }
+      if (write_begin_word) {
+        const auto left_over{word.substr(0, offset_begin)};
+        TryFindShorterSolution(left_over);
+        WriteBytes(static_cast<uint32_t>(frequency_begin));
+        return;
+      }
+      if (write_end_word) {
+        WriteBytes(static_cast<uint32_t>(frequency_end));
+        const auto left_over{word.substr(offset_end, wlength - offset_end)};
+        TryFindShorterSolution(left_over);
+        return;
+      }
 
-        // Try to find a shorter word, start shortening at the beginning and limiting the length of the word
-        for (size_t offset{1}; offset < (wlength - 1); ++offset) {
-          for (size_t length{wlength - offset}; length >= MIN_SHORTER_WORD_SIZE; --length) {
-            const std::string shorter(word, offset, length);
-            const auto [found, frequency]{_dictionary.word2frequency(shorter)};
-            if (found && (frequency < HIGH)) {
-              Literal(word.substr(0, offset));
-              WriteBytes(frequency);
-              Literal(word.substr(offset + length, wlength - offset - length));
-              return;
-            }
+      // Try to find a shorter word, start shortening at the beginning and limiting the length of the word
+      for (size_t offset{1}; offset < (wlength - 1); ++offset) {
+        for (size_t length{wlength - offset}; length >= MIN_SHORTER_WORD_SIZE; --length) {
+          const std::string shorter(word, offset, length);
+          const auto [found, frequency]{_dictionary.word2frequency(shorter)};
+          if (found && (frequency < HIGH)) {
+            Literal(word.substr(0, offset));
+            WriteBytes(frequency);
+            Literal(word.substr(offset + length, wlength - offset - length));
+            return;
           }
         }
       }
@@ -1085,6 +1074,17 @@ private:
 
     // Not found ...
     Literal(word);
+  }
+
+  void EncodeWord(const std::string& word) noexcept {
+    const auto wlength{word.length()};
+    if (wlength >= MIN_WORD_SIZE) {
+      if (const auto [found, frequency]{_dictionary.word2frequency(word)}; found) {
+        WriteBytes(frequency);
+        return;
+      }
+    }
+    TryFindShorterSolution(word);
   }
 
   void EncodeWordValue() noexcept {

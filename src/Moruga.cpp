@@ -451,7 +451,7 @@ auto GetOutFileName() noexcept -> const char* {
  */
 class APM_t final {
 public:
-  explicit APM_t(const uint64_t n, const uint32_t scale, const uint32_t start = 8) noexcept
+  explicit APM_t(const uint64_t n, const uint32_t scale, const uint32_t start) noexcept
       : N{(n * 24) + 1},  //
         _mask{static_cast<uint32_t>(n - 1)},
         _map{static_cast<Map_t*>(std::calloc(N, sizeof(Map_t)))} {
@@ -467,8 +467,11 @@ public:
     }
 
     for (auto i{N}; i--;) {
-      const auto pr{(8 == start) ? ((((i % 24) * 2) + 1) * 4096) / (24 * 2) :  //
-                        /*        */ ((i % 24) * 4096) / (24 - 1)};
+#if 0
+      const auto pr{(8 == start) ? ((((i % 24) * 2) + 1) * 4096) / (24 * 2) : ((i % 24) * 4096) / (24 - 1)};
+#else
+      const auto pr{((((i % 24) * 2) + 1) * 4096) / (24 * 2)};
+#endif
       const auto prediction{Squash(static_cast<int32_t>(pr) - 2048) * (UINT32_C(1) << 10)};  // Conversion from -2048..2047 (clamped) into 0..4095
       _map[i].prediction = MASK_22_BITS & prediction;
       _map[i].count = MASK_10_BITS & start;
@@ -495,7 +498,10 @@ private:
     auto& map{_map[_ctx]};
     const auto count{map.count};
     const auto err{((bit << 22) - map.prediction) / 8};
-    map.value = static_cast<uint32_t>(static_cast<int32_t>(map.value) + ((err * _dt[count]) & -0x400)) + (count < 0x3FF);
+    map.value = static_cast<uint32_t>(static_cast<int32_t>(map.value) + ((err * _dt[count]) & -0x400));
+    if (count < 0x3FF) {
+      ++map.value;
+    }
   }
 
   [[nodiscard]] auto Predict(const int32_t prediction, const uint32_t context) noexcept -> uint32_t {
@@ -1469,7 +1475,7 @@ private:
   static_assert(8 == offsetof(Node, count0), "Alignment failure in DMC node");
   static_assert(10 == offsetof(Node, count1), "Alignment failure in DMC node");
   static_assert(12 == sizeof(Node), "Alignment failure in DMC node");
-#endif // CLANG_TIDY
+#endif  // CLANG_TIDY
 
   static constexpr auto MEM_LIMIT{(UINT64_C(1) << 28) * sizeof(Node)};  // 3 GiB
   static constexpr auto MASK_28_BITS{(UINT32_C(1) << 28) - 1};
@@ -2323,12 +2329,22 @@ public:
     cz += tra[4 + ((_fails >> 3) & 3)];
     cz += tra[8 + ((_fails >> 1) & 3)];
     cz = (std::min)(UINT32_C(9), (_failcount + cz) / 2);
-#else
+#elif 0
     uint32_t cz{(1 & _fails) ? UINT32_C(9) : UINT32_C(1)};
     cz += 0xFu & (0x3340u >> (4 * (3 & (_fails >> 5))));
     cz += 0xFu & (0xC660u >> (4 * (3 & (_fails >> 3))));
     cz += 0xFu & (0xFC60u >> (4 * (3 & (_fails >> 1))));
     cz = (std::min)(UINT32_C(9), (_failcount + cz) / 2);
+#else
+    uint32_t cz{1};
+    cz += ((1u << 0) & _fails) ? 0xE : 0x0;  // based on enwik9
+    cz += ((1u << 1) & _fails) ? 0xC : 0x0;
+    cz += ((1u << 2) & _fails) ? 0xB : 0x0;
+    cz += ((1u << 3) & _fails) ? 0x8 : 0x0;
+    cz += ((1u << 4) & _fails) ? 0xB : 0x0;
+    cz += ((1u << 5) & _fails) ? 0x4 : 0x0;
+    cz += ((1u << 6) & _fails) ? 0x7 : 0x0;
+    cz = (std::min)(UINT32_C(0xB), (_failcount + cz) / 2);
 #endif
 
     // clang-format off
@@ -2395,14 +2411,14 @@ private:
   LempelZivPredict_t _lzp{_buf, MEM(20)};
   SparseMatchModel_t _smm{_buf};
   Txt_t _txt{};
-  APM_t _ax1{0x10000, 9216, 7};  // Fixed 16 bit context | Offset 7 is based on enwik9
-  APM_t _ax2{0x4000, 3722, 31};  //                      | Offset 31 is based on enwik9
-  APM_t _a1{0x100, 9238};        // Fixed 8 bit context  | Offset 8 (fixed)
-  APM_t _a2{MEM(9), 9238};       // 5                    | Offset 8 (fixed)
-  APM_t _a3{MEM(12), 9238};      // 3                    | Offset 8 (fixed)
-  APM_t _a4{MEM(14), 9238};      // 1                    | Offset 8 (fixed)
-  APM_t _a5{MEM(12), 9238};      // 2                    | Offset 8 (fixed)
-  APM_t _a6{MEM(9), 9238};       // 4                    | Offset 8 (fixed)
+  APM_t _ax1{0x10000, 9216, 9};  // Fixed 16 bit context | Offset 9 is based on enwik9
+  APM_t _ax2{0x4000, 3722, 37};  //                      | Offset 37 is based on enwik9
+  APM_t _a1{0x100, 9238, 12};    // Fixed 8 bit context  | Offset 12 is based on enwik9
+  APM_t _a2{MEM(9), 9238, 8};    // 5                    | Offset 8 is based on enwik9
+  APM_t _a3{MEM(12), 9238, 1};   // 3                    | Offset 1 is based on enwik9
+  APM_t _a4{MEM(14), 9238, 8};   // 1                    | Offset 8 is based on enwik9
+  APM_t _a5{MEM(12), 9238, 8};   // 2                    | Offset 8 is based on enwik9
+  APM_t _a6{MEM(9), 9238, 8};    // 4                    | Offset 8 is based on enwik9
   uint32_t _mxr_pr{0x7FF};
   uint32_t _pt{0x7FF};
   uint32_t _pr16{0x7FFF};  // Prediction 0..65535
@@ -3225,7 +3241,8 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
           const auto chg{uint16_t(XX&0xFFFF)};
           tra[idx]=chg;
 #else
-          XX = std::stol(optarg, nullptr, 10);
+          extern uint32_t XX;
+          XX = std::stoul(optarg, nullptr, 10);
           fprintf(stdout, "\nValue : %" PRIu32 "\n", XX);
 #endif
       } break;
@@ -3498,10 +3515,10 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
     fprintf(stdout, "\nEncoded from %" PRId64 " bytes to %" PRId64 " bytes.", bytes_done, outfile.Size());
 #if 1                                             // TODO clean-up
     if (INT64_C(1000000000) == originalLength) {  // enwik9
-      const auto improvement{INT64_C(135412689) - outfile.Size()};
+      const auto improvement{INT64_C(135401145) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     } else if (INT64_C(100000000) == originalLength) {  // enwik8
-      const auto improvement{INT64_C(17168802) - outfile.Size()};
+      const auto improvement{INT64_C(17167742) - outfile.Size()};
       fprintf(stdout, "\nImprovement %" PRId64 " bytes\n", improvement);
     }
 #endif
