@@ -349,27 +349,55 @@ auto Progress_t::PeakMemoryUse() noexcept -> uint32_t {
 }
 
 void Progress_t::FoundType(const Filter& type) noexcept {
-  // clang-format off
-  switch (type) {
-    case Filter::BMP: state_.nFilters = state_.nFilters + 1; state_.nBMP = state_.nBMP + 1; break;
-    case Filter::BZ2: state_.nFilters = state_.nFilters + 1; state_.nBZ2 = state_.nBZ2 + 1; break;
-    case Filter::CAB: state_.nFilters = state_.nFilters + 1; state_.nCAB = state_.nCAB + 1; break;
-    case Filter::ELF: state_.nFilters = state_.nFilters + 1; state_.nELF = state_.nELF + 1; break;
-    case Filter::EXE: state_.nFilters = state_.nFilters + 1; state_.nEXE = state_.nEXE + 1; break;
-    case Filter::GIF: state_.nFilters = state_.nFilters + 1; state_.nGIF = state_.nGIF + 1; break;
-    case Filter::GZP: state_.nFilters = state_.nFilters + 1; state_.nGZP = state_.nGZP + 1; break;
-    case Filter::PBM: state_.nFilters = state_.nFilters + 1; state_.nPBM = state_.nPBM + 1; break;
-    case Filter::PDF: state_.nFilters = state_.nFilters + 1; state_.nPDF = state_.nPDF + 1; break;
-    case Filter::PKZ: state_.nFilters = state_.nFilters + 1; state_.nPKZ = state_.nPKZ + 1; break;
-    case Filter::PNG: state_.nFilters = state_.nFilters + 1; state_.nPNG = state_.nPNG + 1; break;
-    case Filter::SGI: state_.nFilters = state_.nFilters + 1; state_.nSGI = state_.nSGI + 1; break;
-    case Filter::TGA: state_.nFilters = state_.nFilters + 1; state_.nTGA = state_.nTGA + 1; break;
-    case Filter::TIF: state_.nFilters = state_.nFilters + 1; state_.nTIF = state_.nTIF + 1; break;
-    case Filter::WAV: state_.nFilters = state_.nFilters + 1; state_.nWAV = state_.nWAV + 1; break;
+  state_.nFilters = state_.nFilters + 1;
+
+  switch (type) {  // clang-format off
+    case Filter::BMP: state_.nBMP = state_.nBMP + 1; break;
+    case Filter::BZ2: state_.nBZ2 = state_.nBZ2 + 1; break;
+    case Filter::CAB: state_.nCAB = state_.nCAB + 1; break;
+    case Filter::ELF: state_.nELF = state_.nELF + 1; break;
+    case Filter::EXE: state_.nEXE = state_.nEXE + 1; break;
+    case Filter::GIF: state_.nGIF = state_.nGIF + 1; break;
+    case Filter::GZP: state_.nGZP = state_.nGZP + 1; break;
+    case Filter::PBM: state_.nPBM = state_.nPBM + 1; break;
+    case Filter::PDF: state_.nPDF = state_.nPDF + 1; break;
+    case Filter::PKZ: state_.nPKZ = state_.nPKZ + 1; break;
+    case Filter::PNG: state_.nPNG = state_.nPNG + 1; break;
+    case Filter::SGI: state_.nSGI = state_.nSGI + 1; break;
+    case Filter::TGA: state_.nTGA = state_.nTGA + 1; break;
+    case Filter::TIF: state_.nTIF = state_.nTIF + 1; break;
+    case Filter::WAV: state_.nWAV = state_.nWAV + 1; break;
 
     case Filter::NOFILTER:
     default:
       break;
+  }  // clang-format on
+}
+
+void Progress_t::Cancelled(const Filter& type) noexcept {
+  if (state_.nFilters > 0) {
+    state_.nFilters = state_.nFilters - 1;
   }
-  // clang-format on
+
+  switch (type) {  // clang-format off
+    case Filter::BMP: if (state_.nBMP > 0) { state_.nBMP = state_.nBMP - 1; } break;
+    case Filter::BZ2: if (state_.nBZ2 > 0) { state_.nBZ2 = state_.nBZ2 - 1; } break;
+    case Filter::CAB: if (state_.nCAB > 0) { state_.nCAB = state_.nCAB - 1; } break;
+    case Filter::ELF: if (state_.nELF > 0) { state_.nELF = state_.nELF - 1; } break;
+    case Filter::EXE: if (state_.nEXE > 0) { state_.nEXE = state_.nEXE - 1; } break;
+    case Filter::GIF: if (state_.nGIF > 0) { state_.nGIF = state_.nGIF - 1; } break;
+    case Filter::GZP: if (state_.nGZP > 0) { state_.nGZP = state_.nGZP - 1; } break;
+    case Filter::PBM: if (state_.nPBM > 0) { state_.nPBM = state_.nPBM - 1; } break;
+    case Filter::PDF: if (state_.nPDF > 0) { state_.nPDF = state_.nPDF - 1; } break;
+    case Filter::PKZ: if (state_.nPKZ > 0) { state_.nPKZ = state_.nPKZ - 1; } break;
+    case Filter::PNG: if (state_.nPNG > 0) { state_.nPNG = state_.nPNG - 1; } break;
+    case Filter::SGI: if (state_.nSGI > 0) { state_.nSGI = state_.nSGI - 1; } break;
+    case Filter::TGA: if (state_.nTGA > 0) { state_.nTGA = state_.nTGA - 1; } break;
+    case Filter::TIF: if (state_.nTIF > 0) { state_.nTIF = state_.nTIF - 1; } break;
+    case Filter::WAV: if (state_.nWAV > 0) { state_.nWAV = state_.nWAV - 1; } break;
+
+    case Filter::NOFILTER:
+    default:
+      break;
+  }  // clang-format on
 }

@@ -1,9 +1,30 @@
+/* Filter, is a binary preparation for encoding/decoding
+ *
+ * Copyright (c) 2019-2023 Marwijn Hessel
+ *
+ * Moruga is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Moruga is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; see the file LICENSE.
+ * If not, see <https://www.gnu.org/licenses/>
+ *
+ * https://github.com/the-m-master/Moruga
+ */
 #include "bz2.h"
 #include <cassert>
 #include <climits>
 #include <cstdint>
 #include "Buffer.h"
 #include "File.h"
+#include "Progress.h"
 #include "filter.h"
 #include "gzip.h"
 #include "iEncoder.h"
@@ -55,6 +76,9 @@ BZ2_filter::~BZ2_filter() noexcept = default;
 
 auto BZ2_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   const int64_t safe_pos{_stream.Position()};
+  if (0 == _original_length) {
+    Progress_t::Cancelled(Filter::BZ2);
+  }
   _coder->Compress(ch);  // Encode last character
   DecodeEncodeCompare(_stream, _coder, safe_pos, _original_length, 0);
   _di.filter_end = 0;

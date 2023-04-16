@@ -60,6 +60,8 @@ public:
 
   static void FoundType(const Filter& type) noexcept;
 
+  static void Cancelled(const Filter& type) noexcept;
+
 private:
   Progress_t() = delete;
   Progress_t(const Progress_t& other) = delete;

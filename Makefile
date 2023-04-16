@@ -152,9 +152,10 @@ ifeq ($(TOOLCHAIN),llvm)
              -Wno-gnu-anonymous-struct \
              -Wno-multichar \
              -Wno-nested-anon-types \
-             -Wno-reserved-identifier \
              -Wno-reserved-id-macro \
+             -Wno-reserved-identifier \
              -Wno-unknown-attributes \
+             -Wno-unsafe-buffer-usage \
              -Wno-used-but-marked-unused
 else
   CCFLAGS += -Wall \

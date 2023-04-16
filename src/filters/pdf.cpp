@@ -25,6 +25,7 @@
 #include <cstdio>
 #include "File.h"
 #include "IntegerXXL.h"
+#include "Progress.h"
 #include "filter.h"
 #include "gzip.h"
 #include "iEncoder.h"
@@ -118,6 +119,9 @@ auto PDF_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   _di.tag = 0;
   _di.filter_end = 0;
 
+  if (0 == compressed_data_length) {
+    Progress_t::Cancelled(Filter::PDF);
+  }
   _coder->Compress(ch);  // Encode last character
   DecodeEncodeCompare(_stream, _coder, safe_pos, compressed_data_length, 0);
   return true;

@@ -2700,9 +2700,7 @@ private:
 
     {
       const auto err{(bit << 12) - static_cast<int32_t>(_mxr_pr) - bit};
-#if 1
       const auto fail{(std::abs)(err)};
-#endif
       if (fail >= MU) {
         fails_ |= calcfails(uint32_t(fail));
         _mixer.Update(err);

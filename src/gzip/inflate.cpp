@@ -182,8 +182,8 @@ namespace gzip {
                    const uint16_t* d, /* list of base values for non-simple codes */
                    const uint16_t* e, /* list of extra bits for non-simple codes */
                    huft** t,          /* result: starting table */
-                   int32_t* m         /* maximum lookup bits, returns actual */
-                   ) noexcept -> int32_t
+                   uint32_t* m        /* maximum lookup bits, returns actual */
+                   ) noexcept -> uint32_t
     /* Given a list of code lengths and a maximum table size, make a set of
        tables to decode that set of codes.  Return zero on success, one if
        the given code set is incomplete (the tables are still built in this
@@ -535,12 +535,12 @@ namespace gzip {
     /* decompress an inflated type 1 (fixed Huffman codes) block.  We should
        either replace this with a custom decoder, or at least precompute the
        Huffman tables. */
-    auto InflateFixed() noexcept -> int32_t {
+    auto InflateFixed() noexcept -> uint32_t {
       uint32_t i;                  /* temporary variable */
       huft* tl;                    /* literal/length code table */
       huft* td;                    /* distance code table */
-      int32_t bl;                  /* lookup bits for tl */
-      int32_t bd;                  /* lookup bits for td */
+      uint32_t bl;                 /* lookup bits for tl */
+      uint32_t bd;                 /* lookup bits for td */
       std::array<uint32_t, 288> l; /* length list for huft_build */
 
       /* set up literal table */
@@ -589,16 +589,16 @@ namespace gzip {
     }
 
     /* decompress an inflated type 2 (dynamic Huffman codes) block. */
-    auto InflateDynamic() noexcept -> int32_t {
-      int32_t i; /* temporary variables */
+    auto InflateDynamic() noexcept -> uint32_t {
+      uint32_t i; /* temporary variables */
       uint32_t j;
       uint32_t l;  /* last length */
       uint32_t m;  /* mask for bit lengths table */
       uint32_t n;  /* number of lengths to get */
       huft* tl;    /* literal/length code table */
       huft* td;    /* distance code table */
-      int32_t bl;  /* lookup bits for tl */
-      int32_t bd;  /* lookup bits for td */
+      uint32_t bl; /* lookup bits for tl */
+      uint32_t bd; /* lookup bits for td */
       uint32_t nb; /* number of bit length codes */
       uint32_t nl; /* number of literal/length codes */
       uint32_t nd; /* number of distance codes */

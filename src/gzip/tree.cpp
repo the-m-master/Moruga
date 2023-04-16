@@ -992,8 +992,7 @@ namespace gzip {
       /* Compute an upper bound for the compressed length */
       uint32_t out_length = last_lit * 8u;
       const uint32_t in_length = strstart - block_start;
-      int32_t dcode;
-      for (dcode = 0; dcode < D_CODES; dcode++) {
+      for (uint32_t dcode = 0; dcode < D_CODES; dcode++) {
         out_length += uint32_t(dyn_dtree[dcode].fc.freq) * (5u + extra_dbits[dcode]);
       }
       out_length >>= 3;

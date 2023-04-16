@@ -24,6 +24,7 @@
 #include <cstdint>
 #include "Buffer.h"
 #include "File.h"
+#include "Progress.h"
 #include "filter.h"
 #include "gzip.h"
 #include "iEncoder.h"
@@ -182,6 +183,9 @@ auto GZP_filter::Handle_GZ_flags(int32_t ch) noexcept -> bool {
 auto GZP_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if (Handle_GZ_flags(ch)) {
     const int64_t safe_pos{_stream.Position()};
+    if (0 == _original_length) {
+      Progress_t::Cancelled(Filter::GZP);
+    }
     _coder->Compress(ch);  // Encode last character
     DecodeEncodeCompare(_stream, _coder, safe_pos, _original_length, 0);
     _di.pkziplen = 0;

@@ -24,6 +24,7 @@
 #include <cstdint>
 #include "Buffer.h"
 #include "File.h"
+#include "Progress.h"
 #include "filter.h"
 #include "gzip.h"
 #include "iEncoder.h"
@@ -128,6 +129,9 @@ PKZ_filter::~PKZ_filter() noexcept = default;
 auto PKZ_filter::Handle(int32_t ch) noexcept -> bool {  // encoding
   if ((_di.pkzippos > 0) && (_buf.Pos() == _di.pkzippos)) {
     const int64_t safe_pos{_stream.Position()};
+    if (0 == _di.pkziplen) {
+      Progress_t::Cancelled(Filter::PKZ);
+    }
     _coder->Compress(ch);  // Encode last character
     DecodeEncodeCompare(_stream, _coder, safe_pos, _di.pkziplen, 0);
     _di.pkzippos = 0;

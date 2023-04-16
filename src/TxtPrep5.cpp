@@ -572,7 +572,7 @@ public:
             sign = false;
             freqency = -freqency;
           }
-          const auto word_index{static_cast<uint32_t>(freqency + delta)};
+          const auto word_index{(std::min)(static_cast<uint32_t>(freqency + delta), LIMIT - 1)};
           delta = static_cast<int32_t>(word_index);
 
           if (((_dic_length - 1) == sync_index) && (sync_index == word_index)) {
