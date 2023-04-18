@@ -127,7 +127,7 @@ namespace gzip {
 #  define nice_match MAX_MATCH
 #else
     /* Stop searching when current match exceeds this */
-    int32_t nice_match;
+    uint32_t nice_match;
 #endif
 
     constexpr std::array<config, 10> configuration_table{{{0, 0, 0, 0},            // 0 Store only
@@ -302,12 +302,12 @@ namespace gzip {
      * match.s. The code is functionally equivalent, so you can use the C version
      * if desired.
      */
-    auto LongestMatch(uint32_t cur_match) noexcept -> int32_t {
+    auto LongestMatch(uint32_t cur_match) noexcept -> uint32_t {
       uint32_t chain_length = max_chain_length; /* max hash chain length */
       uint8_t* scan = &window[strstart];        /* current string */
       uint8_t* match;                           /* matched string */
-      int32_t len;                              /* length of current match */
-      int32_t best_len = prev_length;           /* best match length so far */
+      uint32_t len;                             /* length of current match */
+      uint32_t best_len = prev_length;          /* best match length so far */
       const uint32_t limit{strstart > uint32_t(MAX_DIST) ? strstart - uint32_t(MAX_DIST) : 0};
       /* Stop when cur_match becomes <= limit. To simplify the code,
        * we prevent matches with the string of window index 0.
@@ -405,7 +405,7 @@ namespace gzip {
                  *++scan == *++match && *++scan == *++match &&  //
                  *++scan == *++match && *++scan == *++match && scan < strend);
 
-        len = MAX_MATCH - int32_t(strend - scan);
+        len = uint32_t(MAX_MATCH - int32_t(strend - scan));
         scan = strend - MAX_MATCH;
 #endif /* UNALIGNED_OK */
 
@@ -431,10 +431,10 @@ namespace gzip {
     /* ===========================================================================
      * Check that the match at match_start is indeed a match.
      */
-    void CheckMatch(uint32_t start, uint32_t match, int32_t length) noexcept {
+    void CheckMatch(uint32_t start, uint32_t match, uint32_t length) noexcept {
       /* check that the match is indeed a match */
       if (memcmp(&window[match], &window[start], length) != 0) {
-        fprintf(stderr, " start %d, match %d, length %d\n", start, match, length);
+        fprintf(stderr, " start %u, match %u, length %u\n", start, match, length);
         assert(1);  // gzip_error("invalid match");
       }
     }
@@ -563,7 +563,7 @@ namespace gzip {
         }
         if (flush) {
           FLUSH_BLOCK(0);
-          block_start = strstart;
+          block_start = int32_t(strstart);
         }
 
         /* Make sure that we always have enough lookahead, except
@@ -584,7 +584,7 @@ namespace gzip {
    * evaluation for matches: a match is finally adopted only if there is
    * no better match at the next window position.
    */
-  auto Deflate(int32_t pack_level) noexcept -> int32_t {
+  auto Deflate(const uint32_t pack_level) noexcept -> int32_t {
     uint32_t hash_head;                    /* head of hash chain */
     uint32_t prev_match;                   /* previous match */
     int32_t flush = 0;                     /* set if current block must be flushed */
@@ -678,7 +678,7 @@ namespace gzip {
         }
         if (flush) {
           FLUSH_BLOCK(0);
-          block_start = strstart;
+          block_start = int32_t(strstart);
         }
         RSYNC_ROLL(strstart, 1)
         strstart++;
@@ -692,7 +692,7 @@ namespace gzip {
           rsync_chunk_end = UINT32_C(~0);
           flush = 2;
           FLUSH_BLOCK(0);
-          block_start = strstart;
+          block_start = int32_t(strstart);
         }
 
         match_available = 1;

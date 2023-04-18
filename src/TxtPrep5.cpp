@@ -464,14 +464,14 @@ public:
     if (_dic_length > 0) {
       _dic_start = out.Position();
 #if 1
-      _static_dictionay = GZip_t().GetStaticDictionary();
-      const auto static_dictionay_map{StringToIndex(_static_dictionay)};
+      _static_dictionary = GZip_t().GetStaticDictionary();
+      const auto static_dictionary_map{StringToIndex(_static_dictionary)};
 
       bool in_sync{false};
       for (uint32_t n{0}, m{0}, delta{0}; n < _dic_length; ++n) {
         const std::string& word{dictionary[n].word};
 
-        if (const auto& it{static_dictionay_map.find(word)}; it != static_dictionay_map.end()) {  // Found?
+        if (const auto& it{static_dictionary_map.find(word)}; it != static_dictionary_map.end()) {  // Found?
           if (n == it->second) {
             in_sync = false;
             m = n;
@@ -541,8 +541,8 @@ public:
 
     _byte_map.reserve(_dic_length);
 
-    _static_dictionay = GZip_t().GetStaticDictionary();
-    auto static_dictionay{IndexToString(_static_dictionay)};
+    _static_dictionary = GZip_t().GetStaticDictionary();
+    auto static_dictionary{IndexToString(_static_dictionary)};
 
     bool sign{false};
     int32_t delta{0};
@@ -568,17 +568,21 @@ public:
             ch = stream.getc();
           }
           auto freqency{static_cast<int32_t>(ReadValue(stream, ch))};  // --> word
-          if (sign) {
-            sign = false;
-            freqency = -freqency;
+          if ((LIMIT - 1) == freqency) {                               // end of dictionary
+            delta = 0;
+          } else {
+            if (sign) {
+              sign = false;
+              freqency = -freqency;
+            }
           }
-          const auto word_index{(std::min)(static_cast<uint32_t>(freqency + delta), LIMIT - 1)};
+          const auto word_index{static_cast<uint32_t>(freqency + delta)};
           delta = static_cast<int32_t>(word_index);
 
           if (((_dic_length - 1) == sync_index) && (sync_index == word_index)) {
             for (; n < _dic_length; ++n) {
               const auto bytes{FrequencyToBytes(n)};
-              const auto new_word{static_dictionay[n]};
+              const auto new_word{static_dictionary[n]};
               _byte_map.emplace(bytes, new_word);
             }
             continue;
@@ -586,14 +590,14 @@ public:
 
           while (n < sync_index) {
             const auto bytes{FrequencyToBytes(n)};
-            word = static_dictionay[n];
+            word = static_dictionary[n];
             _byte_map[bytes] = word;
             ++n;
           }
 
-          if (static_dictionay[word_index].compare(word)) {
+          if (static_dictionary[word_index].compare(word)) {
             const auto bytes{FrequencyToBytes(n)};  // index == sync_index
-            const auto new_word{static_dictionay[word_index]};
+            const auto new_word{static_dictionary[word_index]};
             _byte_map.emplace(bytes, new_word);
           } else {
             --n;
@@ -773,7 +777,7 @@ private:
 
   map_string2uint_t _word_map{};
   map_uint2string_t _byte_map{};
-  std::string _static_dictionay{};
+  std::string _static_dictionary{};
   int64_t _original_length{0};
   int64_t _input_length{0};
   int64_t _dic_start{0};

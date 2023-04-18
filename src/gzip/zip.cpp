@@ -37,7 +37,7 @@ namespace gzip {
     return int32_t(len);
   }
 
-  auto Zip(FILE* const in, const uint32_t size, FILE* const out, const int32_t clevel) noexcept -> int32_t {
+  auto Zip(FILE* const in, const uint32_t size, FILE* const out, const uint32_t clevel) noexcept -> uint32_t {
     uint16_t attr = 0; /* ASCII/binary flag */
 
     ifd = in;

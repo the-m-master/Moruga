@@ -83,7 +83,7 @@ namespace gzip {
   extern FILE* ifd;                                  // input file descriptor
   extern FILE* ofd;                                  // output file descriptor
   extern int32_t block_start;                        // window offset of current block
-  extern int32_t level;                              // compression level
+  extern uint32_t level;                             // compression level
   extern int32_t rsync;                              // deflate into rsyncable chunks
   extern std::array<uint8_t, INBUFSIZ> inbuf;        // input buffer
   extern std::array<uint8_t, OUTBUFSIZ> outbuf;      // output buffer
@@ -98,21 +98,21 @@ namespace gzip {
   extern void* this_pointer;                         // Optional helper pointer
   extern write_buffer_t omem;                        // Write output data to memory
 
-  extern auto BitsReverse(uint32_t value, int32_t length) noexcept -> uint32_t;
-  extern auto CtTally(int32_t dist, int32_t lc) noexcept -> int32_t;
-  extern auto Deflate(int32_t pack_level) noexcept -> int32_t;
-  extern auto FileRead(void* buf, uint32_t size) noexcept -> int32_t;
-  extern auto fill_inbuf(int32_t eof_ok) noexcept -> int32_t;
-  extern auto FlushBlock(char* buf, uint32_t stored_len, int32_t pad, int32_t eof) noexcept -> int32_t;
-  extern auto Inflate() noexcept -> int32_t;
-  extern auto read_buffer(FILE* fd, void* buf, uint32_t cnt) noexcept -> uint32_t;
-  extern void BitsInit() noexcept;
-  extern void BitsWindup() noexcept;
-  extern void CopyBlock(char* buf, uint32_t len, int32_t header) noexcept;
-  extern void CtInit(uint16_t* attr) noexcept;
-  extern void flush_outbuf() noexcept;
-  extern void flush_window() noexcept;
-  extern void SendBits(int32_t value, int32_t length) noexcept;
+  auto BitsReverse(uint32_t value, int32_t length) noexcept -> uint16_t;
+  auto CtTally(uint32_t dist, const uint32_t lc) noexcept -> int32_t;
+  auto Deflate(const uint32_t pack_level) noexcept -> int32_t;
+  auto FileRead(void* buf, uint32_t size) noexcept -> int32_t;
+  auto fill_inbuf(int32_t eof_ok) noexcept -> int32_t;
+  auto FlushBlock(char* buf, uint32_t stored_len, int32_t pad, const uint32_t eof) noexcept -> uint32_t;
+  auto Inflate() noexcept -> uint32_t;
+  auto read_buffer(FILE* fd, void* buf, uint32_t cnt) noexcept -> uint32_t;
+  void BitsInit() noexcept;
+  void BitsWindup() noexcept;
+  void CopyBlock(char* buf, uint32_t len, int32_t header) noexcept;
+  void CtInit(uint16_t* attr) noexcept;
+  void flush_outbuf() noexcept;
+  void flush_window() noexcept;
+  void SendBits(const uint32_t value, const uint32_t length) noexcept;
 
   inline static void PutByte(uint8_t c) noexcept {
     outbuf[outcnt++] = c;
@@ -122,24 +122,24 @@ namespace gzip {
   }
 
   /* Output a 16 bit value, lsb first */
-  inline static void PutShort(uint16_t w) noexcept {
+  inline static void PutShort(const uint16_t w) noexcept {
     if (outcnt < OUTBUFSIZ - 2) {
-      outbuf[outcnt++] = uint8_t(w & 0xFF);
-      outbuf[outcnt++] = uint8_t(w >> 8);
+      outbuf[outcnt++] = static_cast<uint8_t>(w);
+      outbuf[outcnt++] = static_cast<uint8_t>(w >> 8);
     } else {
-      PutByte(uint8_t(w & 0xFF));
-      PutByte(uint8_t(w >> 8));
+      PutByte(static_cast<uint8_t>(w));
+      PutByte(static_cast<uint8_t>(w >> 8));
     }
   }
 
   /* Output a 32 bit value to the bit stream, lsb first */
-  inline static void PutLong(uint32_t n) noexcept {
-    PutShort(uint16_t(n & 0xFFFF));
-    PutShort(uint16_t(n >> 16));
+  inline static void PutLong(const uint32_t n) noexcept {
+    PutShort(static_cast<uint16_t>(n));
+    PutShort(static_cast<uint16_t>(n >> 16));
   }
 
-  auto Zip(FILE* const in, const uint32_t size, FILE* const out, const int32_t level) noexcept -> int32_t;
+  auto Zip(FILE* const in, const uint32_t size, FILE* const out, const uint32_t level) noexcept -> uint32_t;
 
-  auto Unzip(FILE* const in, FILE* const out, uint32_t& ilength) noexcept -> int32_t;
-  auto Unzip(const uint8_t* const in, const uint32_t ilength, write_buffer_t out, void* const ptr) noexcept -> int32_t;
+  auto Unzip(FILE* const in, FILE* const out, uint32_t& ilength) noexcept -> uint32_t;
+  auto Unzip(const uint8_t* const in, const uint32_t ilength, write_buffer_t out, void* const ptr) noexcept -> uint32_t;
 };  // namespace gzip

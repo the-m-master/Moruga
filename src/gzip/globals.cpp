@@ -29,7 +29,7 @@ namespace gzip {
   const uint8_t* imem{nullptr};
   FILE* ifd{nullptr};
   FILE* ofd{nullptr};
-  int32_t level{9};
+  uint32_t level{9};
   int32_t rsync{0};
   std::array<uint8_t, INBUFSIZ> inbuf{};
   std::array<uint8_t, OUTBUFSIZ> outbuf{};

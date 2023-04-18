@@ -153,8 +153,8 @@ namespace gzip {
        possibly even between compilers.  Your mileage may vary.
      */
 
-    int32_t lbits = 9; /* bits in base literal/length lookup table */
-    int32_t dbits = 6; /* bits in base distance lookup table */
+    const uint32_t lbits = 9; /* bits in base literal/length lookup table */
+    const uint32_t dbits = 6; /* bits in base distance lookup table */
 
 /* If BMAX needs to be larger than 16, then h and x[] should be uint32_t. */
 #define BMAX 16   /* maximum bit length of any code (16 for explode) */
@@ -193,12 +193,11 @@ namespace gzip {
       uint32_t a;                       /* counter for codes of length k */
       std::array<uint32_t, BMAX + 1> c; /* bit length count table */
       uint32_t f;                       /* i repeats in table every f entries */
-      int32_t g;                        /* maximum code length */
-      int32_t h;                        /* table level */
+      uint32_t g;                       /* maximum code length */
       uint32_t i;                       /* counter, current code */
       uint32_t j;                       /* counter */
-      int32_t k;                        /* number of bits in current code */
-      int32_t l;                        /* bits per table (returned in m) */
+      uint32_t k;                       /* number of bits in current code */
+      uint32_t l;                       /* bits per table (returned in m) */
       uint32_t* p;                      /* pointer into c[], b[], or v[] */
       huft* q;                          /* points to current table */
       huft r;                           /* table entry for structure assignment */
@@ -245,7 +244,7 @@ namespace gzip {
         }
       }
       k = j; /* minimum code length */
-      if (uint32_t(l) < j) {
+      if (l < j) {
         l = j;
       }
       for (i = BMAX; i; i--) {
@@ -254,21 +253,21 @@ namespace gzip {
         }
       }
       g = i; /* maximum code length */
-      if (uint32_t(l) > i) {
+      if (l > i) {
         l = i;
       }
       *m = l;
 
       /* Adjust last length count to fill out codes, if needed */
       for (y = 1 << j; j < i; j++, y <<= 1) {
-        if ((y -= c[j]) < 0) {
+        if ((y -= int32_t(c[j])) < 0) {
           return 2; /* bad input: more codes than bits */
         }
       }
-      if ((y -= c[i]) < 0) {
+      if ((y -= int32_t(c[i])) < 0) {
         return 2;
       }
-      c[i] += y;
+      c[i] += uint32_t(y);
 
       /* Generate starting offsets into the value table for each length */
       x[1] = j = 0;
@@ -289,13 +288,13 @@ namespace gzip {
       n = x[g]; /* set n to length of v */
 
       /* Generate the Huffman codes and for each, make the table entries */
-      x[0] = i = 0;   /* first Huffman code is zero */
-      p = &v[0];      /* grab values in bit order */
-      h = -1;         /* no tables yet--level -1 */
-      w = -l;         /* bits decoded == (l * h) */
-      u[0] = nullptr; /* just to keep compilers happy */
-      q = nullptr;    /* ditto */
-      z = 0;          /* ditto */
+      x[0] = i = 0;    /* first Huffman code is zero */
+      p = &v[0];       /* grab values in bit order */
+      int32_t h = -1;  /* no tables yet--level -1 */
+      w = int32_t(-l); /* bits decoded == (l * h) */
+      u[0] = nullptr;  /* just to keep compilers happy */
+      q = nullptr;     /* ditto */
+      z = 0;           /* ditto */
 
       /* go through the bit lengths (k already is bits in shortest code) */
       for (; k <= g; k++) {
@@ -303,14 +302,14 @@ namespace gzip {
         while (a--) {
           /* here i is the Huffman code of length k bits for value *p */
           /* make tables up to required level */
-          while (k > w + l) {
+          while (k > (w + l)) {
             h++;
             w += l; /* previous table always l bits */
 
             /* compute minimum size table less than or equal to l bits */
-            z = (z = g - w) > uint32_t(l) ? l : z; /* upper limit on table size */
-            if ((f = 1 << (j = k - w)) > a + 1) {  /*  try a k-w bit table too, few codes for k-w bit table */
-              f -= a + 1;                          /* deduct codes from patterns left */
+            z = (z = g - w) > l ? l : z;          /* upper limit on table size */
+            if ((f = 1 << (j = k - w)) > a + 1) { /*  try a k-w bit table too, few codes for k-w bit table */
+              f -= a + 1;                         /* deduct codes from patterns left */
               xp = &c[0] + k;
               if (j < z) {
                 while (++j < z) { /* try smaller tables up to z bits */
@@ -387,7 +386,7 @@ namespace gzip {
     /* bl, bd:   number of bits decoded by tl[] and td[] */
     /* inflate (decompress) the codes in a deflated (compressed) block.
        Return an error code or zero if it all goes ok. */
-    auto InflateCodes(huft* tl, huft* td, int32_t bl, int32_t bd) noexcept -> int32_t {
+    auto InflateCodes(huft* tl, huft* td, const uint32_t bl, const uint32_t bd) noexcept -> int32_t {
       uint32_t e;      /* table entry flag/number of extra bits */
       uint32_t n, d;   /* length and index for copy */
       huft* t;         /* pointer to table entry */
@@ -490,7 +489,7 @@ namespace gzip {
     }
 
     /* "decompress" an inflated type 0 (stored) block. */
-    auto InflateStored() noexcept -> int32_t {
+    auto InflateStored() noexcept -> uint32_t {
       uint32_t n; /* number of bytes in block */
       uint32_t b; /* bit buffer */
       uint32_t k; /* number of bits in bit buffer */
@@ -659,8 +658,8 @@ namespace gzip {
       n = nl + nd;
       m = mask_bits[bl];
       i = l = 0;
-      while (uint32_t(i) < n) {
-        NEEDBITS(uint32_t(bl))
+      while (i < n) {
+        NEEDBITS(bl)
         j = (td = tl + (b & m))->b;
         DUMPBITS(j);
         if (td->e == 99) { /* Invalid code.  */
@@ -674,7 +673,7 @@ namespace gzip {
           NEEDBITS(2)
           j = 3 + (b & 3);
           DUMPBITS(2);
-          if (uint32_t(i) + j > n) {
+          if (i + j > n) {
             return 1;
           }
           while (j--) {
@@ -684,7 +683,7 @@ namespace gzip {
           NEEDBITS(3)
           j = 3 + (b & 7);
           DUMPBITS(3);
-          if (uint32_t(i) + j > n) {
+          if (i + j > n) {
             return 1;
           }
           while (j--) {
@@ -695,7 +694,7 @@ namespace gzip {
           NEEDBITS(7)
           j = 11 + (b & 0x7f);
           DUMPBITS(7);
-          if (uint32_t(i) + j > n) {
+          if (i + j > n) {
             return 1;
           }
           while (j--) {
@@ -742,7 +741,7 @@ namespace gzip {
 
       {
         /* decompress until an end-of-block code */
-        const int32_t err = InflateCodes(tl, td, bl, bd) ? 1 : 0;
+        const uint32_t err = InflateCodes(tl, td, bl, bd) ? 1 : 0;
 
         /* free the decoding tables */
         HuftTree(tl);
@@ -754,7 +753,7 @@ namespace gzip {
 
     /* decompress an inflated block */
     /* E is the last block flag */
-    auto InflateBlock(int32_t* e) noexcept -> int32_t {
+    auto InflateBlock(int32_t* e) noexcept -> uint32_t {
       // make local bit buffer
       uint32_t b = bb;           // bit buffer
       uint32_t k = bk;           // number of bits in bit buffer
@@ -791,7 +790,7 @@ namespace gzip {
   };  // namespace
 
   /* decompress an inflated entry */
-  auto Inflate() noexcept -> int32_t {
+  auto Inflate() noexcept -> uint32_t {
     int32_t e; /* last block flag */
 
     inptr = 0;
@@ -807,7 +806,7 @@ namespace gzip {
     uint32_t h = 0; /* maximum huft's malloc'ed */
     do {
       hufts = 0;
-      const int32_t r = InflateBlock(&e); /* result code */
+      const uint32_t r = InflateBlock(&e); /* result code */
       if (GZip_OK != r) {
         return r;
       }

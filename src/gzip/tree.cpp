@@ -137,10 +137,10 @@ namespace gzip {
       ct_data* dyn_tree;           // the dynamic tree
       ct_data* static_tree;        // corresponding static tree or nullptr
       const uint32_t* extra_bits;  // extra bits for each code or nullptr
-      int32_t extra_base;          // base index for extra_bits
-      int32_t elems;               // max number of elements in the tree
-      int32_t max_length;          // max bit length for the codes
-      int32_t max_code;            // largest code with non zero frequency
+      uint32_t extra_base;         // base index for extra_bits
+      uint32_t elems;              // max number of elements in the tree
+      uint32_t max_length;         // max bit length for the codes
+      uint32_t max_code;           // largest code with non zero frequency
     };
 
     tree_desc l_desc = {.dyn_tree = dyn_ltree.data(),  //
@@ -175,9 +175,9 @@ namespace gzip {
      * probability, to avoid transmitting the lengths for unused bit length codes.
      */
 
-    std::array<int32_t, 2 * L_CODES + 1> heap; /* heap used to build the Huffman trees */
-    int32_t heap_len;                          /* number of elements in the heap */
-    int32_t heap_max;                          /* element of largest frequency */
+    std::array<uint32_t, 2 * L_CODES + 1> heap; /* heap used to build the Huffman trees */
+    uint32_t heap_len;                          /* number of elements in the heap */
+    uint32_t heap_max;                          /* element of largest frequency */
     /* The sons of heap[n] are heap[2*n] and heap[2*n+1]. heap[0] is not used.
      * The same heap array is used to build all trees.
      */
@@ -194,10 +194,10 @@ namespace gzip {
      * the 15 bit distances.
      */
 
-    std::array<int32_t, LENGTH_CODES> base_length;
+    std::array<uint32_t, LENGTH_CODES> base_length;
     /* First normalised length for each code (0 = MIN_MATCH) */
 
-    std::array<int32_t, D_CODES> base_dist;
+    std::array<uint32_t, D_CODES> base_dist;
     /* First normalised distance for each code (0 = distance of 1) */
 
 #define l_buf inbuf
@@ -223,7 +223,7 @@ namespace gzip {
     uint32_t opt_len;    /* bit length of current block with optimal trees */
     uint32_t static_len; /* bit length of current block with static trees */
 
-    int32_t compressed_len; /* total bit length of compressed file */
+    uint32_t compressed_len; /* total bit length of compressed file */
 
     uint16_t* file_type; /* pointer to UNKNOWN, BINARY or ASCII */
 
@@ -266,7 +266,7 @@ namespace gzip {
      * OUT assertion: the field code is set for all tree elements of non
      *     zero code length.
      */
-    void GenerateCodes(ct_data* tree, int32_t max_code) noexcept {
+    void GenerateCodes(ct_data* tree, const uint32_t max_code) noexcept {
       std::array<uint16_t, MAX_BITS + 1> next_code; /* next code value for each bit length */
       uint16_t code{0};                             /* running code value */
 
@@ -284,7 +284,7 @@ namespace gzip {
       Tracev((stderr, "\ngen_codes: max_code %d ", max_code));
 #endif
 
-      for (uint32_t n{0}; n <= uint32_t(max_code); ++n) {
+      for (uint32_t n{0}; n <= max_code; ++n) {
         const auto len{tree[n].dl.len};
         if (len == 0) {
           continue;
@@ -351,7 +351,7 @@ namespace gzip {
       bl_count[bits] = 0;
     }
     {
-      int32_t n{0};
+      uint32_t n{0};
       while (n <= 143) {
         static_ltree[n++].dl.len = 8;
         bl_count[8]++;
@@ -410,9 +410,9 @@ namespace gzip {
      * when the heap property is re-established (each father smaller than its
      * two sons).
      */
-    void PqDownHeap(ct_data* tree, int32_t k) noexcept {
-      const int32_t v = heap[k];
-      int32_t j = k << 1; /* left son of k */
+    void PqDownHeap(ct_data* tree, uint32_t k) noexcept {
+      const uint32_t v = heap[k];
+      uint32_t j = k << 1; /* left son of k */
       while (j <= heap_len) {
         /* Set j to the smallest of the two sons: */
         if (j < heap_len && smaller(tree, heap[j + 1], heap[j])) {
@@ -447,17 +447,17 @@ namespace gzip {
     void GenerateBitLengths(tree_desc* desc) noexcept {
       ct_data* tree = desc->dyn_tree;
       const uint32_t* extra = desc->extra_bits;
-      const int32_t base = desc->extra_base;
-      const int32_t max_code = desc->max_code;
-      const int32_t max_length = desc->max_length;
+      const uint32_t base = desc->extra_base;
+      const uint32_t max_code = desc->max_code;
+      const uint32_t max_length = desc->max_length;
       ct_data* stree = desc->static_tree;
-      int32_t h;            // heap index
-      int32_t n, m;         // iterate over the tree elements
-      int32_t xbits;        // extra bits
+      uint32_t h;           // heap index
+      uint32_t n, m;        // iterate over the tree elements
+      uint32_t xbits;       // extra bits
       uint16_t f;           // frequency
       int32_t overflow{0};  // number of elements with bit length too large
 
-      for (int32_t bits{0}; bits <= MAX_BITS; bits++) {
+      for (uint32_t bits{0}; bits <= MAX_BITS; bits++) {
         bl_count[bits] = 0;
       }
 
@@ -468,7 +468,7 @@ namespace gzip {
 
       for (h = heap_max + 1; h < HEAP_SIZE; h++) {
         n = heap[h];
-        int32_t bits = tree[tree[n].dl.dad].dl.len + 1;
+        uint32_t bits = tree[tree[n].dl.dad].dl.len + 1;
         if (bits > max_length) {
           bits = max_length;
           overflow++;
@@ -485,9 +485,9 @@ namespace gzip {
           xbits = extra[n - base];
         }
         f = tree[n].fc.freq;
-        opt_len += uint32_t(f) * uint32_t(bits + xbits);
+        opt_len += uint32_t(f) * (bits + xbits);
         if (stree) {
-          static_len += uint32_t(f) * uint32_t(stree[n].dl.len + xbits);
+          static_len += uint32_t(f) * (stree[n].dl.len + xbits);
         }
       }
       if (overflow == 0) {
@@ -501,7 +501,7 @@ namespace gzip {
 
       /* Find the first bit length which could increase: */
       do {
-        int32_t bits = max_length - 1;
+        uint32_t bits = max_length - 1;
         while (bl_count[bits] == 0) {
           bits--;
         }
@@ -519,14 +519,14 @@ namespace gzip {
        * lengths instead of fixing only the wrong ones. This idea is taken
        * from 'ar' written by Haruhiko Okumura.)
        */
-      for (int32_t bits = max_length; bits != 0; bits--) {
+      for (uint32_t bits = max_length; bits != 0; bits--) {
         n = bl_count[bits];
         while (n != 0) {
           m = heap[--h];
           if (m > max_code) {
             continue;
           }
-          if (tree[m].dl.len != uint32_t(bits)) {
+          if (tree[m].dl.len != bits) {
 #if 0
             Trace((stderr, "code %d bits %d->%d\n", m, tree[m].dl.len, bits));
 #endif
@@ -549,10 +549,10 @@ namespace gzip {
     void BuildTree(tree_desc* desc) noexcept {
       ct_data* tree = desc->dyn_tree;
       ct_data* stree = desc->static_tree;
-      const int32_t elems = desc->elems;
-      int32_t n, m;          /* iterate over heap elements */
-      int32_t max_code = -1; /* largest code with non zero frequency */
-      int32_t node = elems;  /* next internal node of the tree */
+      const uint32_t elems = desc->elems;
+      uint32_t n, m;                    /* iterate over heap elements */
+      uint32_t max_code = UINT32_C(~0); /* largest code with non zero frequency */
+      uint32_t node = elems;            /* next internal node of the tree */
 
       /* Construct the initial heap, with least frequent element in
        * heap[SMALLEST]. The sons of heap[n] are heap[2*n] and heap[2*n+1].
@@ -576,7 +576,7 @@ namespace gzip {
        * two codes of non zero frequency.
        */
       while (heap_len < 2) {
-        const int32_t new_ = heap[++heap_len] = (max_code < 2 ? ++max_code : 0);
+        const uint32_t new_ = heap[++heap_len] = (max_code < 2 ? ++max_code : 0);
         tree[new_].fc.freq = 1;
         depth[new_] = 0;
         opt_len--;
@@ -635,21 +635,21 @@ namespace gzip {
      * counts. (The contribution of the bit length codes will be added later
      * during the construction of bl_tree.)
      */
-    void ScanTree(ct_data* tree, int32_t max_code) noexcept {
-      int32_t prevlen = -1;             /* last emitted length */
-      int32_t nextlen = tree[0].dl.len; /* length of next code */
-      int32_t max_count = 7;            /* max repeat count */
-      int32_t min_count = 4;            /* min repeat count */
+    void ScanTree(ct_data* tree, const uint32_t max_code) noexcept {
+      uint32_t prevlen = UINT32_C(~0);   /* last emitted length */
+      uint32_t nextlen = tree[0].dl.len; /* length of next code */
+      uint32_t max_count = 7;            /* max repeat count */
+      uint32_t min_count = 4;            /* min repeat count */
 
-      if (nextlen == 0) {
+      if (0 == nextlen) {
         max_count = 138;
         min_count = 3;
       }
       tree[max_code + 1].dl.len = 0xFFFF; /* guard */
 
-      int32_t count = 0; /* repeat count of the current code */
-      for (int32_t n = 0; n <= max_code; n++) {
-        const int32_t curlen = nextlen; /* length of current code */
+      uint16_t count = 0; /* repeat count of the current code */
+      for (uint32_t n = 0; n <= max_code; n++) {
+        const uint32_t curlen = nextlen; /* length of current code */
         nextlen = tree[n + 1].dl.len;
         if (++count < max_count && curlen == nextlen) {
           continue;
@@ -668,7 +668,7 @@ namespace gzip {
         }
         count = 0;
         prevlen = curlen;
-        if (nextlen == 0) {
+        if (0 == nextlen) {
           max_count = 138;
           min_count = 3;
         } else if (curlen == nextlen) {
@@ -685,21 +685,21 @@ namespace gzip {
      * Send a literal or distance tree in compressed form, using the codes in
      * bl_tree.
      */
-    void SendTree(ct_data* tree, int32_t max_code) noexcept {
-      int32_t prevlen = -1;             /* last emitted length */
-      int32_t nextlen = tree[0].dl.len; /* length of next code */
-      int32_t max_count = 7;            /* max repeat count */
-      int32_t min_count = 4;            /* min repeat count */
+    void SendTree(ct_data* tree, const uint32_t max_code) noexcept {
+      uint32_t prevlen = UINT32_C(~0);   /* last emitted length */
+      uint32_t nextlen = tree[0].dl.len; /* length of next code */
+      uint32_t max_count = 7;            /* max repeat count */
+      uint32_t min_count = 4;            /* min repeat count */
 
       /* tree[max_code+1].dl.len = -1; */ /* guard already set */
-      if (nextlen == 0) {
+      if (0 == nextlen) {
         max_count = 138;
         min_count = 3;
       }
 
-      int32_t count = 0; /* repeat count of the current code */
-      for (int32_t n = 0; n <= max_code; n++) {
-        const int32_t curlen = nextlen; /* length of current code */
+      uint32_t count = 0; /* repeat count of the current code */
+      for (uint32_t n = 0; n <= max_code; n++) {
+        const uint32_t curlen = nextlen; /* length of current code */
         nextlen = tree[n + 1].dl.len;
         if (++count < max_count && curlen == nextlen) {
           continue;
@@ -725,7 +725,7 @@ namespace gzip {
         }
         count = 0;
         prevlen = curlen;
-        if (nextlen == 0) {
+        if (0 == nextlen) {
           max_count = 138;
           min_count = 3;
         } else if (curlen == nextlen) {
@@ -742,8 +742,8 @@ namespace gzip {
      * Construct the Huffman tree for the bit lengths and return the index in
      * bl_order of the last bit length code to send.
      */
-    auto BuildBitLengthTree() noexcept -> int32_t {
-      int32_t max_blindex; /* index of last bit length code of non zero freq */
+    auto BuildBitLengthTree() noexcept -> uint32_t {
+      uint32_t max_blindex; /* index of last bit length code of non zero freq */
 
       /* Determine the bit length frequencies for literal and distance trees */
       ScanTree(dyn_ltree.data(), l_desc.max_code);
@@ -778,7 +778,7 @@ namespace gzip {
      * lengths of the bit length codes, the literal tree and the distance tree.
      * IN assertion: lcodes >= 257, dcodes >= 1, blcodes >= 4.
      */
-    void SendAllTrees(int32_t lcodes, int32_t dcodes, int32_t blcodes) noexcept {
+    void SendAllTrees(uint32_t lcodes, uint32_t dcodes, uint32_t blcodes) noexcept {
       Assert(lcodes >= 257 && dcodes >= 1 && blcodes >= 4, "not enough codes");
       Assert(lcodes <= L_CODES && dcodes <= D_CODES && blcodes <= BL_CODES, "too many codes");
 #if 0
@@ -787,7 +787,7 @@ namespace gzip {
       SendBits(lcodes - 257, 5); /* not +255 as stated in appnote.txt */
       SendBits(dcodes - 1, 5);
       SendBits(blcodes - 4, 4); /* not -3 as stated in appnote.txt */
-      for (int32_t rank = 0; rank < blcodes; rank++) {
+      for (uint32_t rank = 0; rank < blcodes; rank++) {
 #if 0
       Tracev((stderr, "\nbl code %2d ", bl_order[rank]));
 #endif
@@ -824,13 +824,13 @@ namespace gzip {
      */
     void CompressBlock(ct_data* ltree, ct_data* dtree) noexcept {
       uint32_t dist;    /* distance of matched string */
-      int32_t lc;       /* match length or unmatched char (if dist == 0) */
+      uint32_t lc;      /* match length or unmatched char (if dist == 0) */
       uint32_t lx{0};   /* running index in l_buf */
       uint32_t dx = 0;  /* running index in d_buf */
       uint32_t fx = 0;  /* running index in flag_buf */
       uint8_t flag = 0; /* current flags */
       uint32_t code;    /* the code to send */
-      int32_t extra;    /* number of extra bits to send */
+      uint32_t extra;   /* number of extra bits to send */
 
       if (last_lit != 0) {
         do {
@@ -877,9 +877,8 @@ namespace gzip {
    * trees or store, and output the encoded block to the zip file. This function
    * returns the total compressed length for the file so far.
    */
-  auto FlushBlock(char* buf, uint32_t stored_len, int32_t pad, int32_t eof) noexcept -> int32_t {
+  auto FlushBlock(char* buf, uint32_t stored_len, int32_t pad, const uint32_t eof) noexcept -> uint32_t {
     uint32_t opt_lenb, static_lenb; /* opt_len and static_len in bytes */
-    int32_t max_blindex;            /* index of last bit length code of non zero freq */
 
     flag_buf[last_flags] = flags; /* Save the flags for the last 8 items */
 
@@ -905,7 +904,7 @@ namespace gzip {
     /* Build the bit length tree for the above two trees, and get the index
      * in bl_order of the last bit length code to send.
      */
-    max_blindex = BuildBitLengthTree();
+    const uint32_t max_blindex = BuildBitLengthTree(); /* index of last bit length code of non zero freq */
 
     /* Determine the best encoding. Compute first the block length in bytes */
     opt_lenb = (opt_len + 3 + 7) >> 3;
@@ -932,7 +931,7 @@ namespace gzip {
        * transform a block into a stored block.
        */
       SendBits((STORED_BLOCK << 1) + eof, 3); /* send block type */
-      compressed_len = (compressed_len + 3 + 7) & ~7L;
+      compressed_len = (compressed_len + 3 + 7) & ~7u;
       compressed_len += (stored_len + 4) << 3;
       CopyBlock(buf, stored_len, 1); /* with header */
     } else if (static_lenb == opt_lenb) {
@@ -952,7 +951,7 @@ namespace gzip {
       compressed_len += 7; /* align on byte boundary */
     } else if (pad && (compressed_len % 8) != 0) {
       SendBits((STORED_BLOCK << 1) + eof, 3); /* send block type */
-      compressed_len = (compressed_len + 3 + 7) & ~7L;
+      compressed_len = (compressed_len + 3 + 7) & ~7u;
       CopyBlock(buf, 0, 1); /* with header */
     }
 
@@ -963,7 +962,7 @@ namespace gzip {
    * Save the match info and tally the frequency counts. Return true if
    * the current block must be flushed.
    */
-  auto CtTally(int32_t dist, int32_t lc) noexcept -> int32_t {
+  auto CtTally(uint32_t dist, const uint32_t lc) noexcept -> int32_t {
     l_buf[last_lit++] = uint8_t(lc);
     if (dist == 0) {
       /* lc is the unmatched char */

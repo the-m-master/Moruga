@@ -33,7 +33,7 @@ namespace gzip {
      * more than 16 bits on some systems.)
      */
 
-    int32_t bi_valid{0};
+    uint32_t bi_valid{0};
     /* Number of valid bits in bi_buf.  All bits above the last valid bit
      * are always zero.
      */
@@ -51,7 +51,7 @@ namespace gzip {
    * Send a value on a given number of bits.
    * IN assertion: length <= 16 and value fits in length bits.
    */
-  void SendBits(int32_t value, int32_t length) noexcept {
+  void SendBits(const uint32_t value, const uint32_t length) noexcept {
     /* If not enough room in bi_buf, use (valid) bits from bi_buf and
      * (16 - bi_valid) bits from value, leaving (width - (16-bi_valid))
      * unused bits in value.
@@ -72,8 +72,8 @@ namespace gzip {
    * method would use a table)
    * IN assertion: 1 <= len <= 15
    */
-  auto BitsReverse(uint32_t code, int32_t len) noexcept -> uint32_t {
-    uint32_t res = 0;
+  auto BitsReverse(uint32_t code, int32_t len) noexcept -> uint16_t {
+    uint16_t res = 0;
     do {
       res |= code & 1;
       code >>= 1;

@@ -467,11 +467,7 @@ public:
     }
 
     for (auto i{N}; i--;) {
-#if 0
-      const auto pr{(8 == start) ? ((((i % 24) * 2) + 1) * 4096) / (24 * 2) : ((i % 24) * 4096) / (24 - 1)};
-#else
       const auto pr{((((i % 24) * 2) + 1) * 4096) / (24 * 2)};
-#endif
       const auto prediction{Squash(static_cast<int32_t>(pr) - 2048) * (UINT32_C(1) << 10)};  // Conversion from -2048..2047 (clamped) into 0..4095
       _map[i].prediction = MASK_22_BITS & prediction;
       _map[i].count = MASK_10_BITS & start;
@@ -2302,6 +2298,22 @@ public:
   auto operator=(const Predict_t&) -> Predict_t& = delete;
   auto operator=(Predict_t&&) -> Predict_t& = delete;
 
+  [[nodiscard]] constexpr auto CalcCZ(const uint32_t fails, const uint32_t failcount) const noexcept -> uint32_t {
+    if (_is_binary) {
+      uint32_t cz{uint8_t(UINT64_C(0x1F11170917090F01) >> (8 * (7 & (fails >> 0))))};
+      cz += /* */ uint8_t(UINT64_C(0x1E14140A140A0A00) >> (8 * (7 & (fails >> 3))));
+      cz += ((1u << 6) & fails) ? 0x0A : 0x0;
+      cz = (std::min)(UINT32_C(9), (_failcount + cz) / 2);
+      return cz;
+    }
+
+    uint32_t cz{uint8_t(UINT64_C(0x26181A0C1B0D0F01) >> (8 * (7 & (fails >> 0))))};
+    cz += /* */ uint8_t(UINT64_C(0x170F0C04130B0800) >> (8 * (7 & (fails >> 3))));
+    cz += ((1u << 6) & fails) ? 0x7 : 0x0;
+    cz = (std::min)(UINT32_C(0xB), (failcount + cz) / 2);
+    return cz;
+  }
+
   [[nodiscard]] auto Next(const bool bit) noexcept -> uint32_t {
     if (_fails & 0x80) {
       --_failcount;  // 0..8
@@ -2322,30 +2334,7 @@ public:
     const auto p0s{Stretch(p0)};
     const auto p1{Balance(7u, _a1.Predict(bit, p0s, c0_), p0)};  // Weight of 7 is based on enwik9
 
-#if 0
-    uint32_t tra[12] = {0, 4, 3, 3, 0, 6, 6, 12, 0, 6, 12, 15};  // based on enwik9
-    uint32_t cz{(1 & _fails) ? UINT32_C(9) : UINT32_C(1)};
-    cz += tra[0 + ((_fails >> 5) & 3)];
-    cz += tra[4 + ((_fails >> 3) & 3)];
-    cz += tra[8 + ((_fails >> 1) & 3)];
-    cz = (std::min)(UINT32_C(9), (_failcount + cz) / 2);
-#elif 0
-    uint32_t cz{(1 & _fails) ? UINT32_C(9) : UINT32_C(1)};
-    cz += 0xFu & (0x3340u >> (4 * (3 & (_fails >> 5))));
-    cz += 0xFu & (0xC660u >> (4 * (3 & (_fails >> 3))));
-    cz += 0xFu & (0xFC60u >> (4 * (3 & (_fails >> 1))));
-    cz = (std::min)(UINT32_C(9), (_failcount + cz) / 2);
-#else
-    uint32_t cz{1};
-    cz += ((1u << 0) & _fails) ? 0xE : 0x0;  // based on enwik9
-    cz += ((1u << 1) & _fails) ? 0xC : 0x0;
-    cz += ((1u << 2) & _fails) ? 0xB : 0x0;
-    cz += ((1u << 3) & _fails) ? 0x8 : 0x0;
-    cz += ((1u << 4) & _fails) ? 0xB : 0x0;
-    cz += ((1u << 5) & _fails) ? 0x4 : 0x0;
-    cz += ((1u << 6) & _fails) ? 0x7 : 0x0;
-    cz = (std::min)(UINT32_C(0xB), (_failcount + cz) / 2);
-#endif
+    const auto cz{CalcCZ(_fails, _failcount)};
 
     // clang-format off
     const auto p2{_a2.Predict(bit,         p0s, Finalise64(Hash(  8*c0_, 0x7FF & _failz                         ), 27))};           // hash bits of 27 is based on enwik9
@@ -2648,7 +2637,6 @@ private:
   [[nodiscard]] auto calcfails(uint32_t err) noexcept -> uint32_t {
     assert(err < 0x1000);
 #if 0
-    //                                                {{26, 42, 25, 43, 26, 62, 2, 40, 22, 64, 0, 45, 1, 9, 23, 40}};  // based on enwik8
     static constexpr std::array<const uint8_t, 16> lvl{{24, 44, 25, 45, 25, 64, 2, 26, 22, 51, 0, 44, 0, 3, 25, 42}};  // based on enwik9
     err /= 64;
     const uint32_t v{(err >= lvl[(2 * bcount_) + 1]) ? 3u : (err >= lvl[2 * bcount_]) ? 1u : 0u};
@@ -2665,7 +2653,7 @@ private:
     case 6:                         v = 1;   if (err >= ( 3 * 64)) { v = 3; } break;
     case 7: if (err >= (25 * 64)) { v = 1; } if (err >= (42 * 64)) { v = 3; } break;
     }  // clang-format on
-#elif 1
+#else
     static constexpr std::array<const uint128_t, 8> cf{{
         0xFFFFFFFFFF5555555555000000000000_xxl,
         0xFFFFFFFFFD5555555554000000000000_xxl,
@@ -2683,12 +2671,8 @@ private:
 
   [[nodiscard]] auto Predict(const bool bit) noexcept -> uint32_t {
 #if 1
-    // const auto MU{static_cast<int8_t>(INT64_C(0x0F090B0E191B3430) >> (8 * bcount_))};  // based on enwik8
     const auto MU{static_cast<int8_t>(INT64_C(0x06100F101A15282D) >> (8 * bcount_))};  // based on enwik9
 #else
-    //                                                    30  34  1B  19   E   B  9   F
-    // static constexpr std::array<const int8_t, 8> flaw{{48, 52, 27, 25, 14, 11, 9, 15}};  // based on enwik8
-
     //                                                 2D  28  15  1A  10  0F  10  6
     static constexpr std::array<const int8_t, 8> flaw{{45, 40, 21, 26, 16, 15, 16, 6}};  // based on enwik9
     const int8_t MU{flaw[bcount_]};
@@ -3229,20 +3213,9 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
       } break;
 #elif defined(TUNING)
       case 'x': {
-#if 0
-         {
-           File_t result("tra.bin", "rb");
-           result.Read(tra, sizeof(tra));
-         }
-          const auto XX{ std::stoul(optarg, nullptr, 16)};
-          const auto idx{uint16_t(XX>>16)};
-          const auto chg{uint16_t(XX&0xFFFF)};
-          tra[idx]=chg;
-#else
           extern uint32_t XX;
           XX = std::stoul(optarg, nullptr, 10);
           fprintf(stdout, "\nValue : %" PRIu32 "\n", XX);
-#endif
       } break;
 #endif
     }  // clang-format on

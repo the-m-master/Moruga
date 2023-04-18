@@ -29,7 +29,7 @@ namespace {
 };  // namespace
 
 namespace gzip {
-  auto Unzip(FILE* const in, FILE* const out, uint32_t& ilength) noexcept -> int32_t {
+  auto Unzip(FILE* const in, FILE* const out, uint32_t& ilength) noexcept -> uint32_t {
     if (in && out && (ilength > 0)) {
       Flush();
       ifd = in;
@@ -37,7 +37,7 @@ namespace gzip {
       imem = nullptr;
       ifile_size = ilength;
       omem = nullptr;
-      const int32_t res{Inflate()};
+      const auto res{Inflate()};
       ilength = bytes_in;
       return res;
     }
@@ -45,7 +45,7 @@ namespace gzip {
     return GZip_ERROR;
   }
 
-  auto Unzip(const uint8_t* const in, const uint32_t ilength, write_buffer_t out, void* const ptr) noexcept -> int32_t {
+  auto Unzip(const uint8_t* const in, const uint32_t ilength, write_buffer_t out, void* const ptr) noexcept -> uint32_t {
     if (in && (ilength > 0) && out) {
       Flush();
       ifd = nullptr;
@@ -54,7 +54,7 @@ namespace gzip {
       ifile_size = ilength;
       omem = out;
       this_pointer = ptr;
-      const int32_t res{Inflate()};
+      const auto res{Inflate()};
       omem = nullptr;
       return res;
     }
