@@ -207,7 +207,7 @@ public:
     _word.clear();
     _word.reserve(3000000);
     static_assert((0x54 == static_words[0]) && (0x9B == static_words[1]), "Wrong data header");
-    const int32_t status{gzip::Unzip(static_words.data(), static_cast<uint32_t>(static_words.size()), write_buffer, this)};
+    const auto status{gzip::Unzip(static_words.data(), static_cast<uint32_t>(static_words.size()), write_buffer, this)};
     assert(GZip_OK == status);
     (void)status;  // Avoid warning in release mode
     std::replace(_word.begin(), _word.end(), '\n', '\0');
@@ -453,7 +453,7 @@ public:
       }
     }
 
-    for (auto& item : _word_map) {  // Set all frequencies to illegal value
+    for (auto& item : _word_map) {  // Set all frequencies to unused value
       item.second = UNUSED;
     }
     for (uint32_t n{0}; n < _dic_length; ++n) {
@@ -469,20 +469,20 @@ public:
 
       bool in_sync{false};
       for (uint32_t n{0}, m{0}, delta{0}; n < _dic_length; ++n) {
-        const std::string& word{dictionary[n].word};
+        const std::string& word{dictionary[n].word};  // string_view not supported in map
 
         if (const auto& it{static_dictionary_map.find(word)}; it != static_dictionary_map.end()) {  // Found?
           if (n == it->second) {
             in_sync = false;
             m = n;
           } else {
-            WriteBytes(out, FrequencyToBytes(n));
+            WriteFrequency(out, n);
             auto frequency{static_cast<int32_t>(it->second - delta)};
             if (frequency < 0) {
               out.putc(TP5_NEGATIVE_CHAR);
               frequency = -frequency;
             }
-            WriteBytes(out, FrequencyToBytes(static_cast<uint32_t>(frequency)));
+            WriteFrequency(out, static_cast<uint32_t>(frequency));
             delta = it->second;
             in_sync = true;
             m = n + 1;
@@ -490,13 +490,13 @@ public:
         } else {
           in_sync = true;
           if (n != m) {
-            WriteBytes(out, FrequencyToBytes(n));
+            WriteFrequency(out, n);
             auto frequency{static_cast<int32_t>(m - delta)};
             if (frequency < 0) {
               out.putc(TP5_NEGATIVE_CHAR);
               frequency = -frequency;
             }
-            WriteBytes(out, FrequencyToBytes(static_cast<uint32_t>(frequency)));
+            WriteFrequency(out, static_cast<uint32_t>(frequency));
             delta = m;
             m = n;
           }
@@ -506,8 +506,8 @@ public:
       }
 
       if (!in_sync) {
-        WriteBytes(out, FrequencyToBytes(_dic_length - 1));
-        WriteBytes(out, FrequencyToBytes(_dic_length - 1));
+        WriteFrequency(out, _dic_length - 1);
+        WriteFrequency(out, _dic_length - 1);
       }
 #else
       for (uint32_t n{0}; n < _dic_length; ++n) {
@@ -568,8 +568,10 @@ public:
             ch = stream.getc();
           }
           auto freqency{static_cast<int32_t>(ReadValue(stream, ch))};  // --> word
-          if ((LIMIT - 1) == freqency) {                               // end of dictionary
-            delta = 0;
+          if ((_dic_length - 1) == static_cast<uint32_t>(freqency)) {  // end of dictionary
+            if (static_cast<uint32_t>(freqency + delta) > (LIMIT - 1)) {
+              delta = 0;
+            }
           } else {
             if (sign) {
               sign = false;
@@ -653,7 +655,8 @@ public:
 private:
   static constexpr auto BLOCK_SIZE{UINT32_C(1) << 16};
 
-  void WriteBytes(const File_t& stream, const uint32_t bytes) const noexcept {
+  void WriteFrequency(const File_t& stream, const uint32_t frequency) const noexcept {
+    const auto bytes{FrequencyToBytes(frequency)};
     if (bytes > HGH_SECTION) {
       stream.putc(static_cast<uint8_t>(bytes >> 24));
       stream.putc(static_cast<uint8_t>(bytes >> 16));
