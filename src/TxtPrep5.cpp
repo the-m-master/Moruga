@@ -42,6 +42,7 @@
 
 // #define DEBUG_WRITE_ANALYSIS_BMP
 // #define DEBUG_WRITE_DICTIONARY
+// #define SHORT_ENCODING_LITERALS /* does not improve encoding */
 
 #if defined(DEBUG_WRITE_ANALYSIS_BMP)
 #  include "Analysis.h"
@@ -680,23 +681,10 @@ private:
   }
 
   [[nodiscard]] auto ReadLiteral(const File_t& stream, int32_t ch) const noexcept -> std::string {
-#if 1
     std::string word{};
-    if (TP5_ESCAPE_CHAR != ch) {
-      word.push_back(static_cast<char>(ch));
-    }
-    while (TP5_SEPARATE_CHAR != (ch = stream.getc())) {
-      assert(EOF != ch);
-      if (TP5_ESCAPE_CHAR == ch) {
-        continue;
-      }
-      word.push_back(static_cast<char>(ch));
-    }
-    return word;
-#else
-    enum state_t { NO_STATE = 0, IGNORE_CHR, END_OF_WORD };
+#if defined(SHORT_ENCODING_LITERALS)
+    enum state_t{NO_STATE = 0, IGNORE_CHR, END_OF_WORD};
     state_t state{NO_STATE};
-    std::string word{};
     if (TP5_ESCAPE_CHAR == ch) {
       state = IGNORE_CHR;
     } else {
@@ -724,21 +712,24 @@ private:
       }
       word.push_back(static_cast<char>(ch));
     }
-    return word;
+#else
+    if (TP5_ESCAPE_CHAR != ch) {
+      word.push_back(static_cast<char>(ch));
+    }
+    while (TP5_SEPARATE_CHAR != (ch = stream.getc())) {
+      assert(EOF != ch);
+      if (TP5_ESCAPE_CHAR == ch) {
+        continue;
+      }
+      word.push_back(static_cast<char>(ch));
+    }
 #endif
+    return word;
   }
 
   void WriteLiteral(const File_t& stream, const std::string_view literal) const noexcept {
-#if 1
     assert(literal.length() > 0);
-    for (const auto& ch : literal) {
-      if (0x80 & ch) {
-        stream.putc(TP5_ESCAPE_CHAR);
-      }
-      stream.putc(ch);
-    }
-    stream.putc(TP5_SEPARATE_CHAR);
-#else
+#if defined(SHORT_ENCODING_LITERALS)
     auto length{literal.length()};
     for (int32_t ch : literal) {
       --length;
@@ -754,6 +745,14 @@ private:
       }
       stream.putc(ch);
     }
+#else
+    for (const auto& ch : literal) {
+      if (0x80 & ch) {
+        stream.putc(TP5_ESCAPE_CHAR);
+      }
+      stream.putc(ch);
+    }
+    stream.putc(TP5_SEPARATE_CHAR);
 #endif
   }
 
