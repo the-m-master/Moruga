@@ -284,17 +284,19 @@ namespace gzip {
       Tracev((stderr, "\ngen_codes: max_code %d ", max_code));
 #endif
 
-      for (uint32_t n{0}; n <= max_code; ++n) {
-        const auto len{tree[n].dl.len};
-        if (len == 0) {
-          continue;
-        }
-        /* Now reverse the bits */
-        tree[n].fc.code = BitsReverse(next_code[len]++, len);
+      if (int32_t(max_code) >= 0) {
+        for (uint32_t n{0}; n <= max_code; ++n) {
+          const auto len{tree[n].dl.len};
+          if (len == 0) {
+            continue;
+          }
 
+          /* Now reverse the bits */
+          tree[n].fc.code = BitsReverse(next_code[len]++, len);
 #if 0
         Tracec(tree != static_ltree, (stderr, "\nn %3d %c l %2d c %4x (%x) ", n, (isgraph(n) ? n : ' '), len, tree[n].fc.code, next_code[len] - 1));
 #endif
+        }
       }
     }
   };  // namespace
@@ -576,7 +578,7 @@ namespace gzip {
        * two codes of non zero frequency.
        */
       while (heap_len < 2) {
-        const uint32_t new_ = heap[++heap_len] = (max_code < 2 ? ++max_code : 0);
+        const uint32_t new_ = heap[++heap_len] = (int32_t(max_code) < 2 ? ++max_code : 0);
         tree[new_].fc.freq = 1;
         depth[new_] = 0;
         opt_len--;

@@ -249,7 +249,7 @@ namespace gzip {
       prev.fill(0);
 
       /* rsync params */
-      rsync_chunk_end = ~0U;
+      rsync_chunk_end = UINT32_C(~0);
       rsync_sum = 0;
 
       /* Set the default configuration parameters:
