@@ -299,7 +299,7 @@ all:
 #===============================================================================
 $(BUILD_DIR)/$(BIN_FILE): $(OBJECTS)
 	$(CXX) $(LDFLAGS) $(CCFLAGS) $(_LIB_DIRS) $(OBJECTS) $(_LIBS) -o $(BUILD_DIR)/$(BIN_FILE)
-	@$(OBJDUMP) --source $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
+#	@$(OBJDUMP) --source $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
 
 #===============================================================================
 # Build all c files
