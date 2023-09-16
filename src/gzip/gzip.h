@@ -100,7 +100,7 @@ namespace gzip {
 
   auto BitsReverse(uint32_t value, int32_t length) noexcept -> uint16_t;
   auto CtTally(uint32_t dist, const uint32_t lc) noexcept -> int32_t;
-  auto Deflate(const uint32_t pack_level) noexcept -> int32_t;
+  auto Deflate(const uint32_t pack_level) noexcept -> uint32_t;
   auto FileRead(void* buf, uint32_t size) noexcept -> int32_t;
   auto fill_inbuf(int32_t eof_ok) noexcept -> int32_t;
   auto FlushBlock(char* buf, uint32_t stored_len, int32_t pad, const uint32_t eof) noexcept -> uint32_t;

@@ -173,7 +173,7 @@ namespace gzip {
 #define INSERT_STRING(s, match_head)               \
   UPDATE_HASH(ins_h, window[(s) + MIN_MATCH - 1]); \
   prev[(s)&WMASK] = match_head = head[ins_h];      \
-  head[ins_h] = (s)
+  head[ins_h] = uint16_t(s)
 
     /* ===========================================================================
      * Fill the window when the lookahead becomes insufficient.
@@ -481,7 +481,7 @@ namespace gzip {
  * Flush the current block, with given end-of-file flag.
  * IN assertion: strstart is set to the end of the current match.
  */
-#define FLUSH_BLOCK(eof) FlushBlock(block_start >= 0L ? reinterpret_cast<char*>(&window[uint32_t(block_start)]) : nullptr, int32_t(strstart) - block_start, flush - 1, (eof))
+#define FLUSH_BLOCK(eof) FlushBlock(block_start >= 0L ? reinterpret_cast<char*>(&window[uint32_t(block_start)]) : nullptr, strstart - uint32_t(block_start), flush - 1, (eof))
 
     /* ===========================================================================
      * Processes a new input file and return its compressed length. This
@@ -489,7 +489,7 @@ namespace gzip {
      * new strings in the dictionary only for unmatched strings or for short
      * matches. It is used only for the fast compression options.
      */
-    auto DeflateFast() noexcept -> int32_t {
+    auto DeflateFast() noexcept -> uint32_t {
       uint32_t hash_head;        /* head of the hash chain */
       int32_t flush = 0;         /* set if current block must be flushed, 2=>and padded  */
       uint32_t match_length = 0; /* length of best match */
@@ -584,7 +584,7 @@ namespace gzip {
    * evaluation for matches: a match is finally adopted only if there is
    * no better match at the next window position.
    */
-  auto Deflate(const uint32_t pack_level) noexcept -> int32_t {
+  auto Deflate(const uint32_t pack_level) noexcept -> uint32_t {
     uint32_t hash_head;                    /* head of hash chain */
     uint32_t prev_match;                   /* previous match */
     int32_t flush = 0;                     /* set if current block must be flushed */
@@ -661,7 +661,7 @@ namespace gzip {
         }
         if (flush) {
           FLUSH_BLOCK(0);
-          block_start = strstart;
+          block_start = int32_t(strstart);
         }
       } else if (match_available) {
         /* If there was no match at the previous position, output a

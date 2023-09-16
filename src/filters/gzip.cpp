@@ -91,7 +91,7 @@ public:
       old_pos = diffPos_[n];
     }
     for (uint32_t n{0}; n < config_.diffCount; ++n) {
-      diffByte_[n] = uint8_t(in.getc());
+      diffByte_[n] = static_cast<uint8_t>(in.getc());
     }
   }
   ~ZHeader_t() noexcept = default;
@@ -157,7 +157,7 @@ namespace {
       config.clevel = clevel;
       ZHeader_t* zheader{new ZHeader_t{config}};
       const File_t deflate_tmp /*("_deflate_tmp_.bin", "wb+")*/;
-      if (GZip_OK == gzip::Zip(in, size, deflate_tmp, clevel)) {
+      if (GZip_OK == gzip::Zip(in, size, deflate_tmp, static_cast<uint8_t>(clevel))) {
         const auto length{uint32_t(deflate_tmp.Size())};
         deflate_tmp.Rewind();
         uint32_t diff_count{0};
@@ -529,7 +529,7 @@ auto EncodeGZip(File_t& in, const int64_t size_, File_t& out) noexcept -> bool {
   if (config.clevel > 0) {
     if (!config.memLevel) {
       const auto header{std::make_unique<ZHeader_t>(config, in)};
-      if (GZip_OK == gzip::Zip(in, uint32_t(size), out, config.clevel)) {
+      if (GZip_OK == gzip::Zip(in, uint32_t(size), out, static_cast<uint8_t>(config.clevel))) {
         if (config.diffCount > 0) {
           const auto done_pos{out.Position()};
           for (uint32_t n{0}; n < config.diffCount; ++n) {

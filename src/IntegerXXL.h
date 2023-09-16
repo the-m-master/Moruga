@@ -178,14 +178,14 @@ namespace integer_xxl {
   };
 
   template <char... Cs>
-  constexpr auto operator"" _xxl() noexcept -> uint128_t {
+  constexpr auto operator""_xxl() noexcept -> uint128_t {
     return LitEval<Cs...>::eval();
   }
 }  // namespace integer_xxl
 
 template <char... Cs>
-constexpr auto operator"" _xxl() noexcept -> uint128_t {
-  return ::integer_xxl::operator"" _xxl<Cs...>();
+constexpr auto operator""_xxl() noexcept -> uint128_t {
+  return ::integer_xxl::operator""_xxl < Cs... > ();
 }
 
 // clang-format off

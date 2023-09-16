@@ -66,6 +66,7 @@ private:
     uint16_t format;
   };
   uint16_t cfolder_{0};
+  uint32_t : 16;  // Padding
   FolderHeader_t folderHeader_{};
 
   struct FileHeader_t final {
@@ -79,6 +80,7 @@ private:
   };
   uint16_t cname_{0};
   uint16_t cfile_{0};
+  uint32_t : 32;  // Padding
   FileHeader_t fileHeader_{};
 
   struct Data_t final {
@@ -87,6 +89,7 @@ private:
     uint16_t uncompressedDataLength;
   };
   uint16_t nBlocks_{0};
+  uint32_t : 16;  // Padding
   Data_t data_{};
 
   uint16_t header_{};

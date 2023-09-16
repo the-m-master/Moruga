@@ -147,7 +147,7 @@ public:
         fprintf(txt, "%2" PRIu64 " %8" PRIu32 " %8" PRIu64 " ", word.length(), frequency, frequency * word.length());
         auto* str{word.data()};
         auto length{word.length()};
-        while (length--) {
+        while (length-- > 0) {
           if (isprint(*str)) {
             fprintf(txt, "%c", *str);
           } else {
@@ -343,7 +343,7 @@ void CaseSpace_t::EncodeWord() noexcept {
     }
 
     word_length -= length;
-    while (length--) {
+    while (length-- > 0) {
       const auto ch{word[offset++]};
       Encode(Utilities::to_lower(ch));
     }
@@ -406,7 +406,7 @@ void CaseSpace_t::DecodeWord() noexcept {
   if (length > 0) {
     switch (const auto* __restrict str{_word.data()}; _wtype) {
       case WordType::ALL_BIG:
-        while (length--) {
+        while (length-- > 0) {
           _out.putc(Utilities::to_upper(*str++));
         }
         break;
@@ -420,7 +420,7 @@ void CaseSpace_t::DecodeWord() noexcept {
       case WordType::ALL_SMALL:
       case WordType::CRLF_MARKER:
       case WordType::ESCAPE_CHAR:
-        while (length--) {
+        while (length-- > 0) {
           _out.putc(*str++);
         }
         break;

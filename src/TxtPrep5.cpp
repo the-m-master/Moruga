@@ -896,7 +896,7 @@ public:
     _original_length = _in.getVLI();
     assert(_original_length > 0);
     _quote_length = static_cast<size_t>(_in.getc());
-    for (size_t n{_quote_length}; n--;) {  // Reverse read
+    for (size_t n{_quote_length}; n-- > 0;) {  // Reverse read
       _quote[n] = static_cast<int8_t>(_in.getc());
     }
 
@@ -937,7 +937,7 @@ public:
           Putc(ch);
         }
       } else if (TP5_QUOTING_CHAR == ch) {
-        for (size_t n{_quote_length}; n--;) {  // Reverse write
+        for (size_t n{_quote_length}; n-- > 0;) {  // Reverse write
           Putc(_quote[n]);
         }
         continue;

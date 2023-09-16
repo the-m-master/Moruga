@@ -80,6 +80,8 @@ private:
   std::array<int32_t, LZW_TABLE_SIZE> _table{};
   std::array<uint8_t, 4096> _output{};
   std::array<int32_t, 4096> _diff_pos{};
+
+  int32_t : 32;  // Padding
 };
 
 /**

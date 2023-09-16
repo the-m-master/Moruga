@@ -24,7 +24,7 @@
 #include <cstring>
 #include "File.h"
 
-#define ISPOWEROF2(x) (((x) > 0) && (!((x) & ((x)-1))))
+#define ISPOWEROF2(x) (((x) > 1) && (!((x) & ((x)-1))))
 
 /**
  * @class Buffer_t
