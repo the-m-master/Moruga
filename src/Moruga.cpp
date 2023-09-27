@@ -2233,7 +2233,7 @@ class SSE_t final {
 public:
   SSE_t() noexcept {
     for (uint32_t n{0x000}; n <= 0xFFF; ++n) {
-      const uint32_t n0{0xFFFF - n};
+      const uint32_t n0{0xFFF - n};
       const uint32_t n1{n};
       _n0[n] = n0;  // 0xFFF ... 0x000
       _n1[n] = n1;  // 0x000 ... 0xFFF
