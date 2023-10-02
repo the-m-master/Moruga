@@ -1,3 +1,5 @@
+#define M_E 2.7182818284590452354
+
 enum {
   NBITS = 12,        // Construct 12 bit tables
   TOP = 1 << NBITS,  // Top value
@@ -36,9 +38,28 @@ enum {
 
 class Squash_t final {
 public:
-  explicit Squash_t(const double a = 756.1) noexcept {
-    std::array<double, TOP> table{};
+  explicit Squash_t(const double a) noexcept {
 #if 1
+    //                              x  -x
+    //                            e - e
+    // Sigmoid: y(x) = tanh(x) = ---------
+    //                             x   -x
+    //                            e + e
+    //
+    for (uint32_t n{0}; n < TOP; ++n) {
+      const double x{(double(n) - (HTOP - 1)) / a};  // Best when a=598.0 on enwik9
+      const auto epx{pow(M_E, x)};
+      const auto enx{pow(M_E, -x)};
+      const auto tmp{(epx - enx) / (epx + enx)};
+      _table[n] = tmp + 1.0;
+    }
+    const double offset{_table[0]};
+    const double scale{double(TOP - 1) / (_table[TOP - 1] - offset)};
+    for (uint32_t n{0}; n < TOP; ++n) {
+      double tmp{(_table[n] - offset) * scale};
+      _squash[n] = static_cast<uint16_t>(std::lround(tmp));
+    }
+#elif 0
     //
     // Sigmoid: y(x) = erf(0.5 * sqrt(pi) * x)
     //          y(x) = erf(x/a)
@@ -46,17 +67,17 @@ public:
     for (uint32_t n{0}; n < TOP; ++n) {
       const double in{(double(n) - (HTOP - 1)) / a};  // Best when a=756.1 on enwik9
       double tmp{std::erf(in)};
-      table[n] = (1.0 + tmp) / 2.0;
+      _table[n] = (1.0 + tmp) / 2.0;
 
 #  if !defined(NDEBUG)  // Small validation: 'inverf(erf(x)) = x'
       tmp = inverf(tmp);
       assert(std::fabs(tmp - in) < 1e-6);
 #  endif
     }
-    const double offset{table[0]};
-    const double scale{double(TOP - 1) / (table[(TOP - 1)] - offset)};
+    const double offset{_table[0]};
+    const double scale{double(TOP - 1) / (_table[TOP - 1] - offset)};
     for (uint32_t n{0}; n < TOP; ++n) {
-      double tmp{(table[n] - offset) * scale};
+      double tmp{(_table[n] - offset) * scale};
       _squash[n] = static_cast<uint16_t>(std::lround(tmp));
     }
 #elif 0
@@ -66,12 +87,12 @@ public:
     //                   1 + e
     //
     for (uint32_t n{0}; n < TOP; ++n) {
-      table[n] = 1.0 / (1.0 + exp(((HTOP - 1) - double(n)) / double(a)));  // Best when a=315 on enwik9
+      _table[n] = 1.0 / (1.0 + exp(((HTOP - 1) - double(n)) / a));  // Best when a=315 on enwik9
     }
-    const double offset{table[0]};
-    const double scale{double(TOP - 1) / (table[(TOP - 1)] - offset)};
+    const double offset{_table[0]};
+    const double scale{double(TOP - 1) / (_table[TOP - 1] - offset)};
     for (uint32_t n{0}; n < TOP; ++n) {
-      double tmp{(table[n] - offset) * scale};
+      double tmp{(_table[n] - offset) * scale};
       _squash[n] = static_cast<uint16_t>(std::lround(tmp));
     }
 #else
@@ -84,27 +105,42 @@ public:
     for (int32_t n{-(HTOP - 1)}; n < HTOP; ++n) {
       const int32_t w{n & 127};
       const int32_t d{(n >> 7) + 16};
-      _squash[n + 2047] = static_cast<uint16_t>((ts[d] * (128 - w) + ts[(d + 1)] * w + 64) >> 7);
+      _squash[n + 2047] = static_cast<uint16_t>((ts[d] * (127 - w) + ts[d + 1] * w + 64) / 127);
     }
 #endif
 
 #if 0
-    File_t out("Squash.txt", "wb");
-    for (uint32_t n{0}; n < TOP; ++n) {
-      fprintf(out, "%d,", _squash[n]);
-      if (!((n + 1) % 16)) {
-        fprintf(out, "\n");
+    {
+      File_t out("Squash.txt", "wb");
+      for (uint32_t n{0}; n < HTOP; ++n) {
+        fprintf(out, "%4d,", _squash[n]);
+        if (!((n + 1) % 16)) {
+          fprintf(out, "\n");
+        }
+      }
+    }
+#endif
+#if 0
+    {
+      File_t out("Squash.csv", "wb");
+      for (uint32_t n{0}; n < TOP; ++n) {
+        fprintf(out, "%d,\n", _squash[n]);
       }
     }
 #endif
   }
 
-  constexpr auto operator()(const int32_t d) const noexcept -> uint16_t {  // Conversion from -2048..2047 (clamped) into 0..4095
-    // clang-format off
-    if (d < ~0x7FF) { return 0x000; }
-    if (d >  0x7FF) { return 0xFFF; }
-    // clang-format on
-    return _squash[static_cast<uint32_t>(d + HTOP)];
+  constexpr auto operator()(const int32_t pr) const noexcept -> uint32_t {  // Conversion from -2048..2047 (clamped) into 0..4095
+    if (pr <= ~0x7FF) {
+      return 0x000;
+    }
+    if (pr >= 0x7FF) {
+      return 0xFFF;
+    }
+    if (pr >= 0x000) {
+      return 0xFFF - _squash[static_cast<size_t>(pr ^ 0x7FF)];  // 0x7FF - pr
+    }
+    return _squash[static_cast<size_t>(pr + 0x800)];
   }
 
   Squash_t(const Squash_t&) = delete;
@@ -113,6 +149,7 @@ public:
   auto operator=(Squash_t&&) -> Squash_t& = delete;
 
 private:
+  std::array<double, TOP> _table{};
   std::array<uint16_t, TOP> _squash{};
 };
 
@@ -120,18 +157,32 @@ static Squash_t* _squash{nullptr};
 
 class Stretch_t final {
 public:
-  explicit Stretch_t(const double a = 739.7) noexcept {
-#if 1
+  explicit Stretch_t(const double a) noexcept {
+#if 0
+    //
+    //             -1    1       1 + x
+    // Sigmoid: tanh  = --- ln( ------- )
+    //                   2       1 - x
+    //
+    for (uint32_t n{0}; n < HTOP; ++n) {
+      const auto x{double(n) / double(HTOP)};
+      _table[n] = log((1.0 + x) / (1.0 - x)) * a;
+    }
+    _table[HTOP] = HTOP - 1;
+    for (uint32_t n{0}; n < _stretch.size(); ++n) {
+      const int32_t tmp{std::lround(_table[n])};
+      _stretch[n] = static_cast<int16_t>(std::clamp(tmp, 0, HTOP - 1));
+    }
+#elif 1
     // Inverse of sigmoid: y(x) = inverf(x)
     //
-    std::array<double, TOP> table{};
     for (uint32_t n{0}; n < HTOP; ++n) {
-      table[n] = inverf(double(n) / double(HTOP)) * a;
+      _table[n] = inverf(double(n) / double(HTOP)) * a;  // Best when a=738.2 on enwik9
     }
-    table[HTOP] = 2047;
+    _table[HTOP - 1] = HTOP - 1;
     for (uint32_t n{0}; n < _stretch.size(); ++n) {
-      int32_t tmp{std::lround(table[n + 1])};
-      _stretch[n] = static_cast<int16_t>(std::clamp(tmp, 0, (HTOP - 1)));
+      const int32_t tmp{std::lround(_table[n])};
+      _stretch[n] = static_cast<int16_t>(std::clamp(tmp, 0, HTOP - 1));
     }
 #else
     (void)a;  // Not adjustable
@@ -158,14 +209,22 @@ public:
        }
      }
 #endif
+#if 0
+    {
+      File_t out("Stretch.csv", "wb");
+      for (uint32_t n{0}; n < _stretch.size(); ++n) {
+        fprintf(out, "%d,\n", _stretch[n]);
+      }
+    }
+#endif
   }
 
-  constexpr auto operator()(const uint32_t pr) const noexcept -> int16_t {  // Conversion from 0..4095 into -2048..2047
+  constexpr auto operator()(const uint32_t pr) const noexcept -> int32_t {  // Conversion from 0..4095 into -2048..2047
     assert(pr < TOP);
     if (pr <= 0x7FF) {
-      return -_stretch[0x7FF - pr];
+      return -_stretch[static_cast<size_t>(pr ^ 0x7FF)];  // 0x7FF - pr
     }
-    return _stretch[pr - 0x800];
+    return _stretch[static_cast<size_t>(pr & 0x7FF)];  // pr - 0x800
   }
 
   Stretch_t(const Stretch_t&) = delete;
@@ -174,19 +233,20 @@ public:
   auto operator=(Stretch_t&&) -> Stretch_t& = delete;
 
 private:
+  std::array<double, TOP> _table{};
   std::array<int16_t, HTOP> _stretch{};
 };
 
 static Stretch_t* _stretch{nullptr};
 
-static auto Squash(const int32_t d) noexcept -> uint16_t {  // Conversion from -2048..2047 (clamped) into 0..4095
-  return (*_squash)(d);
+static auto Squash(const int32_t pr) noexcept -> uint32_t {  // Conversion from -2048..2047 (clamped) into 0..4095
+  return (*_squash)(pr);
 }
 
-static auto Stretch(const uint32_t pr) noexcept -> int16_t {  // Conversion from 0..4095 into -2048..2047
+static auto Stretch(const uint32_t pr) noexcept -> int32_t {  // Conversion from 0..4095 into -2048..2047
   return (*_stretch)(pr);
 }
 
-static auto Stretch256(const int32_t pr) noexcept -> int16_t {  // Conversion from 0..1048575 into -2048..2047
+static auto Stretch256(const int32_t pr) noexcept -> int32_t {  // Conversion from 0..1048575 into -2048..2047
   return Stretch(static_cast<uint32_t>(pr) / 256);
 }

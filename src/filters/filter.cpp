@@ -19,6 +19,7 @@
  * https://github.com/the-m-master/Moruga
  */
 #include "filter.h"
+#include <cstdint>
 #include "Progress.h"
 #include "bmp.h"
 #include "bz2.h"
@@ -84,7 +85,7 @@ Filter_t::~Filter_t() noexcept {
 
 auto Filter_t::Create(const Filter& type) noexcept -> iFilter_t* {
   switch (type) {
-    // clang-format off
+      // clang-format off
     case Filter::BMP: return new BMP_filter(_stream, _encoder, _di);
     case Filter::BZ2: return new BZ2_filter(_stream, _encoder, _di, _original_length);
     case Filter::CAB: return new CAB_filter(_stream, _encoder, _di);

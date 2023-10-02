@@ -19,8 +19,14 @@
  * https://github.com/the-m-master/Moruga
  */
 #include "CaseSpace.h"
+#include <array>
 #include <cassert>
+#include <cinttypes>
+#include <cstdint>
 #include <cstdio>
+#include <memory>
+#include <string>
+#include <string_view>
 #include <utility>
 #include "File.h"
 #include "Progress.h"

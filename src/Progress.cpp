@@ -24,14 +24,17 @@
 #include <cassert>
 #include <chrono>
 #include <cinttypes>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <string>
+#include <string_view>
+#include <thread>
 #include "filters/filter.h"
 #include "iMonitor.h"
 
 #if defined(__linux__)
-#  include <bits/this_thread_sleep.h>
 #  include <bits/types/struct_rusage.h>
 #  include <pthread.h>
 #  include <sys/ioctl.h>

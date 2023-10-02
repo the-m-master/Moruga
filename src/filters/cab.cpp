@@ -19,6 +19,7 @@
  * https://github.com/the-m-master/Moruga
  */
 #include "cab.h"
+#include <cinttypes>
 #include <climits>
 #include <cstdint>
 #include "Buffer.h"

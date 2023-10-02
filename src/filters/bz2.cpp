@@ -20,6 +20,7 @@
  */
 #include "bz2.h"
 #include <cassert>
+#include <cinttypes>
 #include <climits>
 #include <cstdint>
 #include "Buffer.h"

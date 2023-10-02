@@ -26,12 +26,10 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#include <bits/std_abs.h>
 #include <emmintrin.h>
 #include <getopt.h>
 #include <immintrin.h>
 #include <mmintrin.h>
-#include <unistd.h>
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -40,6 +38,7 @@
 #include <climits>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -1571,7 +1570,7 @@ public:
 
   void Update() noexcept {
     uint64_t h{1};
-    for (auto n{MINLEN + 2}; n > 0;) {
+    for (auto n{MINLEN + 2}; 0 != n;) {
       h = Combine64(h, _buf(n--));
     }
     const auto idx{Finalise64(h, _hashbits)};
@@ -3213,7 +3212,7 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
       } break;
 #elif defined(TUNING)
       case 'x': {
-#if 0
+#if 1
         // clang-format on
         {
           File_t result("WRT_mxr.bin", "rb");
@@ -3228,10 +3227,9 @@ auto main(int32_t argc, char* const argv[]) -> int32_t {
 
         // clang-format off
 #else
-          const uint32_t XX = std::stoul(optarg, nullptr, 16);
-          SCALE = XX >> 16;
-          DIV = XX & 0xFFFF;
-          fprintf(stdout, "\nValue : %" PRIu32 ",%" PRIu32 "\n", SCALE, DIV);
+          extern uint32_t XX;
+          XX = std::stoul(optarg, nullptr, 10);
+          fprintf(stdout, "\nValue : %" PRIu32 "\n", XX);
 #endif
       } break;
 #endif

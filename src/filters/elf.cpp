@@ -19,6 +19,7 @@
  * https://github.com/the-m-master/Moruga
  */
 #include "elf.h"
+#include <array>
 #include <cassert>
 #include <climits>
 #include <cstdint>

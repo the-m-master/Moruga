@@ -19,6 +19,7 @@
  * https://github.com/the-m-master/Moruga
  */
 #include "exe.h"
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include "Buffer.h"
@@ -31,6 +32,7 @@
 #  define IMAGE_NUMBEROF_DIRECTORY_ENTRIES 16
 #else
 #  include <minwindef.h>
+#  include <winnt.h>
 #endif
 
 /**

@@ -16,6 +16,7 @@
  */
 #include <algorithm>
 #include <array>
+#include <cinttypes>
 #include <cstdint>
 #include "gzip.h"
 

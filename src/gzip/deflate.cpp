@@ -15,6 +15,7 @@
  * https://www.gnu.org/software/gzip/
  */
 #include <array>
+#include <cinttypes>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -172,7 +173,7 @@ namespace gzip {
  */
 #define INSERT_STRING(s, match_head)               \
   UPDATE_HASH(ins_h, window[(s) + MIN_MATCH - 1]); \
-  prev[(s)&WMASK] = match_head = head[ins_h];      \
+  prev[(s) & WMASK] = match_head = head[ins_h];    \
   head[ins_h] = uint16_t(s)
 
     /* ===========================================================================

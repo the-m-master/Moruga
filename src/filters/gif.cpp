@@ -22,6 +22,7 @@
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include "Buffer.h"
 #include "File.h"

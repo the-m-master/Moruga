@@ -24,10 +24,13 @@
 #include <cassert>
 #include <cinttypes>
 #include <climits>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 #include "CaseSpace.h"

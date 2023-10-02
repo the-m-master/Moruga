@@ -17,13 +17,13 @@
  * https://github.com/the-m-master/Moruga
  */
 #include "gzip.h"
-#include <bits/std_abs.h>
 #include <bzlib.h>
 #include <zconf.h>
 #include <zlib.h>
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
