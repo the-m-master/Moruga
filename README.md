@@ -22,7 +22,7 @@ Personally, I think this is a form of cheating or pretending your performance is
 
 It must be a data compressor suitable for any data type, be it text or binary.
 
-Adding it all up and compare it to the top of [LTCB](http://mattmahoney.net/dc/text.html), then this implementation and performance is definitely a hot pepper...
+Adding it all up and compare it to the top of [LTCB](https://www.mattmahoney.net/dc/text.html), then this implementation and performance is definitely a hot pepper...
 
 ### Acknowledgements
 
@@ -47,7 +47,7 @@ Here are some of the major contributors:
 Moruga does also build using [cygwin](https://www.cygwin.com/), but is not recommended due to the DLL hell of cygwin. Currently Moruga does not build with VS due to C++ compiler incompatibility (weak C++20 support) and lack of 128-bit variables. Moruga relies on the [ZLib](https://www.zlib.net/) and [BZip2](https://sourceware.org/bzip2/) library.
 
 
-For building a release version of Moruga (using [GCC](https://gcc.gnu.org/)).
+For building a release version of Moruga (using [GCC](https://gcc.gnu.org/).
 
 ```bash
 make
@@ -59,14 +59,14 @@ To clean-up the build version
 make clean
 ```
 
-For building a guided release version of Moruga (using [GCC](https://gcc.gnu.org/)).
+For building a guided release version of Moruga (using [GCC](https://gcc.gnu.org/).
 This guided release needes '[enwik8](https://cs.fit.edu/~mmahoney/compression/textdata.html)' as input file.
 
 ```bash
 make guided
 ```
 
-For building a debug version of Moruga (using [GCC](https://gcc.gnu.org/)).
+For building a debug version of Moruga (using [GCC](https://gcc.gnu.org/).
 
 ```bash
 make MODE=debug
@@ -78,19 +78,19 @@ To clean-up the build version
 make MODE=debug clean
 ```
 
-For building a release version of Moruga (using [LLVM](https://llvm.org/)).
+For building a release version of Moruga (using [LLVM](https://llvm.org/).
 
 ```bash
 make TOOLCHAIN=llvm
 ```
 
-For building a debug version of Moruga (using [LLVM](https://llvm.org/)).
+For building a debug version of Moruga (using [LLVM](https://llvm.org/).
 
 ```bash
 make MODE=debug TOOLCHAIN=llvm
 ```
 
-Static code analysis of all CPP files of Moruga (using [LLVM](https://llvm.org/)).
+Static code analysis of all CPP files of Moruga (using [LLVM](https://llvm.org/).
 
 ```bash
 make tidy
@@ -166,7 +166,7 @@ xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
 | enwik9 | 1000000000 | 197331816 | 19% |
 
 
-## Moruga [silesia](http://mattmahoney.net/dc/silesia.html) benchmarks
+## Moruga [silesia](https://www.mattmahoney.net/dc/silesia.html) benchmarks
 
 ```bash
 Moruga c <option> <infile> <outfile>
@@ -470,7 +470,7 @@ xz --lzma2=preset=9e,dict=1GiB,lc=4,pb=0 <infile>
 | canterbury/sum | 38240 | 9668 | 25% |
 | canterbury/xargs.1 | 4227 | 1832 | 43% |
 
-## Moruga [misguided](http://mattmahoney.net/dc/barf.html) benchmarks
+## Moruga [misguided](https://www.mattmahoney.net/dc/barf.html) benchmarks
 
 Using DRT improves encoder results.
 Decoding requires the use of DRT (15548 bytes on Windows, 20824 bytes on Linux), including the dictionary (lpqdict0.dic is 465210 bytes).
