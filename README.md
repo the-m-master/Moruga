@@ -44,7 +44,7 @@ Here are some of the major contributors:
 
 ## How to build Moruga?
 ### Moruga was build and tested on [MSYS2](https://www.msys2.org/) and [Ubuntu LTS 22](https://ubuntu.com/)
-Moruga does also build using [cygwin](https://www.cygwin.com/), but is not recommended due to the DLL hell of cygwin. Currently Moruga does not build with VS due to C++ compiler incompatibility (weak C++20 support) and lack of 128-bit variables. Moruga relies on the [ZLib](https://www.zlib.net/) and [BZip2](https://sourceware.org/bzip2/) library.
+Moruga does also build using [cygwin](https://www.cygwin.com/), but is not recommended due to the DLL hell of cygwin. Currently Moruga does not build with VS due to C++ compiler incompatibility (weak C++20 support) and lack of 128-bit variables. <br> Moruga relies on the [ZLib](https://www.zlib.net/) and [BZip2](https://sourceware.org/bzip2/) library. <br> Moruga is partial tested on MacOS-Catalina-10.15.7 (VMWare environment).
 
 
 For building a release version of Moruga (using [GCC](https://gcc.gnu.org/).
@@ -59,14 +59,14 @@ To clean-up the build version
 make clean
 ```
 
-For building a guided release version of Moruga (using [GCC](https://gcc.gnu.org/).
+For building a guided release version of Moruga (using [GCC](https://gcc.gnu.org/)).
 This guided release needes '[enwik8](https://cs.fit.edu/~mmahoney/compression/textdata.html)' as input file.
 
 ```bash
 make guided
 ```
 
-For building a debug version of Moruga (using [GCC](https://gcc.gnu.org/).
+For building a debug version of Moruga (using [GCC](https://gcc.gnu.org/)).
 
 ```bash
 make MODE=debug
@@ -78,19 +78,19 @@ To clean-up the build version
 make MODE=debug clean
 ```
 
-For building a release version of Moruga (using [LLVM](https://llvm.org/).
+For building a release version of Moruga (using [LLVM](https://llvm.org/)).
 
 ```bash
 make TOOLCHAIN=llvm
 ```
 
-For building a debug version of Moruga (using [LLVM](https://llvm.org/).
+For building a debug version of Moruga (using [LLVM](https://llvm.org/)).
 
 ```bash
 make MODE=debug TOOLCHAIN=llvm
 ```
 
-Static code analysis of all CPP files of Moruga (using [LLVM](https://llvm.org/).
+Static code analysis of all CPP files of Moruga (using [LLVM](https://llvm.org/)).
 
 ```bash
 make tidy
