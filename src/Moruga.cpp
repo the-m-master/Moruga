@@ -26,10 +26,7 @@
  *
  * https://github.com/the-m-master/Moruga
  */
-#include <emmintrin.h>
 #include <getopt.h>
-#include <immintrin.h>
-#include <mmintrin.h>
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -58,6 +55,12 @@
 #include "filters/filter.h"
 #include "iEncoder.h"
 #include "iMonitor.h"
+
+#if defined(__x86_64__)
+#  include <emmintrin.h>
+#  include <immintrin.h>
+#  include <mmintrin.h>
+#endif
 
 #if defined(_WIN32) || defined(_WIN64)
 #  include <processthreadsapi.h>
@@ -553,7 +556,7 @@ APM_t::~APM_t() noexcept {
   std::free(_map);
 }
 
-#if defined(ENABLE_INTRINSICS)
+#if defined(ENABLE_INTRINSICS) && defined(__x86_64__)
 
 // https://gcc.gnu.org/onlinedocs/gcc/Vector-Extensions.html
 // https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#
@@ -617,7 +620,7 @@ public:
 
 private:
   void train(const int32_t* const __restrict t, int32_t* const __restrict w, const int32_t err) const noexcept {
-#if defined(ENABLE_INTRINSICS) && defined(__AVX__)
+#if defined(ENABLE_INTRINSICS) && defined(__AVX__) && defined(__x86_64__)
     if (7 & ctx_) {
       const auto* __restrict tt{t};
       auto* __restrict ww{w};
@@ -641,7 +644,7 @@ private:
 
   [[nodiscard]] auto dot_product(const int32_t* const __restrict t, const int32_t* const __restrict w) const noexcept -> int32_t {
     int32_t sum{0};
-#if defined(ENABLE_INTRINSICS) && defined(__AVX__)
+#if defined(ENABLE_INTRINSICS) && defined(__AVX__) && defined(__x86_64__)
     if (7 & ctx_) {
       const auto* __restrict tt{t};
       const auto* __restrict ww{w};
@@ -734,7 +737,7 @@ public:
 private:
   void train(const int16_t* const __restrict t, int16_t* const __restrict w, const int32_t err_) const noexcept {
     assert((err_ >= SHRT_MIN) && (err_ <= SHRT_MAX));
-#if defined(ENABLE_INTRINSICS) && defined(__SSE2__)
+#if defined(ENABLE_INTRINSICS) && defined(__SSE2__) && defined(__x86_64__)
     const Exchange_t tt{t};
     Exchange_t ww{w};
     if constexpr (4 == N_LAYERS) {
@@ -764,7 +767,7 @@ private:
   }
 
   [[nodiscard]] auto dot_product(const int16_t* const __restrict t, const int16_t* const __restrict w) const noexcept -> int32_t {
-#if defined(ENABLE_INTRINSICS) && defined(__SSE2__)
+#if defined(ENABLE_INTRINSICS) && defined(__SSE2__) && defined(__x86_64__)
     const Exchange_t tt{t};
     const Exchange_t ww{w};
     if constexpr (4 == N_LAYERS) {

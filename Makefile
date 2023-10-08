@@ -86,8 +86,8 @@ ifeq ($(TOOLCHAIN),llvm)
   OBJDUMP     := llvm-objdump --no-show-raw-insn
   STRIP       := @llvm-strip
 else
-  CC          := gcc
-  CXX         := g++
+  CC          := $(PREFIX)gcc
+  CXX         := $(PREFIX)g++
   CXX_VERSION := $(shell expr `$(CXX) -dumpversion | cut -f1 -d.` \>= 10)
   OBJDUMP     := objdump --no-addresses --no-show-raw-insn
   STRIP       := @strip
@@ -128,7 +128,11 @@ endif
 # c\c++ compiler flags
 #===============================================================================
 
-CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native -pthread
+CCFLAGS := -MMD -pthread
+
+ifeq "$(PREFIX)" ""
+  CCFLAGS += -m64 -mno-ms-bitfields -march=native -mtune=native
+endif
 
 ifeq ($(MODE),debug)
   CCFLAGS += -g3 -O0
