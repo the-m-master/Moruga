@@ -32,6 +32,12 @@
 #  include <unistd.h>
 #endif
 
+#if defined(__APPLE__)
+#  define fflush_unlocked(stream) fflush(stream)
+#  define fread_unlocked(ptr, size, n, stream) fread(ptr, size, n, stream)
+#  define fwrite_unlocked(ptr, size, n, stream) fwrite(ptr, size, n, stream)
+#endif  // __APPLE__
+
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 #  include <windows.h>
 
@@ -72,7 +78,7 @@ static std::string getTempFileLocation() noexcept {
  */
 class File_t final {
 public:
-#if defined(__linux__) || defined(__CYGWIN__)
+#if defined(__linux__) || defined(__APPLE__) || defined(__CYGWIN__)
   explicit File_t() noexcept : File_t(nullptr, _mode) {}
 #else
   explicit File_t() noexcept : File_t(getTempFileLocation().c_str(), _mode) {}
@@ -119,7 +125,7 @@ public:
    */
   [[nodiscard]] auto Size() const noexcept -> int64_t {
     Flush();  // Mandatory to flush first!
-#if defined(__CYGWIN__)
+#if defined(__CYGWIN__) || defined(__APPLE__)
     struct stat fileInfo;
     fstat(fileno_unlocked(_stream), &fileInfo);
 #elif !defined(__linux__) && defined(_MSC_VER)
@@ -139,7 +145,7 @@ public:
   [[nodiscard]] auto Position() const noexcept -> int64_t {
 #if defined(__CYGWIN__)
     return ftell(_stream);
-#elif !defined(__linux__) && defined(_MSC_VER)
+#elif !defined(__linux__) && !defined(__APPLE__) && defined(_MSC_VER)
     return _ftelli64(_stream);
 #else
     if (fpos_t pos{}; !fgetpos(_stream, &pos)) {
@@ -154,7 +160,9 @@ public:
   }
 
   auto Seek(const int64_t offset) const noexcept -> int32_t {
-#if defined(__linux__)
+#if defined(__APPLE__)
+    return fseeko(_stream, offset, SEEK_SET);
+#elif defined(__linux__)
     return fseeko64(_stream, offset, SEEK_SET);
 #else
     const fpos_t pos{offset};
@@ -184,11 +192,19 @@ public:
   }
 
   [[nodiscard]] ALWAYS_INLINE auto getc() const noexcept -> int32_t {
+#if defined(__APPLE__)
+    return ::getc(_stream);
+#else
     return getc_unlocked(_stream);
+#endif
   }
 
   ALWAYS_INLINE void putc(const int32_t ch) const noexcept {
+#if defined(__APPLE__)
+    ::putc(ch, _stream);
+#else
     putc_unlocked(ch, _stream);
+#endif
   }
 
   [[nodiscard]] auto get32() const noexcept -> uint32_t {

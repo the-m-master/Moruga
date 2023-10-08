@@ -34,8 +34,7 @@
 #include "filters/filter.h"
 #include "iMonitor.h"
 
-#if defined(__linux__)
-#  include <bits/types/struct_rusage.h>
+#if defined(__linux__) || defined(__APPLE__)
 #  include <pthread.h>
 #  include <sys/ioctl.h>
 #  include <sys/resource.h>
@@ -77,7 +76,7 @@ namespace {
     return ndigits;
   }
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
 
   auto GetConsoleColumns() noexcept -> int32_t {
     struct winsize csbi;
@@ -287,7 +286,7 @@ namespace {
         fprintf(stdout, "\r\n%*s[Filter: %.*s]\r", tracer->digits + tracer->digits + length + 39, " ", barLength, filters.c_str());
 
         static constexpr std::string_view cursor_up_one_line = "\033[1A"sv;
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
         fputs(cursor_up_one_line.data(), stdout);
 #else
         const char* const term{getenv("TERM")};
@@ -313,7 +312,7 @@ namespace {
 
   void MonitorWorker(const volatile TraceProgress_t* const tracer) noexcept {
     assert(tracer);
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && !defined(__APPLE__)
     pthread_setname_np(pthread_self(), __FUNCTION__);
 #endif
 

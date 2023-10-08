@@ -27,7 +27,7 @@
 #include "filter.h"
 #include "iEncoder.h"
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
 #  define IMAGE_SIZEOF_SHORT_NAME 8
 #  define IMAGE_NUMBEROF_DIRECTORY_ENTRIES 16
 #else

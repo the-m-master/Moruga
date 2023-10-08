@@ -164,7 +164,7 @@ namespace {
     }
 
     std::array<char, 32> tmp{};
-    snprintf(tmp.data(), tmp.size(), "%4" PRId64 " %s", size, size_dim.data());
+    snprintf(tmp.data(), tmp.size(), "%4" PRId64 " %s", uint64_t(size), size_dim.data());
     return tmp.data();
   }
 

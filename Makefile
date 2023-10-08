@@ -48,20 +48,28 @@ LIB_DIRS :=
 # libraries
 #===============================================================================
 
-ifeq ($(UNAME), Linux)
+ifeq ($(UNAME),Linux)
   LIBS := z bz2
 else
-  LIBS := psapi z bz2
+  ifeq ($(UNAME),Darwin)
+    LIBS := z bz2
+  else
+    LIBS := psapi z bz2
+  endif
 endif
 
 #===============================================================================
 # build artifacts
 #===============================================================================
 
-ifeq ($(UNAME), Linux)
+ifeq ($(UNAME),Linux)
   BIN_FILE := $(PROJECT_NAME)
 else
-  BIN_FILE := $(PROJECT_NAME).exe
+  ifeq ($(UNAME),Darwin)
+    BIN_FILE := $(PROJECT_NAME)
+  else
+    BIN_FILE := $(PROJECT_NAME).exe
+  endif
 endif
 
 LSS_FILE    := $(PROJECT_NAME).lss
@@ -74,13 +82,15 @@ PROFILE_DIR := Profile
 ifeq ($(TOOLCHAIN),llvm)
   CC          := clang
   CXX         := clang++
-  OBJDUMP     := llvm-objdump --no-show-raw-insn
   CXX_VERSION := $(shell expr `$(CXX) -dumpversion | cut -f1 -d.` \>= 11)
+  OBJDUMP     := llvm-objdump --no-show-raw-insn
+  STRIP       := @llvm-strip
 else
   CC          := gcc
   CXX         := g++
-  OBJDUMP     := objdump --no-addresses --no-show-raw-insn
   CXX_VERSION := $(shell expr `$(CXX) -dumpversion | cut -f1 -d.` \>= 10)
+  OBJDUMP     := objdump --no-addresses --no-show-raw-insn
+  STRIP       := @strip
 endif
 
 ifneq "$(CXX_VERSION)" "1"
@@ -122,7 +132,7 @@ CCFLAGS := -m64 -MMD -mno-ms-bitfields -march=native -mtune=native -pthread
 
 ifeq ($(MODE),debug)
   CCFLAGS += -g3 -O0
-  ifeq ($(UNAME), Linux)
+  ifeq ($(UNAME),Linux)
     CCFLAGS += -fsanitize=address
   else
     CCFLAGS += -fstack-protector-strong
@@ -234,14 +244,10 @@ ifeq ($(TOOLCHAIN),llvm)
   endif
 endif
 
-ifneq ($(UNAME), Linux)
-  LDFLAGS += -static src/$(PROJECT_NAME).res
-endif
-
-ifneq ($(MODE),debug)
-  ifneq ($(MODE),profile)
-    LDFLAGS += -s
-  endif 
+ifneq ($(UNAME),Linux)
+  ifneq ($(UNAME),Darwin)
+    LDFLAGS += -static src/$(PROJECT_NAME).res
+  endif
 endif
 
 #===============================================================================
@@ -300,6 +306,11 @@ all:
 $(BUILD_DIR)/$(BIN_FILE): $(OBJECTS)
 	$(CXX) $(LDFLAGS) $(CCFLAGS) $(_LIB_DIRS) $(OBJECTS) $(_LIBS) -o $(BUILD_DIR)/$(BIN_FILE)
 #	@$(OBJDUMP) --source $(BUILD_DIR)/$(BIN_FILE) > $(BUILD_DIR)/$(LSS_FILE)
+ifneq ($(MODE),debug)
+ifneq ($(MODE),profile)
+	$(STRIP) --strip-all $(BUILD_DIR)/$(BIN_FILE)
+endif
+endif
 
 #===============================================================================
 # Build all c files
